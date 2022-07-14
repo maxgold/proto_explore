@@ -18,7 +18,7 @@ import dmc
 import utils
 from logger import Logger
 from replay_buffer import make_replay_loader
-#from video import VideoRecorder
+from video import VideoRecorder
 
 def get_domain(task):
     if task.startswith('point_mass_maze'):
@@ -127,12 +127,13 @@ def main(cfg):
     replay_loader = make_replay_loader(env, replay_dir, cfg.replay_buffer_size,
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
-                                       cfg.discount)
+                                       cfg.discount,
+                                       offset=250)
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
     # create video recorders
-    #video_recorder = VideoRecorder(work_dir if cfg.save_video else None)
+    video_recorder = VideoRecorder(work_dir if cfg.save_video else None)
 
     timer = utils.Timer()
     import IPython as ipy; ipy.embed(colors='neutral')
@@ -147,16 +148,17 @@ def main(cfg):
     optimizer = torch.optim.Adam(vae.parameters(), lr=.01)
     losses = []
 
-    offset = 100
 
     for _ in tqdm.tqdm(range(100)):
         batch = next(replay_iter)
-        obs, _, _, _, _ = batch
-        x = obs[:-offset].cuda()
-        y = obs[offset:].cuda()
+        x, _, _, _, y = batch
+        x = x.cuda()
+        y = y.cuda()
+        #x = obs[:-offset].cuda()
+        #y = obs[offset:].cuda()
 
         optimizer.zero_grad()
-        loss = vae.elbo(x, y-x, beta=1)
+        loss = vae.elbo(x, y, beta=1)
         #loss = vae.recon_loss(x, y)
         loss.backward()
         optimizer.step()
