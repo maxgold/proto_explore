@@ -87,10 +87,11 @@ def main(cfg):
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / 'buffer'
     print(f'replay dir: {replay_dir}')
 
-    replay_loader = make_replay_loader(env, replay_dir, cfg.replay_buffer_size,
+    replay_loader = make_goal_replay_loader(env, replay_dir, cfg.replay_buffer_size,
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
-                                       cfg.discount)
+                                       cfg.discount, cfg.traj_length)
+    ## should the traj_length be a cfg variable? or should it vary with training schedule 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
