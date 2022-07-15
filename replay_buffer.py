@@ -46,7 +46,7 @@ def relable_episode(env, episode):
 
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(self, env, replay_dir, max_size, num_workers, discount):
+    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=100):
         self._env = env
         self._replay_dir = replay_dir
         self._size = 0
@@ -56,6 +56,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._episodes = dict()
         self._discount = discount
         self._loaded = False
+        self.offset = offset
 
     def _load(self, relable=True):
         print('Labeling data...')
@@ -98,10 +99,50 @@ class OfflineReplayBuffer(IterableDataset):
         reward = episode['reward'][idx]
         discount = episode['discount'][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
+    
+    
+    def _sample_goal_conditioned(self, traj_length):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) + 1
+        if (idx+traj_length)<len(episode['observation']):
+            goal = idx+traj_length
+            obs = episode['observation'][(idx - 1):(goal-1)]
+            action = episode['action'][idx:goal]
+            next_obs = episode['observation'][idx:goal]
+            reward = np.zeros(next_obs.shape)
+            reward[-1] = 1
+            discount = episode['discount'][idx:goal] * self._discount
+            terminal = np.ones(next_obs.shape)
+            terminal[-1]=0
+        else:
+            goal = len(episode['observation'])
+            obs = episode['observation'][idx - 1:goal-1]
+            action = episode['action'][idx:goal]
+            next_obs = episode['observation'][idx:goal]
+            reward = np.zeros(next_obs.shape)
+            reward[-1] = 1
+            discount = episode['discount'][idx] * self._discount
+            terminal = np.ones(next_obs.shape)
+            terminal[-1]=0
+        return (obs, action, reward, discount, terminal)
+
+
+    def _sample_future(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)-self.offset) + 1
+        obs = episode['observation'][idx - 1]
+        action = episode['action'][idx]
+        next_obs = episode['observation'][idx+self.offset]
+        reward = episode['reward'][idx]
+        discount = episode['discount'][idx] * self._discount
+        return (obs, action, reward, discount, next_obs)
 
     def __iter__(self):
         while True:
-            yield self._sample()
+            #yield self._sample()
+            yield self._sample_future()
 
 
 def _worker_init_fn(worker_id):
@@ -111,11 +152,11 @@ def _worker_init_fn(worker_id):
 
 
 def make_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
-                       discount):
+                       discount, offset=100):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(env, replay_dir, max_size_per_worker,
-                                   num_workers, discount)
+                                   num_workers, discount, offset)
     iterable._load()
 
     loader = torch.utils.data.DataLoader(iterable,
@@ -124,3 +165,23 @@ def make_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
                                          pin_memory=True,
                                          worker_init_fn=_worker_init_fn)
     return loader
+
+def make_goal_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
+                       discount, traj_length, offset=100):
+    max_size_per_worker = max_size // max(1, num_workers)
+
+    iterable = OfflineReplayBuffer(env, replay_dir, max_size_per_worker,
+                                   num_workers, discount, offset)
+    
+    iterable._sample_goal_conditioned(traj_length)
+    #add traj_length
+
+    loader = torch.utils.data.DataLoader(iterable,
+                                         batch_size=batch_size,
+                                         num_workers=num_workers,
+                                         pin_memory=True,
+                                         worker_init_fn=_worker_init_fn)
+    return loader
+
+
+

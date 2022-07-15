@@ -114,7 +114,7 @@ class TD3Agent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-    def update_critic(self, obs, action, reward, discount, next_obs, step):
+    def update_critic(self, obs, action, reward, discount, next_obs, terminal, step):
         metrics = dict()
 
         with torch.no_grad():
@@ -123,7 +123,7 @@ class TD3Agent:
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (discount * target_V)
+            target_Q = reward + terminal * self.discount * target_Q
 
         Q1, Q2 = self.critic(obs, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
@@ -166,7 +166,7 @@ class TD3Agent:
         metrics = dict()
 
         batch = next(replay_iter)
-        obs, action, reward, discount, next_obs = utils.to_torch(
+        obs, action, reward, discount, terminal, next_obs = utils.to_torch(
             batch, self.device)
 
         if self.use_tb:
@@ -174,7 +174,7 @@ class TD3Agent:
 
         # update critic
         metrics.update(
-            self.update_critic(obs, action, reward, discount, next_obs, step))
+            self.update_critic(obs, action, reward, discount, terminal, next_obs, step))
 
         # update actor
         metrics.update(self.update_actor(obs, action, step))
