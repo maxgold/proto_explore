@@ -106,26 +106,28 @@ class OfflineReplayBuffer(IterableDataset):
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode)) + 1
         if (idx+traj_length)<len(episode['observation']):
-            goal = idx+traj_length
-            obs = episode['observation'][(idx - 1):(goal-1)]
-            action = episode['action'][idx:goal]
-            next_obs = episode['observation'][idx:goal]
+            goal_idx = idx+traj_length
+            goal = episode['observation'][goal_idx]
+            obs = episode['observation'][(idx - 1):(goal_idx-1)]
+            action = episode['action'][idx:goal_idx]
+            next_obs = episode['observation'][idx:goal_idx]
             reward = np.zeros(next_obs.shape)
             reward[-1] = 1
-            discount = episode['discount'][idx:goal] * self._discount
+            discount = episode['discount'][idx:goal_idx] * self._discount
             terminal = np.ones(next_obs.shape)
             terminal[-1]=0
         else:
-            goal = len(episode['observation'])
-            obs = episode['observation'][idx - 1:goal-1]
-            action = episode['action'][idx:goal]
-            next_obs = episode['observation'][idx:goal]
+            goal_idx = len(episode['observation'])
+            goal = episode['observation'][goal_idx]
+            obs = episode['observation'][idx - 1:goal_idx-1]
+            action = episode['action'][idx:goal_idx]
+            next_obs = episode['observation'][idx:goal_idx]
             reward = np.zeros(next_obs.shape)
             reward[-1] = 1
             discount = episode['discount'][idx] * self._discount
             terminal = np.ones(next_obs.shape)
             terminal[-1]=0
-        return (obs, action, reward, discount, terminal)
+        return (obs, action, reward, discount, terminal, goal, next_obs)
 
 
     def _sample_future(self):

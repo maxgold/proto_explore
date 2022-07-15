@@ -17,7 +17,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import make_replay_loader
+from replay_buffer import make_goal_replay_loader
 from video import VideoRecorder
 
 torch.backends.cudnn.benchmark = True
