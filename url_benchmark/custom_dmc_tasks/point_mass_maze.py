@@ -181,7 +181,3 @@ class MultiTaskPointMassMaze(base.Task):
                                 bounds=(0, target_size), margin=target_size)
         reward = near_target * small_control
         return reward
-
-
-
-

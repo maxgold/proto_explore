@@ -149,7 +149,7 @@ def main(cfg):
     losses = []
 
 
-    for _ in tqdm.tqdm(range(100)):
+    for _ in tqdm.tqdm(range(1000)):
         batch = next(replay_iter)
         x, _, _, _, y = batch
         x = x.cuda()
@@ -158,7 +158,7 @@ def main(cfg):
         #y = obs[offset:].cuda()
 
         optimizer.zero_grad()
-        loss = vae.elbo(x, y, beta=1)
+        loss = vae.elbo(x, y-x, beta=1)
         #loss = vae.recon_loss(x, y)
         loss.backward()
         optimizer.step()
