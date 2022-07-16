@@ -46,7 +46,9 @@ def relable_episode(env, episode):
 
 
 class OfflineReplayBuffer(IterableDataset):
+
     def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=100):
+
         self._env = env
         self._replay_dir = replay_dir
         self._size = 0
@@ -92,10 +94,27 @@ class OfflineReplayBuffer(IterableDataset):
     def _sample(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) + 1
+        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
         obs = episode['observation'][idx - 1]
         action = episode['action'][idx]
         next_obs = episode['observation'][idx]
+        goal = episode['observation'][idx + self.offset]
+        reward = np.zeros_like(episode['reward'][idx])
+        discount = np.ones_like(episode['discount'][idx])
+        for i in range(self.offset):
+            discount *= episode['discount'][idx + i] * self._discount
+            if i == self.offset - 1:
+                reward = np.ones_like(episode['reward'][idx]) * discount
+            
+        return (obs, action, reward, discount, next_obs, goal)
+
+    def _sample_future(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)-self.offset) + 1
+        obs = episode['observation'][idx - 1]
+        action = episode['action'][idx]
+        next_obs = episode['observation'][idx+self.offset]
         reward = episode['reward'][idx]
         discount = episode['discount'][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
@@ -113,8 +132,10 @@ class OfflineReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-            #yield self._sample()
-            yield self._sample_future()
+
+            yield self._sample()
+#             yield self._sample_future()
+
 
 
 def _worker_init_fn(worker_id):
@@ -137,3 +158,23 @@ def make_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
                                          pin_memory=True,
                                          worker_init_fn=_worker_init_fn)
     return loader
+
+# def make_goal_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
+#                        discount, traj_length, offset=100):
+#     max_size_per_worker = max_size // max(1, num_workers)
+
+#     iterable = OfflineReplayBuffer(env, replay_dir, max_size_per_worker,
+#                                    num_workers, discount, offset)
+    
+#     iterable._sample_goal_conditioned(traj_length)
+#     #add traj_length
+
+#     loader = torch.utils.data.DataLoader(iterable,
+#                                          batch_size=batch_size,
+#                                          num_workers=num_workers,
+#                                          pin_memory=True,
+#                                          worker_init_fn=_worker_init_fn)
+#     return loader
+
+
+

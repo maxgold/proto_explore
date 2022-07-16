@@ -75,7 +75,8 @@ def main(cfg):
     # create agent
     agent = hydra.utils.instantiate(cfg.agent,
                                     obs_shape=env.observation_spec().shape,
-                                    action_shape=env.action_spec().shape)
+                                    action_shape=env.action_spec().shape,
+                                   goal_shape=env.observation_spec().shape,)
 
     # create replay buffer
     data_specs = (env.observation_spec(), env.action_spec(), env.reward_spec(),
@@ -91,6 +92,7 @@ def main(cfg):
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
                                        cfg.discount)
+
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
