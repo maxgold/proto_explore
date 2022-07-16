@@ -17,7 +17,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import make_goal_replay_loader
+from replay_buffer import make_replay_loader
 from video import VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -75,7 +75,8 @@ def main(cfg):
     # create agent
     agent = hydra.utils.instantiate(cfg.agent,
                                     obs_shape=env.observation_spec().shape,
-                                    action_shape=env.action_spec().shape)
+                                    action_shape=env.action_spec().shape,
+                                   goal_shape=env.observation_spec().shape,)
 
     # create replay buffer
     data_specs = (env.observation_spec(), env.action_spec(), env.reward_spec(),
@@ -87,11 +88,11 @@ def main(cfg):
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / 'buffer'
     print(f'replay dir: {replay_dir}')
 
-    replay_loader = make_goal_replay_loader(env, replay_dir, cfg.replay_buffer_size,
+    replay_loader = make_replay_loader(env, replay_dir, cfg.replay_buffer_size,
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
-                                       cfg.discount, cfg.traj_length)
-    ## should the traj_length be a cfg variable? or should it vary with training schedule 
+                                       cfg.discount)
+
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
