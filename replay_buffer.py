@@ -46,7 +46,7 @@ def relable_episode(env, episode):
 
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=100):
+    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset):
         self._env = env
         self._replay_dir = replay_dir
         self._size = 0
@@ -102,26 +102,10 @@ class OfflineReplayBuffer(IterableDataset):
         discount = np.ones_like(episode['discount'][idx])
         for i in range(self.offset):
             discount *= episode['discount'][idx + i] * self._discount
-            if i == self.offset-1:
+            if i == self.offset - 1:
                 reward = np.ones_like(episode['reward'][idx]) * discount
             
         return (obs, action, reward, discount, next_obs, goal)
-    
-#     def add(self): #from urlb_jyo/blob/guided_entropy/replay_buffer.py
-#         goal = episode['observation'][idx + self._nstep - 1]
-#             self._current_episode.append(value)
-#         if time_step.last():
-#             episode = dict()
-#             for spec in self._data_specs:
-#                 value = self._current_episode[spec.name]
-#                 episode[spec.name] = np.array(value, spec.dtype)
-#             for spec in self._meta_specs:
-#                 value = self._current_episode[spec.name]
-#                 episode[spec.name] = np.array(value, spec.dtype)
-#             self._current_episode = defaultdict(list)
-#             self._store_episode(episode)
-        
-#         next_obs = episode['observation'][idx + self._nstep - 1]
 
     def _sample_future(self):
         episode = self._sample_episode()
