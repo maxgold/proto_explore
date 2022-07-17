@@ -49,7 +49,6 @@ def relable_episode(env, episode):
 class OfflineReplayBuffer(IterableDataset):
 
     def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=1, offset_schedule=None):
-
         self._env = env
         self._replay_dir = replay_dir
         self._size = 0
@@ -116,12 +115,12 @@ class OfflineReplayBuffer(IterableDataset):
                 action=action, 
                 reward=1, ## technically we should collect the whole path to get all the rewards? 
                 # what if the model was able to predict goal state or goal +1, then that should also be rewarded
-#                 next_ob=next_ob,
-#                 goal=goal,
+                #next_ob=next_ob,
+                #goal=goal,
                 future=episode['observation'][idx + self.offset*2]
                 
                 ##maybe change the *2 later on? 
-        )
+            )
             
         return (obs, action, reward, discount, next_obs, goal)
 

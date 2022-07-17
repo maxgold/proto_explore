@@ -136,9 +136,8 @@ def main(cfg):
     while train_until_step(global_step):
         # try to evaluate
         if eval_every_step(global_step):
-            logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder)
-
+            logger.log('eval_total_time', timer.total_time(), global_step)
+           # eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder)
         metrics = agent.update(replay_iter, global_step)
         logger.log_metrics(metrics, global_step, ty="train")
         if log_every_step(global_step):

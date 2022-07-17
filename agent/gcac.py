@@ -33,17 +33,17 @@ import utils
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_type, obs_dim, action_dim, goal_dim, feature_dim, hidden_dim):
+    def __init__(self, obs_type, obs_dim, action_dim, goal_dim, hidden_dim):
         super().__init__()
 
-        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+        #feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
 
-        self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-                                   nn.LayerNorm(feature_dim), nn.Tanh())
+        self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, hidden_dim),
+                                   nn.LayerNorm(hidden_dim), nn.Tanh())
 
         policy_layers = []
         policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
@@ -70,24 +70,24 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_type, obs_dim, action_dim, goal_dim, feature_dim, hidden_dim):
+    def __init__(self, obs_dim, action_dim, goal_dim, hidden_dim):
         super().__init__()
 
-        self.obs_type = obs_type
+       # self.obs_type = obs_type
 
-        if obs_type == 'pixels':
-            # for pixels actions will be added after trunk
-            self.trunk = nn.Sequential(nn.Linear(obs_dim + action_dim + goal_dim, feature_dim),
-                                       nn.LayerNorm(feature_dim), nn.Tanh())
-            #what's trunk dim used for?????
-            trunk_dim = feature_dim + action_dim + goal_dim
-        else:
+       # if obs_type == 'pixels':
+       #     # for pixels actions will be added after trunk
+       #     self.trunk = nn.Sequential(nn.Linear(obs_dim + action_dim + goal_dim, feature_dim),
+       #                                nn.LayerNorm(feature_dim), nn.Tanh())
+       #     #what's trunk dim used for?????
+       #     trunk_dim = feature_dim + action_dim + goal_dim
+       # else:
             # for states actions come in the beginning
-            self.trunk = nn.Sequential(
-                nn.Linear(obs_dim + action_dim + goal_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim), nn.Tanh())
+        self.trunk = nn.Sequential(
+        nn.Linear(obs_dim + action_dim + goal_dim, hidden_dim),
+        nn.LayerNorm(hidden_dim), nn.Tanh())
                        
-            trunk_dim = hidden_dim
+        trunk_dim = hidden_dim
 
         def make_q():
             q_layers = []
@@ -95,11 +95,11 @@ class Critic(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-            if obs_type == 'pixels':
-                q_layers += [
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
-                ]
+        #    if obs_type == 'pixels':
+        #        q_layers += [
+        #            nn.Linear(hidden_dim, hidden_dim),
+        #            nn.ReLU(inplace=True)
+        #        ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
 
@@ -109,10 +109,11 @@ class Critic(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, action):
-        inpt = obs if self.obs_type == 'pixels' else torch.cat([obs, action, goal],
-                                                               dim=-1)
+        #inpt = obs if self.obs_type == 'pixels' else torch.cat([obs, action, goal],
+        #                                                       dim=-1)
+        inpt = torch.cat([obs, action, goal])
         h = self.trunk(inpt)
-        h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
+        #h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
 
         q1 = self.Q1(h)
         q2 = self.Q2(h)
@@ -123,30 +124,20 @@ class Critic(nn.Module):
 class GCACAgent:
     def __init__(self,
                  name,
-                 reward_free,
-                 obs_type,
                  obs_shape,
                  action_shape,
                  goal_shape,
                  device,
                  lr,
-                 feature_dim,
                  hidden_dim,
                  critic_target_tau,
-                 num_expl_steps,
-                 update_every_steps,
                  stddev_schedule,
                  nstep,
                  batch_size,
                  stddev_clip,
-                 init_critic,
                  offset,
                  offset_schedule,
-                 use_tb,
-                 use_wandb,
-                 meta_dim=0):
-        self.reward_free = reward_free
-        self.obs_type = obs_type
+                 use_tb):
         self.obs_shape = obs_shape
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
@@ -154,44 +145,38 @@ class GCACAgent:
         self.lr = lr
         self.device = device
         self.critic_target_tau = critic_target_tau
-        self.update_every_steps = update_every_steps
         self.use_tb = use_tb
-        self.use_wandb = use_wandb
-        self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
-        self.init_critic = init_critic
-        self.feature_dim = feature_dim
         self.offset = offset
         self.offset_schedule = offset_schedule
-        self.solved_meta = None
 
         # models
-        if obs_type == 'pixels':
-            self.aug = utils.RandomShiftsAug(pad=4)
-            self.encoder = Encoder(obs_shape).to(device)
-            self.obs_dim = self.encoder.repr_dim + meta_dim
-        else:
+       # if obs_type == 'pixels':
+       #     self.aug = utils.RandomShiftsAug(pad=4)
+       #     self.encoder = Encoder(obs_shape).to(device)
+       #     self.obs_dim = self.encoder.repr_dim + meta_dim
+       # else:
 #             self.aug = nn.Identity()
 #             self.encoder = nn.Identity()
-            self.obs_goal_dim = obs_shape[0] + goal_dim
+        self.obs_goal_dim = obs_shape[0] + goal_dim
 
-        self.actor = Actor(obs_type, self.obs_dim, self.action_dim, self.goal_dim,
-                           feature_dim, hidden_dim).to(device)
+        self.actor = Actor(self.obs_dim, self.action_dim, self.goal_dim,
+                           hidden_dim).to(device)
 
-        self.critic = Critic(obs_type, self.obs_dim, self.action_dim, self.goal_dim,
-                             feature_dim, hidden_dim).to(device)
-        self.critic_target = Critic(obs_type, self.obs_dim, self.action_dim, self.goal_dim,
-                                    feature_dim, hidden_dim).to(device)
+        self.critic = Critic(self.obs_dim, self.action_dim, self.goal_dim,
+                             hidden_dim).to(device)
+        self.critic_target = Critic(self.obs_dim, self.action_dim, self.goal_dim,
+                                    hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         # optimizers
 
-        if obs_type == 'pixels':
-            self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
-                                                lr=lr)
-        else:
-            self.encoder_opt = None
+        #if obs_type == 'pixels':
+        #    self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
+        #                                        lr=lr)
+        #else:
+        # self.encoder_opt = None
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
 
@@ -255,20 +240,20 @@ class GCACAgent:
         Q1, Q2 = self.critic(obs, action, goal)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
-        if self.use_tb or self.use_wandb:
+        if self.use_tb:
             metrics['critic_target_q'] = target_Q.mean().item()
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
 
         # optimize critic
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
+        #if self.encoder_opt is not None:
+        #    self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
+        #if self.encoder_opt is not None:
+        #    self.encoder_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, step):
@@ -288,7 +273,7 @@ class GCACAgent:
         actor_loss.backward()
         self.actor_opt.step()
 
-        if self.use_tb or self.use_wandb:
+        if self.use_tb:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()
             metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
@@ -320,7 +305,7 @@ class GCACAgent:
 #         with torch.no_grad():
 #             next_obs = self.aug_and_encode(next_obs)
 
-        if self.use_tb or self.use_wandb:
+        if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 
         # update critic
