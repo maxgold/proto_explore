@@ -92,7 +92,7 @@ def main(cfg):
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
                                        cfg.discount)
-
+    
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
