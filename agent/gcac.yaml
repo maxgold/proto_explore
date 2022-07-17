@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.ddpg.DDPGAgent
-name: ddpg
+_target_: agent.gcac.GCACAgent
+name: gcac
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later

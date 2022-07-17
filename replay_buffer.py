@@ -47,7 +47,7 @@ def relable_episode(env, episode):
 
 class OfflineReplayBuffer(IterableDataset):
 
-    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=100):
+    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=1, offset_schedule):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -59,6 +59,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._discount = discount
         self._loaded = False
         self.offset = offset
+        self.offset_schedule = offset_schedule
 
     def _load(self, relable=True):
         print('Labeling data...')
@@ -94,6 +95,7 @@ class OfflineReplayBuffer(IterableDataset):
     def _sample(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
+        
         idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
         obs = episode['observation'][idx - 1]
         action = episode['action'][idx]
@@ -107,17 +109,6 @@ class OfflineReplayBuffer(IterableDataset):
                 reward = np.ones_like(episode['reward'][idx]) * discount
             
         return (obs, action, reward, discount, next_obs, goal)
-
-    def _sample_future(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)-self.offset) + 1
-        obs = episode['observation'][idx - 1]
-        action = episode['action'][idx]
-        next_obs = episode['observation'][idx+self.offset]
-        reward = episode['reward'][idx]
-        discount = episode['discount'][idx] * self._discount
-        return (obs, action, reward, discount, next_obs)
 
     def _sample_future(self):
         episode = self._sample_episode()
