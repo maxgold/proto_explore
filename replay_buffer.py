@@ -121,8 +121,23 @@ class OfflineReplayBuffer(IterableDataset):
                 
                 ##maybe change the *2 later on? 
             )
+            ''' 
+            episode = self._sample_episode()
+            # add +1 for the first dummy transition
             
-        return (obs, action, reward, discount, next_obs, goal)
+            idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+            obs = episode['observation'][idx - 1]
+            action = episode['action'][idx]
+            next_obs = episode['observation'][idx]
+            goal = episode['observation'][idx + self.offset]
+            reward = np.zeros_like(episode['reward'][idx])
+            discount = np.ones_like(episode['discount'][idx])
+            for i in range(self.offset):
+                discount *= episode['discount'][idx + i] * self._discount
+                if i == self.offset - 1:
+                    reward = np.ones_like(episode['reward'][idx]) * discount 
+            '''
+            return (obs, action, reward, discount, next_obs, goal)
 
     def _sample_future(self):
         episode = self._sample_episode()
@@ -137,8 +152,13 @@ class OfflineReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-
-            yield self._sample()
+            ##################### set var in config to replace 100 later
+            for i in range(1,100):
+                self.offset=i
+                for ix in range(100000):
+                    if ix==1:
+                        print('sample', self._sample(), 'offset', i)
+                    yield self._sample()
 #             yield self._sample_future()
 
 def _worker_init_fn(worker_id):

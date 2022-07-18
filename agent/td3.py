@@ -8,7 +8,6 @@ from collections import OrderedDict
 import utils
 from dm_control.utils import rewards
 
-##how do we get goal dim & add goal
 
 
 class Actor(nn.Module):
@@ -75,6 +74,8 @@ class TD3Agent:
                  batch_size,
                  stddev_clip,
                  use_tb,
+                 offset,
+                 offset_schedule,
                  has_next_action=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
@@ -84,6 +85,8 @@ class TD3Agent:
         self.use_tb = use_tb
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
+        self.offset = offset
+        self.offset_schedule = offset_schedule
 
         # models
         self.actor = Actor(obs_shape[0], action_shape[0], goal_shape[0],
@@ -120,7 +123,7 @@ class TD3Agent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-    def update_critic(self, obs, action, reward, discount, next_obs, terminal, goal, step):
+    def update_critic(self, obs, action, reward, discount, next_obs, goal, step):
         metrics = dict()
 
         with torch.no_grad():
@@ -129,7 +132,7 @@ class TD3Agent:
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action, goal)
             target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + terminal * self.discount * target_Q
+            target_Q = reward + discount * target_V
 
         Q1, Q2 = self.critic(obs, action, goal)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
@@ -172,15 +175,18 @@ class TD3Agent:
         metrics = dict()
 
         batch = next(replay_iter)
-        obs, action, reward, discount, terminal, goal, next_obs = utils.to_torch(
+        print('batch, next(replay_iter)', batch[0].shape)
+
+        obs, action, reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
+            print(metrics['batch_reward'])
 
         # update critic
         metrics.update(
-            self.update_critic(obs, action, reward, discount, terminal, goal, next_obs, step))
+            self.update_critic(obs, action, reward, discount, next_obs, goal, step))
 
         # update actor
         metrics.update(self.update_actor(obs, action, goal, step))
