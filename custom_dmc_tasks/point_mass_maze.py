@@ -50,6 +50,8 @@ def make(task, task_kwargs=None, environment_kwargs=None, visualize_reward=False
     if environment_kwargs is not None:
         task_kwargs = task_kwargs.copy()
         task_kwargs["environment_kwargs"] = environment_kwargs
+    if "custom_goal" not in task:
+        environment_kwargs.pop("goal")
     env = SUITE[task](**task_kwargs)
     env.task.visualize_reward = visualize_reward
     return env

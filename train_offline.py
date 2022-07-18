@@ -33,15 +33,21 @@ def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
 
-def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder):
+def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg):
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
+    if cfg.goal:
+        goal = np.array((.2, .2))
+        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
         video_recorder.init(env, enabled=(episode == 0))
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
-                action = agent.act(time_step.observation, global_step, eval_mode=True)
+                if cfg.goal:
+                    action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+                else:
+                    action = agent.act(time_step.observation, global_step, eval_mode=True)
             time_step = env.step(action)
             video_recorder.record(env)
             total_reward += time_step.reward
@@ -88,12 +94,19 @@ def main(cfg):
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
 
     # create agent
-    agent = hydra.utils.instantiate(
-        cfg.agent,
-        obs_shape=env.observation_spec().shape,
-        action_shape=env.action_spec().shape,
-        goal_shape=env.observation_spec().shape,
-    )
+    if cfg.goal:
+        agent = hydra.utils.instantiate(
+            cfg.agent,
+            obs_shape=env.observation_spec().shape,
+            action_shape=env.action_spec().shape,
+            goal_shape=(2,),
+        )
+    else:
+        agent = hydra.utils.instantiate(
+            cfg.agent,
+            obs_shape=env.observation_spec().shape,
+            action_shape=env.action_spec().shape,
+        )
 
     # create replay buffer
     data_specs = (
@@ -116,6 +129,7 @@ def main(cfg):
         cfg.batch_size,
         cfg.replay_buffer_num_workers,
         cfg.discount,
+        goal=cfg.goal
     )
 
     replay_iter = iter(replay_loader)
@@ -135,9 +149,6 @@ def main(cfg):
 
     while train_until_step(global_step):
         # try to evaluate
-        if eval_every_step(global_step):
-            logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder)
 
         metrics = agent.update(replay_iter, global_step)
         logger.log_metrics(metrics, global_step, ty="train")
@@ -147,6 +158,10 @@ def main(cfg):
                 log("fps", cfg.log_every_steps / elapsed_time)
                 log("total_time", total_time)
                 log("step", global_step)
+
+        if eval_every_step(global_step):
+            logger.log("eval_total_time", timer.total_time(), global_step)
+            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
 
         global_step += 1
 
