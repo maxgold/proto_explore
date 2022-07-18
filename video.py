@@ -47,3 +47,33 @@ class VideoRecorder:
         if self.enabled:
             path = self.save_dir / file_name
             imageio.mimsave(str(path), self.frames, fps=self.fps)
+
+class Snapshot:
+    def __init__(self,
+                 root_dir,
+                 render_size=256,
+                 fps=20,
+                 camera_id=0):
+        if root_dir is not None:
+            self.save_dir = root_dir / 'snapshots'
+            self.save_dir.mkdir(exist_ok=True)
+        else:
+            self.save_dir = None
+
+        self.render_size = render_size
+        self.fps = fps
+        self.frames = []
+        self.camera_id = camera_id
+        self.enabled = self.save_dir is not None
+
+    def snapshot(self, env, file_name):
+        if self.enabled:
+            if hasattr(env, 'physics'):
+                frame = env.physics.render(height=self.render_size,
+                                           width=self.render_size,
+                                           camera_id=self.camera_id)
+            else:
+                frame = env.render()
+            path = self.save_dir / file_name
+            imageio.imsave(str(path), frame)
+

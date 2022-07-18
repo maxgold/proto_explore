@@ -40,7 +40,7 @@ class VAE(nn.Module):
             nn.Linear(hidden_dim, latent_dim)
         )
         self.decoder = nn.Sequential(
-            nn.Linear(latent_dim, hidden_dim),
+            nn.Linear(latent_dim+in_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, out_dim)
         )
@@ -76,13 +76,24 @@ class VAE(nn.Module):
         #kl = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)
         kl = self.kl_divergence(z, mu, std)
 
-        y_hat = self.decoder(z)
+        y_hat = self.decoder(torch.concat([z,x], 1))
 
         recon_loss = torch.square(y_hat - y)
 
         elbo = beta * kl.mean() + recon_loss.mean()
 
         return elbo
+
+    def gen_sample2(self, x):
+        x_encoded = self.encoder(x)
+        mu, log_var = self.fc_mu(x_encoded), self.fc_var(x_encoded)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(log_var))
+        z = p.rsample()
+
+        # sample z from q
+        y_hat = self.decoder(torch.concat([z,x],1))
+
+        return y_hat
 
     def gen_sample(self, x):
         x_encoded = self.encoder(x)
@@ -92,10 +103,9 @@ class VAE(nn.Module):
         z = q.rsample()
 
         # sample z from q
-        y_hat = self.decoder(z)
+        y_hat = self.decoder(torch.concat([z,x],1))
 
         return y_hat
-
 
 
 
@@ -128,7 +138,7 @@ def main(cfg):
                                        cfg.batch_size,
                                        cfg.replay_buffer_num_workers,
                                        cfg.discount,
-                                       offset=250)
+                                       offset=750)
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
@@ -158,14 +168,24 @@ def main(cfg):
         #y = obs[offset:].cuda()
 
         optimizer.zero_grad()
-        loss = vae.elbo(x, y-x, beta=1)
+        loss = vae.elbo(x, y, beta=1)
         #loss = vae.recon_loss(x, y)
         loss.backward()
         optimizer.step()
         losses.append(loss)
 
-    pred = vae.gen_sample(x) + x
+    pred = vae.gen_sample(x)
     torch.square(pred - y).mean()
+
+    preds1 = []
+    for _ in range(10):
+        preds1.append(vae.gen_sample(x)[...,None])
+    torch.concat(preds1, -1).std(-1).mean(0)
+
+    preds2 = []
+    for _ in range(10):
+        preds2.append(vae.gen_sample2(x)[...,None])
+    torch.concat(preds2, -1).std(-1).mean(0)
 
 
 if __name__=="__main__":

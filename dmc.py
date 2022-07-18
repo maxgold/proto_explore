@@ -308,19 +308,21 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed):
+def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
         env = suite.load(domain,
                          task,
                          task_kwargs=dict(random=seed),
-                         environment_kwargs=dict(flat_observation=True),
+                         environment_kwargs=dict(flat_observation=True,
+                                                goal=goal),
                          visualize_reward=visualize_reward)
     else:
         env = cdmc.make(domain,
                         task,
                         task_kwargs=dict(random=seed),
-                        environment_kwargs=dict(flat_observation=True),
+                        environment_kwargs=dict(flat_observation=True,
+                                               goal=goal),
                         visualize_reward=visualize_reward)
 
     env = ActionDTypeWrapper(env, np.float32)
@@ -335,7 +337,8 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1):
+def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
+        goal=None):
     assert obs_type in ['states', 'pixels']
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
@@ -345,7 +348,7 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1):
     domain = dict(cup='ball_in_cup').get(domain, domain)
 
     make_fn = _make_jaco if domain == 'jaco' else _make_dmc
-    env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed)
+    env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal)
 
     if obs_type == 'pixels':
         env = FrameStackWrapper(env, frame_stack)
