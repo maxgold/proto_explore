@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import IterableDataset
+from path_collector import PathBuilder
 
 
 def episode_len(episode):
@@ -60,6 +61,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._loaded = False
         self.offset = offset
         self.offset_schedule = offset_schedule
+        self.eval_data_collector: PathBuilder
 
     def _load(self, relable=True):
         print('Labeling data...')
@@ -93,20 +95,33 @@ class OfflineReplayBuffer(IterableDataset):
         return relable_episode(self._env, episode)
 
     def _sample(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode['observation'][idx - 1]
-        action = episode['action'][idx]
-        next_obs = episode['observation'][idx]
-        goal = episode['observation'][idx + self.offset]
-        reward = np.zeros_like(episode['reward'][idx])
-        discount = np.ones_like(episode['discount'][idx])
-        for i in range(self.offset):
-            discount *= episode['discount'][idx + i] * self._discount
-            if i == self.offset - 1:
-                reward = np.ones_like(episode['reward'][idx]) * discount
+        if self.offline=True:
+            episode = self._sample_episode()
+            # add +1 for the first dummy transition
+
+            idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+            obs = episode['observation'][idx - 1]
+            action = episode['action'][idx]
+            next_obs = episode['observation'][idx]
+            goal = episode['observation'][idx + self.offset]
+            reward = np.zeros_like(episode['reward'][idx])
+            discount = np.ones_like(episode['discount'][idx])
+            for i in range(self.offset):
+                discount *= episode['discount'][idx + i] * self._discount
+                if i == self.offset - 1:
+                    reward = np.ones_like(episode['reward'][idx]) * discount
+            
+            self.eval_data_collector.add_all(
+                obs=obs, 
+                action=action, 
+                reward=1, ## technically we should collect the whole path to get all the rewards? 
+                # what if the model was able to predict goal state or goal +1, then that should also be rewarded
+#                 next_ob=next_ob,
+#                 goal=goal,
+                future=episode['observation'][idx + self.offset*2]
+                
+                ##maybe change the *2 later on? 
+        )
             
         return (obs, action, reward, discount, next_obs, goal)
 
@@ -126,8 +141,6 @@ class OfflineReplayBuffer(IterableDataset):
 
             yield self._sample()
 #             yield self._sample_future()
-
-
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
