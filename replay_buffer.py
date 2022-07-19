@@ -48,24 +48,10 @@ def relable_episode(env, episode):
 
 
 class OfflineReplayBuffer(IterableDataset):
-<<<<<<< HEAD
-    def __init__(
-        self,
-        env,
-        replay_dir,
-        max_size,
-        num_workers,
-        discount,
-        offset=100,
-        offset_schedule=None,
-        random_goal=False,
-        goal=False
-    ):
 
-=======
 
     def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=1, offset_schedule=None):
->>>>>>> tmp
+
         self._env = env
         self._replay_dir = replay_dir
         self._size = 0
@@ -77,12 +63,10 @@ class OfflineReplayBuffer(IterableDataset):
         self._loaded = False
         self.offset = offset
         self.offset_schedule = offset_schedule
-<<<<<<< HEAD
         self.goal = goal
         self.vae = False
-=======
         self.eval_data_collector: PathBuilder
->>>>>>> tmp
+
 
     def _load(self, relable=True):
         print("Labeling data...")
@@ -116,7 +100,6 @@ class OfflineReplayBuffer(IterableDataset):
         return relable_episode(self._env, episode)
 
     def _sample(self):
-<<<<<<< HEAD
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode)) + 1
@@ -143,26 +126,8 @@ class OfflineReplayBuffer(IterableDataset):
         small_control = (control_reward + 4) / 5
         reward = np.linalg.norm(goal[:2] - next_obs[:2]) * small_control
         discount = np.ones_like(episode["discount"][idx])
-
-        return (obs, action, reward, discount, next_obs, goal)
-=======
-        if self.offline=True:
-            episode = self._sample_episode()
-            # add +1 for the first dummy transition
-
-            idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-            obs = episode['observation'][idx - 1]
-            action = episode['action'][idx]
-            next_obs = episode['observation'][idx]
-            goal = episode['observation'][idx + self.offset]
-            reward = np.zeros_like(episode['reward'][idx])
-            discount = np.ones_like(episode['discount'][idx])
-            for i in range(self.offset):
-                discount *= episode['discount'][idx + i] * self._discount
-                if i == self.offset - 1:
-                    reward = np.ones_like(episode['reward'][idx]) * discount
-            
-            self.eval_data_collector.add_all(
+        
+        self.eval_data_collector.add_all(
                 obs=obs, 
                 action=action, 
                 reward=1, ## technically we should collect the whole path to get all the rewards? 
@@ -173,24 +138,10 @@ class OfflineReplayBuffer(IterableDataset):
                 
                 ##maybe change the *2 later on? 
             )
-            ''' 
-            episode = self._sample_episode()
-            # add +1 for the first dummy transition
-            
-            idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-            obs = episode['observation'][idx - 1]
-            action = episode['action'][idx]
-            next_obs = episode['observation'][idx]
-            goal = episode['observation'][idx + self.offset]
-            reward = np.zeros_like(episode['reward'][idx])
-            discount = np.ones_like(episode['discount'][idx])
-            for i in range(self.offset):
-                discount *= episode['discount'][idx + i] * self._discount
-                if i == self.offset - 1:
-                    reward = np.ones_like(episode['reward'][idx]) * discount 
-            '''
-            return (obs, action, reward, discount, next_obs, goal)
->>>>>>> tmp
+
+        return (obs, action, reward, discount, next_obs, goal)
+
+
 
     def _sample_future(self):
         episode = self._sample_episode()
@@ -205,7 +156,6 @@ class OfflineReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-<<<<<<< HEAD
             if self.goal:
                 yield self._sample_goal()
             elif self.vae:
@@ -213,16 +163,15 @@ class OfflineReplayBuffer(IterableDataset):
             else:
                 yield self._sample()
 
-=======
-            ##################### set var in config to replace 100 later
-            for i in range(1,100):
-                self.offset=i
-                for ix in range(100000):
-                    if ix==1:
-                        print('sample', self._sample(), 'offset', i)
-                    yield self._sample()
-#             yield self._sample_future()
->>>>>>> tmp
+
+#             for i in range(1,100):
+#                 self.offset=i
+#                 for ix in range(100000):
+#                     if ix==1:
+#                         print('sample', self._sample(), 'offset', i)
+#                     yield self._sample()
+# #             yield self._sample_future()
+
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
