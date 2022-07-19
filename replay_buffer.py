@@ -37,13 +37,17 @@ def relable_episode(env, episode):
     rewards = []
     reward_spec = env.reward_spec()
     states = episode["physics"]
+    print('original reward ', episode["reward"]) 
     for i in range(states.shape[0]):
         with env.physics.reset_context():
             env.physics.set_state(states[i])
+        ## don't we need to step before getting the new state? 
         reward = env.task.get_reward(env.physics)
+        
         reward = np.full(reward_spec.shape, reward, reward_spec.dtype)
         rewards.append(reward)
-    episode["reward"] = np.array(rewards, dtype=reward_spec.dtype)
+    episode["achieved_goal"] = np.array(rewards, dtype=reward_spec.dtype)
+    print('new goal from env.task.get_reward', episode["achieved_goal"])
     return episode
 
 
@@ -125,21 +129,20 @@ class OfflineReplayBuffer(IterableDataset):
         ).mean()
         small_control = (control_reward + 4) / 5
         reward = np.linalg.norm(goal[:2] - next_obs[:2]) * small_control
+        ##change reward to max distance  - current reward 
         discount = np.ones_like(episode["discount"][idx])
         
         self.eval_data_collector.add_all(
                 obs=obs, 
                 action=action, 
-                reward=1, ## technically we should collect the whole path to get all the rewards? 
-                # what if the model was able to predict goal state or goal +1, then that should also be rewarded
-                #next_ob=next_ob,
-                #goal=goal,
-                future=episode['observation'][idx + self.offset*2]
-                
-                ##maybe change the *2 later on? 
+                reward=reward,
+                next_ob=next_ob,
+                goal=goal,
+                future=episode['observation'][np.random.randint(0, episode_len(episode))]
+        
             )
 
-        return (obs, action, reward, discount, next_obs, goal)
+        return (obs, action, reward, discount, next_obs, goal, future)
 
 
 

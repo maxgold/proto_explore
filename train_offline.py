@@ -37,6 +37,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
     if cfg.goal:
+        #replace with goal collection (only sample goals from sampled episodes)
         goal = np.array((.2, .2))
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
@@ -51,6 +52,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
             time_step = env.step(action)
             video_recorder.record(env)
             total_reward += time_step.reward
+            ##change this reward to distance based 
             step += 1
 
         episode += 1

@@ -10,10 +10,10 @@ from dm_control.utils import rewards
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden_dim):
+    def __init__(self, obs_dim, goal_dim,  action_dim, hidden_dim):
         super().__init__()
 
-        self.policy = nn.Sequential(nn.Linear(obs_dim, hidden_dim),
+        self.policy = nn.Sequential(nn.Linear(obs_dim+goal_dim, hidden_dim),
                                     nn.LayerNorm(hidden_dim), nn.Tanh(),
                                     nn.Linear(hidden_dim, hidden_dim),
                                     nn.ReLU(inplace=True),
@@ -21,8 +21,8 @@ class Actor(nn.Module):
 
         self.apply(utils.weight_init)
 
-    def forward(self, obs, std):
-        mu = self.policy(obs)
+    def forward(self, obs, goal, std):
+        mu = self.policy(torch.concat([obs,goal],-1))
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
 
@@ -31,25 +31,25 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden_dim):
+    def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
         super().__init__()
 
         self.q1_net = nn.Sequential(
-            nn.Linear(obs_dim + action_dim, hidden_dim),
+            nn.Linear(obs_dim + goal_dim  + action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
 
         self.q2_net = nn.Sequential(
-            nn.Linear(obs_dim + action_dim, hidden_dim),
+            nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
 
         self.apply(utils.weight_init)
 
-    def forward(self, obs, action):
-        obs_action = torch.cat([obs, action], dim=-1)
+    def forward(self, obs, goal, action):
+        obs_action = torch.cat([obs, goal, action], dim=-1)
         q1 = self.q1_net(obs_action)
         q2 = self.q2_net(obs_action)
 
@@ -61,6 +61,7 @@ class TD3Agent:
                  name,
                  obs_shape,
                  action_shape,
+                 goal_shape,
                  device,
                  lr,
                  hidden_dim,
@@ -85,13 +86,12 @@ class TD3Agent:
         self.offset_schedule = offset_schedule
 
         # models
-        self.actor = Actor(obs_shape[0], action_shape[0],
+        self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
                            hidden_dim).to(device)
 
-        self.critic = Critic(obs_shape[0], action_shape[0],
+        self.critic = Critic(obs_shape[0], goal_shape[0], action_shape[0],
                              hidden_dim).to(device)
-        self.critic_target = Critic(obs_shape[0], action_shape[0],
-                                    hidden_dim).to(device)
+        self.critic_target = Critic(obs_shape[0], goal_shape[0], action_shape[0], hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         # optimizers
@@ -106,8 +106,9 @@ class TD3Agent:
         self.actor.train(training)
         self.critic.train(training)
 
-    def act(self, obs, step, eval_mode):
+    def act(self, obs, goal, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        goal = torch.as_tensor(goal,device=self.device).unsqueeze(0).float()
         stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs, stddev)
         if eval_mode:
@@ -119,18 +120,18 @@ class TD3Agent:
         return action.cpu().numpy()[0]
 
 
-    def update_critic(self, obs, action, reward, discount, next_obs, goal, step):
+    def update_critic(self, obs, goal, action, reward, discount, next_obs, goal, step):
         metrics = dict()
 
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor(next_obs, stddev)
+            dist = self.actor(next_obs, goal, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
+            target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + discount * target_V
 
-        Q1, Q2 = self.critic(obs, action)
+        Q1, Q2 = self.critic(obs, goal, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         if self.use_tb:
@@ -145,13 +146,13 @@ class TD3Agent:
         self.critic_opt.step()
         return metrics
 
-    def update_actor(self, obs, action, step):
+    def update_actor(self, obs, goal, action, step):
         metrics = dict()
 
         stddev = utils.schedule(self.stddev_schedule, step)
-        policy = self.actor(obs, stddev)
+        policy = self.actor(obs, goal, stddev)
 
-        Q1, Q2 = self.critic(obs, policy.sample(clip=self.stddev_clip))
+        Q1, Q2 = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
@@ -177,14 +178,13 @@ class TD3Agent:
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
-            print(metrics['batch_reward'])
 
         # update critic
         metrics.update(
-            self.update_critic(obs, action, reward, discount, next_obs, goal, step))
+            self.update_critic(obs, goal, action, reward, discount, next_obs, goal, step))
 
         # update actor
-        metrics.update(self.update_actor(obs, action, step))
+        metrics.update(self.update_actor(obs, goal, action, step))
 
         # update critic target
         utils.soft_update_params(self.critic, self.critic_target,
