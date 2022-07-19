@@ -7,10 +7,10 @@ from collections import OrderedDict
 
 import utils
 from dm_control.utils import rewards
-
+from path_collector import PathBuilder
 
 class Actor(nn.Module):
-    def __init__(self, obs_dim, goal_dim,  action_dim, hidden_dim):
+    def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
         super().__init__()
 
         self.policy = nn.Sequential(nn.Linear(obs_dim+goal_dim, hidden_dim),
@@ -22,26 +22,28 @@ class Actor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
-        mu = self.policy(torch.concat([obs,goal],-1))
+        mu = self.policy(torch.cat([obs,goal], -1))
         mu = torch.tanh(mu)
+        print(mu.shape)
         std = torch.ones_like(mu) * std
+        print('std', std.shape)
 
         dist = utils.TruncatedNormal(mu, std)
         return dist
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
+    def __init__(self, obs_dim,goal_dim, action_dim, hidden_dim):
         super().__init__()
 
         self.q1_net = nn.Sequential(
-            nn.Linear(obs_dim + goal_dim  + action_dim, hidden_dim),
+            nn.Linear(obs_dim +goal_dim+ action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
 
         self.q2_net = nn.Sequential(
-            nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
+            nn.Linear(obs_dim + goal_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
@@ -49,7 +51,7 @@ class Critic(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, action):
-        obs_action = torch.cat([obs, goal, action], dim=-1)
+        obs_action = torch.cat([obs,goal, action], dim=-1)
         q1 = self.q1_net(obs_action)
         q2 = self.q2_net(obs_action)
 
@@ -59,7 +61,7 @@ class Critic(nn.Module):
 class TD3Agent:
     def __init__(self,
                  name,
-                 obs_shape,
+                obs_shape,
                  action_shape,
                  goal_shape,
                  device,
@@ -82,8 +84,9 @@ class TD3Agent:
         self.use_tb = use_tb
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
-        self.offset = offset
-        self.offset_schedule = offset_schedule
+        self.offset=offset
+        self.offset_schedule=offset_schedule
+        self.eval_path_collector = PathBuilder()
 
         # models
         self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
@@ -91,7 +94,8 @@ class TD3Agent:
 
         self.critic = Critic(obs_shape[0], goal_shape[0], action_shape[0],
                              hidden_dim).to(device)
-        self.critic_target = Critic(obs_shape[0], goal_shape[0], action_shape[0], hidden_dim).to(device)
+        self.critic_target = Critic(obs_shape[0],goal_shape[0], action_shape[0],
+                                    hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         # optimizers
@@ -100,17 +104,20 @@ class TD3Agent:
 
         self.train()
         self.critic_target.train()
+        
 
     def train(self, training=True):
         self.training = training
         self.actor.train(training)
         self.critic.train(training)
 
-    def act(self, obs, goal, step, eval_mode):
+    def act(self, obs, goal,step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        goal = torch.as_tensor(goal,device=self.device).unsqueeze(0).float()
+        goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        print('obs', obs.size)
+        print('goal', goal.size)
         stddev = utils.schedule(self.stddev_schedule, step)
-        policy = self.actor(obs, stddev)
+        policy = self.actor(obs,goal,stddev)
         if eval_mode:
             action = policy.mean
         else:
@@ -119,40 +126,40 @@ class TD3Agent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-
-    def update_critic(self, obs, goal, action, reward, discount, next_obs, goal, step):
+    def update_critic(self, obs, action, reward, discount, next_obs,goal, step):
         metrics = dict()
 
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor(next_obs, goal, stddev)
+            dist = self.actor(next_obs, goal,stddev)
             next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
+            target_Q1, target_Q2 = self.critic_target(next_obs, next_action, goal)
             target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + discount * target_V
+            target_Q = reward + (discount * target_V)
 
-        Q1, Q2 = self.critic(obs, goal, action)
+        Q1, Q2 = self.critic(obs, action, goal)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+    
 
         if self.use_tb:
             metrics['critic_target_q'] = target_Q.mean().item()
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
-
+    
         # optimize critic
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
         return metrics
 
-    def update_actor(self, obs, goal, action, step):
+    def update_actor(self, obs, action,goal, step):
         metrics = dict()
 
         stddev = utils.schedule(self.stddev_schedule, step)
-        policy = self.actor(obs, goal, stddev)
+        policy = self.actor(obs,goal, stddev)
 
-        Q1, Q2 = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
+        Q1, Q2 = self.critic(obs, policy.sample(clip=self.stddev_clip), goal)
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
@@ -170,21 +177,22 @@ class TD3Agent:
 
     def update(self, replay_iter, step):
         metrics = dict()
-
         batch = next(replay_iter)
-
-        obs, action, reward, discount, next_obs, goal = utils.to_torch(
+        obs, action, reward, discount, next_obs, goal, future = utils.to_torch(
             batch, self.device)
-
+        reward = reward.to(torch.float32)
+        self.eval_path_collector.add_all(future=future)
+        self.eval_path_collector.get_all_stacked()
+    
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 
         # update critic
         metrics.update(
-            self.update_critic(obs, goal, action, reward, discount, next_obs, goal, step))
+            self.update_critic(obs, action, reward, discount, next_obs, goal, step))
 
         # update actor
-        metrics.update(self.update_actor(obs, goal, action, step))
+        metrics.update(self.update_actor(obs,goal, action,step))
 
         # update critic target
         utils.soft_update_params(self.critic, self.critic_target,

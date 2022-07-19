@@ -33,12 +33,12 @@ def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
 
-def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg):
+def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder,goals,goal_shape, cfg):
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
+    goal = goals[0][np.random.randint(0, len(goals[0]))]
     if cfg.goal:
         #replace with goal collection (only sample goals from sampled episodes)
-        goal = np.array((.2, .2))
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
@@ -93,15 +93,15 @@ def main(cfg):
     logger = Logger(work_dir, use_tb=cfg.use_tb)
 
     # create envs
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
-
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25,.25,-.25))
+    goal_shape = (4,)
     # create agent
     if cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
             obs_shape=env.observation_spec().shape,
             action_shape=env.action_spec().shape,
-            goal_shape=(2,),
+            goal_shape=env.observation_spec().shape
         )
     else:
         agent = hydra.utils.instantiate(
@@ -139,7 +139,7 @@ def main(cfg):
 
     # create video recorders
     video_recorder = VideoRecorder(work_dir if cfg.save_video else None)
-    import IPython as ipy; ipy.embed(colors="neutral")
+    #import IPython as ipy; ipy.embed(colors="neutral")
 
     timer = utils.Timer()
 
@@ -148,14 +148,11 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
-
     while train_until_step(global_step):
         # try to evaluate
-
-        if eval_every_step(global_step):
-            logger.log('eval_total_time', timer.total_time(), global_step)
-           # eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder)
-
+       # if eval_every_step(global_step):
+           # logger.log('eval_total_time', timer.total_time(), global_step)
+           # eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorderi, goal)
         metrics = agent.update(replay_iter, global_step)
         logger.log_metrics(metrics, global_step, ty="train")
         if log_every_step(global_step):
@@ -166,8 +163,9 @@ def main(cfg):
                 log("step", global_step)
 
         if eval_every_step(global_step):
+            goals = agent.eval_path_collector['future']
             logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder,goals,goal_shape, cfg)
 
         global_step += 1
 

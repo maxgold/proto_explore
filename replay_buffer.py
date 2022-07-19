@@ -37,24 +37,24 @@ def relable_episode(env, episode):
     rewards = []
     reward_spec = env.reward_spec()
     states = episode["physics"]
-    print('original reward ', episode["reward"]) 
+    #print('original reward ', episode["reward"]) 
     for i in range(states.shape[0]):
         with env.physics.reset_context():
             env.physics.set_state(states[i])
-        ## don't we need to step before getting the new state? 
+            ## don't we need to step before getting the new state? 
         reward = env.task.get_reward(env.physics)
-        
+        #print('new reward', reward) 
         reward = np.full(reward_spec.shape, reward, reward_spec.dtype)
         rewards.append(reward)
-    episode["achieved_goal"] = np.array(rewards, dtype=reward_spec.dtype)
-    print('new goal from env.task.get_reward', episode["achieved_goal"])
+    episode["reward"] = np.array(rewards, dtype=reward_spec.dtype)
+    #print('new goal from env.task.get_reward', episode["achieved_goal"])
     return episode
 
 
 class OfflineReplayBuffer(IterableDataset):
 
 
-    def __init__(self, env, replay_dir, max_size, num_workers, discount, offset=1, offset_schedule=None):
+    def __init__(self, env, replay_dir, max_size, num_workers, discount,goal, offset=100, offset_schedule=None):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -69,7 +69,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.offset_schedule = offset_schedule
         self.goal = goal
         self.vae = False
-        self.eval_data_collector: PathBuilder
+        self.threshold = 0.001
 
 
     def _load(self, relable=True):
@@ -117,31 +117,25 @@ class OfflineReplayBuffer(IterableDataset):
     def _sample_goal(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-
         idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx]
-        goal = episode["observation"][idx + self.offset][:2]
+        goal = episode["observation"][idx + self.offset]
         # goal = np.random.rand(2)
-        control_reward = rewards.tolerance(
-            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-        ).mean()
-        small_control = (control_reward + 4) / 5
-        reward = np.linalg.norm(goal[:2] - next_obs[:2]) * small_control
-        ##change reward to max distance  - current reward 
+        #control_reward = rewards.tolerance(
+        #    action, margin=1, value_at_margin=0, sigmoid="quadratic"
+        #).mean()
+        #small_control = (control_reward + 4) / 5
+        #reward = np.linalg.norm(goal[:2] - next_obs[:2]) * small_control
+        
+        dist = np.linalg.norm(goal - next_obs)
+        reward = np.zeros((1,1))
+        reward[np.where(dist > self.threshold)] = -1
+        reward = reward.reshape(-1)
         discount = np.ones_like(episode["discount"][idx])
         
-        self.eval_data_collector.add_all(
-                obs=obs, 
-                action=action, 
-                reward=reward,
-                next_ob=next_ob,
-                goal=goal,
-                future=episode['observation'][np.random.randint(0, episode_len(episode))]
-        
-            )
-
+        future = episode['observation'][np.random.randint(0, episode_len(episode))]
         return (obs, action, reward, discount, next_obs, goal, future)
 
 
@@ -188,9 +182,8 @@ def make_replay_loader(
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
-        env, replay_dir, max_size_per_worker, num_workers, discount, offset, goal=goal
-    )
-    iterable._load()
+        env, replay_dir, max_size_per_worker, num_workers, discount, offset, goal)
+    iterable._load(False)
 
     loader = torch.utils.data.DataLoader(
         iterable,
