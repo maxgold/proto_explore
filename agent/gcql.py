@@ -123,7 +123,7 @@ class GCQLAgent:
     def act(self, obs, goal, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        policy = self.actor(obs, goal, stddev)
+        policy = self.actor(obs, goal)
         if eval_mode:
             action = policy.mean
         else:
