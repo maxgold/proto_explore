@@ -71,7 +71,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.offset_schedule = offset_schedule
         self.goal = goal
         self.vae = False
-        self.threshold = 0.001
+        self.threshold = 0.01
 
 
     def _load(self, relable=True):
@@ -186,7 +186,7 @@ def make_replay_loader(
 
     iterable = OfflineReplayBuffer(
         env, replay_dir, max_size_per_worker, num_workers, discount, offset, goal)
-    iterable._load(False)
+    iterable._load()
 
     loader = torch.utils.data.DataLoader(
         iterable,

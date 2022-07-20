@@ -34,12 +34,13 @@ def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
 
-def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder,goals,goal_shape, cfg):
+def eval(global_step, agent, logger, num_eval_episodes, video_recorder,goals,goal_shape, cfg):
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
     goal_ = goals[0][np.random.randint(0, len(goals[0]))]
     if cfg.goal:
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal_)
+        print('current goal', goal_)
     while eval_until_episode(episode):
         time_step = env.reset()
         video_recorder.init(env, enabled=(episode == 0))
@@ -53,10 +54,8 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder,goal
             video_recorder.record(env)
             total_reward += time_step.reward
             step += 1
-
         episode += 1
         video_recorder.save(f"{global_step}.mp4")
-
     with logger.log_and_dump_ctx(global_step, ty="eval") as log:
         log("episode_reward", total_reward / episode)
         log("episode_length", step / episode)
@@ -164,7 +163,7 @@ def main(cfg):
         if eval_every_step(global_step):
             goals = agent.eval_path_collector['future']
             logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder,goals,goal_shape, cfg)
+            eval(global_step, agent, logger, cfg.num_eval_episodes, video_recorder,goals,goal_shape, cfg)
 
         global_step += 1
 
