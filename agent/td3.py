@@ -115,6 +115,7 @@ class TD3Agent:
         return action.cpu().numpy()[0]
 
     def update_critic(self, obs, action, reward, discount, next_obs, step):
+        #import IPython as ipy; ipy.embed(colors='neutral')
         metrics = dict()
 
         with torch.no_grad():
@@ -168,6 +169,7 @@ class TD3Agent:
         batch = next(replay_iter)
         obs, action, reward, discount, next_obs = utils.to_torch(
             batch, self.device)
+        reward = reward.float()[:,None]
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()

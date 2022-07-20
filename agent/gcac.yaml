@@ -1,6 +1,6 @@
 # @package agent
 _target_: agent.gcac.GCACAgent
-name: td3
+name: gcac
 obs_shape: ??? # to be specified later
 action_shape: ??? # to be specified later
 device: ${device}

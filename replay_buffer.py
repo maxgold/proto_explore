@@ -45,6 +45,23 @@ def relable_episode(env, episode):
     episode["reward"] = np.array(rewards, dtype=reward_spec.dtype)
     return episode
 
+def my_reward(action, next_obs, goal):
+    # this is optimized for speed ...
+    tmp = (1-action**2)
+    control_reward = max(min(tmp[0],1),0)/2
+    control_reward += max(min(tmp[1],1),0)/2
+    dist_to_target = np.linalg.norm(goal - next_obs[:2])
+    if dist_to_target < .015:
+        r = 1
+    else:
+        upper = .015
+        margin = .1
+        scale = np.sqrt(-2*np.log(.1))
+        x = (dist_to_target-upper) / margin
+        r = np.exp(-.5*(x*scale)**2)
+    return float(r * control_reward)
+
+
 
 class OfflineReplayBuffer(IterableDataset):
     def __init__(
@@ -114,6 +131,17 @@ class OfflineReplayBuffer(IterableDataset):
         next_obs = episode["observation"][idx]
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
+        reward = my_reward(action, next_obs, np.array((.15,.15)))
+#        control_reward = rewards.tolerance(
+#            action, margin=1, value_at_margin=0, sigmoid="quadratic"
+#        ).mean()
+#        small_control = (control_reward + 4) / 5
+#        near_target = rewards.tolerance(
+#            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
+#            bounds=(0, .015),
+#            margin=.015,
+#        )
+#        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
 
     def _sample_goal(self):
@@ -125,12 +153,7 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx]
         next_obs = episode["observation"][idx]
         goal = episode["observation"][idx + self.offset][:2]
-        # goal = np.random.rand(2)
-        control_reward = rewards.tolerance(
-            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-        ).mean()
-        small_control = (control_reward + 4) / 5
-        reward = np.linalg.norm(goal[:2] - next_obs[:2]) * small_control
+        reward = my_reward(action, next_obs, goal)
         discount = np.ones_like(episode["discount"][idx])
 
         return (obs, action, reward, discount, next_obs, goal)
