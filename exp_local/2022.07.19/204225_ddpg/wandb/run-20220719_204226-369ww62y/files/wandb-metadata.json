@@ -1,0 +1,28 @@
+{
+    "os": "Linux-5.4.0-51-generic-x86_64-with-glibc2.17",
+    "python": "3.8.13",
+    "heartbeatAt": "2022-07-20T03:42:27.123301",
+    "startedAt": "2022-07-20T03:42:26.112282",
+    "docker": null,
+    "gpu": "Quadro RTX 8000",
+    "gpu_count": 4,
+    "cpu_count": 128,
+    "cuda": null,
+    "args": [
+        "task=point_mass_maze_reach_top_left",
+        "obs_type=pixels",
+        "use_wandb=true",
+        "snapshot_ts=0"
+    ],
+    "state": "running",
+    "program": "<python with no main file>",
+    "git": {
+        "remote": "git@github.com:maxgold/proto_explore.git",
+        "commit": "06c413974927a3ad0694a46ddb69cd53575c31c0"
+    },
+    "email": "max.mavsrock@gmail.com",
+    "root": "/home/maxgold/workspace/explore/proto_explore",
+    "host": "lambda-jade",
+    "username": "maxgold",
+    "executable": "/home/maxgold/anaconda3/envs/games/bin/python"
+}
