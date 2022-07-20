@@ -37,23 +37,21 @@ def get_data_seed(seed, num_data_seeds):
 def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder,goals,goal_shape, cfg):
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
-    goal = goals[0][np.random.randint(0, len(goals[0]))]
+    goal_ = goals[0][np.random.randint(0, len(goals[0]))]
     if cfg.goal:
-        #replace with goal collection (only sample goals from sampled episodes)
-        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal_)
     while eval_until_episode(episode):
         time_step = env.reset()
         video_recorder.init(env, enabled=(episode == 0))
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
-                    action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+                    action = agent.act(time_step.observation, goal_, global_step, eval_mode=True)
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
             time_step = env.step(action)
             video_recorder.record(env)
             total_reward += time_step.reward
-            ##change this reward to distance based 
             step += 1
 
         episode += 1
