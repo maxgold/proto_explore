@@ -1,6 +1,7 @@
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.simplefilter("ignore")
 
 import os
 

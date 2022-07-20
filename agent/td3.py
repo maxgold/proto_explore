@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collections import OrderedDict
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import utils
 from dm_control.utils import rewards
@@ -24,9 +27,7 @@ class Actor(nn.Module):
     def forward(self, obs, goal, std):
         mu = self.policy(torch.cat([obs,goal], -1))
         mu = torch.tanh(mu)
-        print(mu.shape)
         std = torch.ones_like(mu) * std
-        print('std', std.shape)
 
         dist = utils.TruncatedNormal(mu, std)
         return dist
@@ -54,7 +55,6 @@ class Critic(nn.Module):
         obs_action = torch.cat([obs,goal, action], dim=-1)
         q1 = self.q1_net(obs_action)
         q2 = self.q2_net(obs_action)
-
         return q1, q2
 
 
@@ -78,6 +78,8 @@ class TD3Agent:
                  has_next_action=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
+        self.goal_shape = goal_shape
+        self.obs_shape = obs_shape
         self.lr = lr
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -114,8 +116,6 @@ class TD3Agent:
     def act(self, obs, goal,step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        print('obs', obs.size)
-        print('goal', goal.size)
         stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs,goal,stddev)
         if eval_mode:
@@ -133,13 +133,12 @@ class TD3Agent:
             stddev = utils.schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, goal,stddev)
             next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, next_action, goal)
+            target_Q1, target_Q2 = self.critic_target(next_obs,goal, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
-
-        Q1, Q2 = self.critic(obs, action, goal)
+        
+        Q1, Q2 = self.critic(obs, goal,action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
-    
 
         if self.use_tb:
             metrics['critic_target_q'] = target_Q.mean().item()
@@ -153,15 +152,14 @@ class TD3Agent:
         self.critic_opt.step()
         return metrics
 
-    def update_actor(self, obs, action,goal, step):
+    def update_actor(self, obs, goal, action, step):
         metrics = dict()
 
         stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs,goal, stddev)
 
-        Q1, Q2 = self.critic(obs, policy.sample(clip=self.stddev_clip), goal)
+        Q1, Q2 = self.critic(obs, goal,policy.sample(clip=self.stddev_clip))
         Q = torch.min(Q1, Q2)
-
         actor_loss = -Q.mean()
 
         # optimize actor

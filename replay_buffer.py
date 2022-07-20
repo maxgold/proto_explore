@@ -4,7 +4,9 @@ import random
 import traceback
 import copy
 from collections import defaultdict
+import warnings
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy as np
 import torch
 import torch.nn as nn
@@ -122,6 +124,7 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx]
         next_obs = episode["observation"][idx]
         goal = episode["observation"][idx + self.offset]
+    
         # goal = np.random.rand(2)
         #control_reward = rewards.tolerance(
         #    action, margin=1, value_at_margin=0, sigmoid="quadratic"
