@@ -8,22 +8,40 @@ from collections import OrderedDict
 import utils
 from dm_control.utils import rewards
 
+class FiLM(nn.Module):
+    def forward(self, x, gammas, betas):
+        gammas = gammas.unsqueeze(1).unsqueeze(2).expand_as(x)
+        betas = betas.unsqueeze(1).unsqueeze(2).expand_as(x)
+        return (gammas * x) + betas
+
 
 class Actor(nn.Module):
     def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
         super().__init__()
+        self.fc1 = nn.Linear(obs_dim, hidden_dim)
+        self.ln1 = nn.LayerNorm(hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, action_dim)
+        self.tanh = nn.Tanh()
+        self.relu = nn.ReLU(inplace=True)
 
-        self.policy = nn.Sequential(nn.Linear(obs_dim+goal_dim, hidden_dim),
-                                    nn.LayerNorm(hidden_dim), nn.Tanh(),
-                                    nn.Linear(hidden_dim, hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(hidden_dim, action_dim))
+        #self.policy = nn.Sequential(nn.Linear(obs_dim, hidden_dim),
+        #                            nn.LayerNorm(hidden_dim), nn.Tanh(),
+        #                            nn.Linear(hidden_dim, hidden_dim),
+        #                            nn.ReLU(inplace=True),
+        #                            nn.Linear(hidden_dim, action_dim))
 
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
-        mu = self.policy(torch.concat([obs,goal],-1))
-        mu = torch.tanh(mu)
+        x = self.ln1(self.fc1(obs))
+        x = self.film1(x, goal)
+        x = self.tanh(x)
+        x = self.fc2(x)
+        x = self.film2(x, goal)
+        x = self.relu(x)
+        x = self.fc3(x)
+        mu = torch.tanh(x)
         std = torch.ones_like(mu) * std
 
         dist = utils.TruncatedNormal(mu, std)

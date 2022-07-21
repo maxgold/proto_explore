@@ -1,6 +1,7 @@
 import cv2
 import imageio
 import numpy as np
+import wandb
 
 
 class VideoRecorder:
@@ -8,7 +9,8 @@ class VideoRecorder:
                  root_dir,
                  render_size=256,
                  fps=20,
-                 camera_id=0):
+                 camera_id=0,
+                 use_wandb=False):
         if root_dir is not None:
             self.save_dir = root_dir / 'eval_video'
             self.save_dir.mkdir(exist_ok=True)
@@ -19,6 +21,7 @@ class VideoRecorder:
         self.fps = fps
         self.frames = []
         self.camera_id = camera_id
+        self.use_wandb = use_wandb
 
     def init(self, env, enabled=True):
         self.frames = []
@@ -47,6 +50,8 @@ class VideoRecorder:
         if self.enabled:
             path = self.save_dir / file_name
             imageio.mimsave(str(path), self.frames, fps=self.fps)
+            if self.use_wandb:
+                self.log_to_wandb()
 
 class Snapshot:
     def __init__(self,
@@ -122,3 +127,5 @@ class TrainVideoRecorder:
                 self.log_to_wandb()
             path = self.save_dir / file_name
             imageio.mimsave(str(path), self.frames, fps=self.fps)
+            if self.use_wandb:
+                self.log_to_wandb()

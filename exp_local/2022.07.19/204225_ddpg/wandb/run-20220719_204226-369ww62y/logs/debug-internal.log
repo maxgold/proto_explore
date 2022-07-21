@@ -124,3 +124,761 @@
 2022-07-19 20:49:21,403 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
 2022-07-19 20:49:33,674 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
 2022-07-19 20:49:33,674 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:49:48,727 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:49:48,728 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:49:53,395 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:50:03,766 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:50:03,766 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:50:15,528 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:50:15,529 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:50:15,529 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:50:16,321 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:50:18,322 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:50:18,805 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:50:18,805 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:50:25,456 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:50:33,848 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:50:33,848 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:50:48,904 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:50:48,905 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:50:57,455 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:51:03,952 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:51:03,953 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:51:15,511 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:51:15,512 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:51:15,513 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:51:16,348 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:51:16,348 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:51:18,999 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:51:19,000 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:51:29,482 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:51:34,053 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:51:34,054 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:51:49,158 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:51:49,158 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:52:01,551 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:52:04,198 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:52:04,198 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:52:19,238 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:52:19,238 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:52:33,525 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:52:34,274 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:52:34,274 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:52:49,314 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:52:49,314 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:53:04,379 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:53:04,380 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:53:05,496 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:53:05,590 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:53:05,591 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:53:05,592 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:53:06,388 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:53:06,388 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:53:19,421 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:53:19,421 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:53:34,474 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:53:34,474 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:53:37,453 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:53:49,513 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:53:49,514 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:54:04,562 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:54:04,562 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:54:06,415 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:54:38,019 ERROR   SenderThread:1530344 [retry.py:__call__():126] Retry attempt failed:
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 449, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 444, in _make_request
+    httplib_response = conn.getresponse()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 1348, in getresponse
+    response.begin()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 316, in begin
+    version, status, reason = self._read_status()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 277, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/socket.py", line 669, in readinto
+    return self._sock.recv_into(b)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/ssl.py", line 1241, in recv_into
+    return self.read(nbytes, buffer)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/ssl.py", line 1099, in read
+    return self._sslobj.read(len, buffer)
+socket.timeout: The read operation timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/adapters.py", line 489, in send
+    resp = conn.urlopen(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 785, in urlopen
+    retries = retries.increment(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/util/retry.py", line 550, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/packages/six.py", line 770, in reraise
+    raise value
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 703, in urlopen
+    httplib_response = self._make_request(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 451, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 340, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.wandb.ai', port=443): Read timed out. (read timeout=10)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/sdk/lib/retry.py", line 102, in __call__
+    result = self._call_fn(*args, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/sdk/internal/internal_api.py", line 121, in execute
+    return self.client.execute(*args, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/apis/client.py", line 71, in execute
+    response = self._session.post(self.url, **post_args)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 635, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 587, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 701, in send
+    r = adapter.send(request, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/adapters.py", line 578, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.wandb.ai', port=443): Read timed out. (read timeout=10)
+2022-07-19 20:55:06,437 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:55:07,115 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:55:07,116 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:55:07,118 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:55:07,119 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:55:07,120 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:55:07,120 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:55:07,121 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:55:07,121 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:55:07,438 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:55:08,438 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:55:13,551 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:55:22,127 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:55:22,128 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:55:55,879 ERROR   SenderThread:1530344 [retry.py:__call__():126] Retry attempt failed:
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 449, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 444, in _make_request
+    httplib_response = conn.getresponse()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 1348, in getresponse
+    response.begin()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 316, in begin
+    version, status, reason = self._read_status()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/http/client.py", line 277, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/socket.py", line 669, in readinto
+    return self._sock.recv_into(b)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/ssl.py", line 1241, in recv_into
+    return self.read(nbytes, buffer)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/ssl.py", line 1099, in read
+    return self._sslobj.read(len, buffer)
+socket.timeout: The read operation timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/adapters.py", line 489, in send
+    resp = conn.urlopen(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 785, in urlopen
+    retries = retries.increment(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/util/retry.py", line 550, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/packages/six.py", line 770, in reraise
+    raise value
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 703, in urlopen
+    httplib_response = self._make_request(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 451, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/urllib3/connectionpool.py", line 340, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.wandb.ai', port=443): Read timed out. (read timeout=10)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/sdk/lib/retry.py", line 102, in __call__
+    result = self._call_fn(*args, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/sdk/internal/internal_api.py", line 121, in execute
+    return self.client.execute(*args, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/wandb/apis/client.py", line 71, in execute
+    response = self._session.post(self.url, **post_args)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 635, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 587, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/sessions.py", line 701, in send
+    r = adapter.send(request, **kwargs)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/requests/adapters.py", line 578, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.wandb.ai', port=443): Read timed out. (read timeout=10)
+2022-07-19 20:56:04,646 WARNING FileStreamThread:1530344 [file_stream.py:request_with_retry():452] requests_with_retry encountered retryable exception: 500 Server Error: Internal Server Error for url: https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream. func: <bound method Session.post of <requests.sessions.Session object at 0x7fe737d17400>>, args: ('https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream',), kwargs: {'json': {'files': {'wandb-summary.json': {'offset': 0, 'content': ['{"eval/total_time": 510.68389892578125, "eval/episode_reward": 2.370275678367638, "eval/episode_length": 1000.0, "eval/episode": 10.0, "eval/step": 10000.0, "eval/frame": 10000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9, "train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000}']}, 'wandb-history.jsonl': {'offset': 9, 'content': ['{"train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9}']}, 'wandb-events.jsonl': {'offset': 21, 'content': ['{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.2, "system.gpu.0.powerWatts": 254.18, "system.gpu.0.powerPercent": 97.76, "system.gpu.1.gpu": 74.4, "system.gpu.1.memory": 43.33, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 48.53, "system.gpu.process.1.gpu": 74.4, "system.gpu.process.1.memory": 43.33, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 48.53, "system.gpu.1.powerWatts": 212.07, "system.gpu.1.powerPercent": 81.56, "system.gpu.process.1.powerWatts": 212.07, "system.gpu.process.1.powerPercent": 81.56, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.95, "system.gpu.2.powerPercent": 6.52, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.71, "system.gpu.3.powerPercent": 1.81, "system.cpu": 5.7, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892406.11, "system.proc.memory.rssMB": 91.56, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 679528, "system.network.recv": 3809989, "_wandb": true, "_timestamp": 1658289249, "_runtime": 703}', '{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.6, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.27, "system.gpu.0.powerWatts": 252.72, "system.gpu.0.powerPercent": 97.2, "system.gpu.1.gpu": 73.8, "system.gpu.1.memory": 43.8, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.6, "system.gpu.process.1.gpu": 73.8, "system.gpu.process.1.memory": 43.8, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.6, "system.gpu.1.powerWatts": 222.03, "system.gpu.1.powerPercent": 85.4, "system.gpu.process.1.powerWatts": 222.03, "system.gpu.process.1.powerPercent": 85.4, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.89, "system.gpu.2.powerPercent": 6.49, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.6, "system.gpu.3.powerPercent": 1.77, "system.cpu": 5.77, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892364.56, "system.proc.memory.rssMB": 91.74, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 704439, "system.network.recv": 3975417, "_wandb": true, "_timestamp": 1658289281, "_runtime": 735}', '{"system.gpu.0.gpu": 72.93, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.67, "system.gpu.0.powerWatts": 252.91, "system.gpu.0.powerPercent": 97.27, "system.gpu.1.gpu": 73.2, "system.gpu.1.memory": 42.93, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.67, "system.gpu.process.1.gpu": 73.2, "system.gpu.process.1.memory": 42.93, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.67, "system.gpu.1.powerWatts": 219.42, "system.gpu.1.powerPercent": 84.39, "system.gpu.process.1.powerWatts": 219.42, "system.gpu.process.1.powerPercent": 84.39, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.74, "system.gpu.2.powerPercent": 6.44, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.57, "system.gpu.3.powerPercent": 1.76, "system.cpu": 5.75, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892349.97, "system.proc.memory.rssMB": 93.22, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 734259, "system.network.recv": 4158137, "_wandb": true, "_timestamp": 1658289313, "_runtime": 767}']}, 'output.log': {'offset': 8, 'content': ['2022-07-20T03:55:07.119668 | \x1b[33mtrain\x1b[39m | F: 11000 | S: 11000 | E: 11 | L: 1000 | R: 2.1126 | FPS: 5.8823 | T: 0:11:20\n', '2022-07-20T03:55:07.121664 | \x1b[33mtrain\x1b[39m | F: 12000 | S: 12000 | E: 12 | L: 1000 | R: 14.0297 | FPS: 16.7186 | T: 0:12:20\n', 'ERROR 2022-07-20T03:55:08.261649 \x1b[34m\x1b[1mwandb\x1b[39m\x1b[22m: Network error resolved after 0:01:02.551833, resuming normal operation.\n']}}, 'dropped': 0}}
+2022-07-19 20:56:07,462 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:56:18,335 WARNING FileStreamThread:1530344 [file_stream.py:request_with_retry():452] requests_with_retry encountered retryable exception: 500 Server Error: Internal Server Error for url: https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream. func: <bound method Session.post of <requests.sessions.Session object at 0x7fe737d17400>>, args: ('https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream',), kwargs: {'json': {'files': {'wandb-summary.json': {'offset': 0, 'content': ['{"eval/total_time": 510.68389892578125, "eval/episode_reward": 2.370275678367638, "eval/episode_length": 1000.0, "eval/episode": 10.0, "eval/step": 10000.0, "eval/frame": 10000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9, "train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000}']}, 'wandb-history.jsonl': {'offset': 9, 'content': ['{"train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9}']}, 'wandb-events.jsonl': {'offset': 21, 'content': ['{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.2, "system.gpu.0.powerWatts": 254.18, "system.gpu.0.powerPercent": 97.76, "system.gpu.1.gpu": 74.4, "system.gpu.1.memory": 43.33, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 48.53, "system.gpu.process.1.gpu": 74.4, "system.gpu.process.1.memory": 43.33, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 48.53, "system.gpu.1.powerWatts": 212.07, "system.gpu.1.powerPercent": 81.56, "system.gpu.process.1.powerWatts": 212.07, "system.gpu.process.1.powerPercent": 81.56, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.95, "system.gpu.2.powerPercent": 6.52, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.71, "system.gpu.3.powerPercent": 1.81, "system.cpu": 5.7, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892406.11, "system.proc.memory.rssMB": 91.56, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 679528, "system.network.recv": 3809989, "_wandb": true, "_timestamp": 1658289249, "_runtime": 703}', '{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.6, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.27, "system.gpu.0.powerWatts": 252.72, "system.gpu.0.powerPercent": 97.2, "system.gpu.1.gpu": 73.8, "system.gpu.1.memory": 43.8, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.6, "system.gpu.process.1.gpu": 73.8, "system.gpu.process.1.memory": 43.8, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.6, "system.gpu.1.powerWatts": 222.03, "system.gpu.1.powerPercent": 85.4, "system.gpu.process.1.powerWatts": 222.03, "system.gpu.process.1.powerPercent": 85.4, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.89, "system.gpu.2.powerPercent": 6.49, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.6, "system.gpu.3.powerPercent": 1.77, "system.cpu": 5.77, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892364.56, "system.proc.memory.rssMB": 91.74, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 704439, "system.network.recv": 3975417, "_wandb": true, "_timestamp": 1658289281, "_runtime": 735}', '{"system.gpu.0.gpu": 72.93, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.67, "system.gpu.0.powerWatts": 252.91, "system.gpu.0.powerPercent": 97.27, "system.gpu.1.gpu": 73.2, "system.gpu.1.memory": 42.93, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.67, "system.gpu.process.1.gpu": 73.2, "system.gpu.process.1.memory": 42.93, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.67, "system.gpu.1.powerWatts": 219.42, "system.gpu.1.powerPercent": 84.39, "system.gpu.process.1.powerWatts": 219.42, "system.gpu.process.1.powerPercent": 84.39, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.74, "system.gpu.2.powerPercent": 6.44, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.57, "system.gpu.3.powerPercent": 1.76, "system.cpu": 5.75, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892349.97, "system.proc.memory.rssMB": 93.22, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 734259, "system.network.recv": 4158137, "_wandb": true, "_timestamp": 1658289313, "_runtime": 767}']}, 'output.log': {'offset': 8, 'content': ['2022-07-20T03:55:07.119668 | \x1b[33mtrain\x1b[39m | F: 11000 | S: 11000 | E: 11 | L: 1000 | R: 2.1126 | FPS: 5.8823 | T: 0:11:20\n', '2022-07-20T03:55:07.121664 | \x1b[33mtrain\x1b[39m | F: 12000 | S: 12000 | E: 12 | L: 1000 | R: 14.0297 | FPS: 16.7186 | T: 0:12:20\n', 'ERROR 2022-07-20T03:55:08.261649 \x1b[34m\x1b[1mwandb\x1b[39m\x1b[22m: Network error resolved after 0:01:02.551833, resuming normal operation.\n']}}, 'dropped': 0}}
+2022-07-19 20:56:25,474 ERROR   SenderThread:1530344 [internal_api.py:execute():124] 500 response executing GraphQL.
+2022-07-19 20:56:25,475 ERROR   SenderThread:1530344 [internal_api.py:execute():125] {"error":"internal database error"}
+2022-07-19 20:56:30,055 WARNING FileStreamThread:1530344 [file_stream.py:request_with_retry():452] requests_with_retry encountered retryable exception: 500 Server Error: Internal Server Error for url: https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream. func: <bound method Session.post of <requests.sessions.Session object at 0x7fe737d17400>>, args: ('https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream',), kwargs: {'json': {'files': {'wandb-summary.json': {'offset': 0, 'content': ['{"eval/total_time": 510.68389892578125, "eval/episode_reward": 2.370275678367638, "eval/episode_length": 1000.0, "eval/episode": 10.0, "eval/step": 10000.0, "eval/frame": 10000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9, "train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000}']}, 'wandb-history.jsonl': {'offset': 9, 'content': ['{"train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9}']}, 'wandb-events.jsonl': {'offset': 21, 'content': ['{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.2, "system.gpu.0.powerWatts": 254.18, "system.gpu.0.powerPercent": 97.76, "system.gpu.1.gpu": 74.4, "system.gpu.1.memory": 43.33, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 48.53, "system.gpu.process.1.gpu": 74.4, "system.gpu.process.1.memory": 43.33, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 48.53, "system.gpu.1.powerWatts": 212.07, "system.gpu.1.powerPercent": 81.56, "system.gpu.process.1.powerWatts": 212.07, "system.gpu.process.1.powerPercent": 81.56, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.95, "system.gpu.2.powerPercent": 6.52, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.71, "system.gpu.3.powerPercent": 1.81, "system.cpu": 5.7, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892406.11, "system.proc.memory.rssMB": 91.56, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 679528, "system.network.recv": 3809989, "_wandb": true, "_timestamp": 1658289249, "_runtime": 703}', '{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.6, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.27, "system.gpu.0.powerWatts": 252.72, "system.gpu.0.powerPercent": 97.2, "system.gpu.1.gpu": 73.8, "system.gpu.1.memory": 43.8, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.6, "system.gpu.process.1.gpu": 73.8, "system.gpu.process.1.memory": 43.8, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.6, "system.gpu.1.powerWatts": 222.03, "system.gpu.1.powerPercent": 85.4, "system.gpu.process.1.powerWatts": 222.03, "system.gpu.process.1.powerPercent": 85.4, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.89, "system.gpu.2.powerPercent": 6.49, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.6, "system.gpu.3.powerPercent": 1.77, "system.cpu": 5.77, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892364.56, "system.proc.memory.rssMB": 91.74, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 704439, "system.network.recv": 3975417, "_wandb": true, "_timestamp": 1658289281, "_runtime": 735}', '{"system.gpu.0.gpu": 72.93, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.67, "system.gpu.0.powerWatts": 252.91, "system.gpu.0.powerPercent": 97.27, "system.gpu.1.gpu": 73.2, "system.gpu.1.memory": 42.93, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.67, "system.gpu.process.1.gpu": 73.2, "system.gpu.process.1.memory": 42.93, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.67, "system.gpu.1.powerWatts": 219.42, "system.gpu.1.powerPercent": 84.39, "system.gpu.process.1.powerWatts": 219.42, "system.gpu.process.1.powerPercent": 84.39, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.74, "system.gpu.2.powerPercent": 6.44, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.57, "system.gpu.3.powerPercent": 1.76, "system.cpu": 5.75, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892349.97, "system.proc.memory.rssMB": 93.22, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 734259, "system.network.recv": 4158137, "_wandb": true, "_timestamp": 1658289313, "_runtime": 767}']}, 'output.log': {'offset': 8, 'content': ['2022-07-20T03:55:07.119668 | \x1b[33mtrain\x1b[39m | F: 11000 | S: 11000 | E: 11 | L: 1000 | R: 2.1126 | FPS: 5.8823 | T: 0:11:20\n', '2022-07-20T03:55:07.121664 | \x1b[33mtrain\x1b[39m | F: 12000 | S: 12000 | E: 12 | L: 1000 | R: 14.0297 | FPS: 16.7186 | T: 0:12:20\n', 'ERROR 2022-07-20T03:55:08.261649 \x1b[34m\x1b[1mwandb\x1b[39m\x1b[22m: Network error resolved after 0:01:02.551833, resuming normal operation.\n']}}, 'dropped': 0}}
+2022-07-19 20:56:40,600 WARNING FileStreamThread:1530344 [file_stream.py:request_with_retry():452] requests_with_retry encountered retryable exception: 500 Server Error: Internal Server Error for url: https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream. func: <bound method Session.post of <requests.sessions.Session object at 0x7fe737d17400>>, args: ('https://api.wandb.ai/files/maxgold/og/369ww62y/file_stream',), kwargs: {'json': {'files': {'wandb-summary.json': {'offset': 0, 'content': ['{"eval/total_time": 510.68389892578125, "eval/episode_reward": 2.370275678367638, "eval/episode_length": 1000.0, "eval/episode": 10.0, "eval/step": 10000.0, "eval/frame": 10000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9, "train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000}']}, 'wandb-history.jsonl': {'offset': 9, 'content': ['{"train/batch_reward": 0.003995160493223864, "train/critic_target_q": 0.009859200822771527, "train/critic_q1": 0.009774238112790044, "train/critic_q2": 0.00977083959680749, "train/critic_loss": 0.0028581711201259167, "train/actor_loss": -0.013105392090801615, "train/actor_logprob": 0.9913035951852799, "train/actor_ent": -0.3809988498687744, "train/fps": 16.718560735264884, "train/total_time": 740.4882779121399, "train/episode_reward": 14.029674953980003, "train/episode_length": 1000.0, "train/episode": 12.0, "train/buffer_size": 12000.0, "train/step": 12000.0, "train/frame": 12000, "_runtime": 759, "_timestamp": 1658289305, "_step": 9}']}, 'wandb-events.jsonl': {'offset': 21, 'content': ['{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.2, "system.gpu.0.powerWatts": 254.18, "system.gpu.0.powerPercent": 97.76, "system.gpu.1.gpu": 74.4, "system.gpu.1.memory": 43.33, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 48.53, "system.gpu.process.1.gpu": 74.4, "system.gpu.process.1.memory": 43.33, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 48.53, "system.gpu.1.powerWatts": 212.07, "system.gpu.1.powerPercent": 81.56, "system.gpu.process.1.powerWatts": 212.07, "system.gpu.process.1.powerPercent": 81.56, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.95, "system.gpu.2.powerPercent": 6.52, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.71, "system.gpu.3.powerPercent": 1.81, "system.cpu": 5.7, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892406.11, "system.proc.memory.rssMB": 91.56, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 679528, "system.network.recv": 3809989, "_wandb": true, "_timestamp": 1658289249, "_runtime": 703}', '{"system.gpu.0.gpu": 72.6, "system.gpu.0.memory": 36.6, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.27, "system.gpu.0.powerWatts": 252.72, "system.gpu.0.powerPercent": 97.2, "system.gpu.1.gpu": 73.8, "system.gpu.1.memory": 43.8, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.6, "system.gpu.process.1.gpu": 73.8, "system.gpu.process.1.memory": 43.8, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.6, "system.gpu.1.powerWatts": 222.03, "system.gpu.1.powerPercent": 85.4, "system.gpu.process.1.powerWatts": 222.03, "system.gpu.process.1.powerPercent": 85.4, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.89, "system.gpu.2.powerPercent": 6.49, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.6, "system.gpu.3.powerPercent": 1.77, "system.cpu": 5.77, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892364.56, "system.proc.memory.rssMB": 91.74, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 704439, "system.network.recv": 3975417, "_wandb": true, "_timestamp": 1658289281, "_runtime": 735}', '{"system.gpu.0.gpu": 72.93, "system.gpu.0.memory": 36.8, "system.gpu.0.memoryAllocated": 2.8, "system.gpu.0.temp": 66.67, "system.gpu.0.powerWatts": 252.91, "system.gpu.0.powerPercent": 97.27, "system.gpu.1.gpu": 73.2, "system.gpu.1.memory": 42.93, "system.gpu.1.memoryAllocated": 7.32, "system.gpu.1.temp": 49.67, "system.gpu.process.1.gpu": 73.2, "system.gpu.process.1.memory": 42.93, "system.gpu.process.1.memoryAllocated": 7.32, "system.gpu.process.1.temp": 49.67, "system.gpu.1.powerWatts": 219.42, "system.gpu.1.powerPercent": 84.39, "system.gpu.process.1.powerWatts": 219.42, "system.gpu.process.1.powerPercent": 84.39, "system.gpu.2.gpu": 0.0, "system.gpu.2.memory": 0.0, "system.gpu.2.memoryAllocated": 0.01, "system.gpu.2.temp": 27.0, "system.gpu.2.powerWatts": 16.74, "system.gpu.2.powerPercent": 6.44, "system.gpu.3.gpu": 0.0, "system.gpu.3.memory": 0.0, "system.gpu.3.memoryAllocated": 0.01, "system.gpu.3.temp": 26.0, "system.gpu.3.powerWatts": 4.57, "system.gpu.3.powerPercent": 1.76, "system.cpu": 5.75, "system.memory": 8.1, "system.disk": 69.6, "system.proc.memory.availableMB": 1892349.97, "system.proc.memory.rssMB": 93.22, "system.proc.memory.percent": 0.0, "system.proc.cpu.threads": 12.0, "system.network.sent": 734259, "system.network.recv": 4158137, "_wandb": true, "_timestamp": 1658289313, "_runtime": 767}']}, 'output.log': {'offset': 8, 'content': ['2022-07-20T03:55:07.119668 | \x1b[33mtrain\x1b[39m | F: 11000 | S: 11000 | E: 11 | L: 1000 | R: 2.1126 | FPS: 5.8823 | T: 0:11:20\n', '2022-07-20T03:55:07.121664 | \x1b[33mtrain\x1b[39m | F: 12000 | S: 12000 | E: 12 | L: 1000 | R: 14.0297 | FPS: 16.7186 | T: 0:12:20\n', 'ERROR 2022-07-20T03:55:08.261649 \x1b[34m\x1b[1mwandb\x1b[39m\x1b[22m: Network error resolved after 0:01:02.551833, resuming normal operation.\n']}}, 'dropped': 0}}
+2022-07-19 20:56:45,126 ERROR   SenderThread:1530344 [internal_api.py:execute():124] 500 response executing GraphQL.
+2022-07-19 20:56:45,126 ERROR   SenderThread:1530344 [internal_api.py:execute():125] {"error":"internal database error"}
+2022-07-19 20:57:07,490 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:57:19,427 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:57:19,428 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:57:19,428 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:57:19,430 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:57:19,432 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:57:19,433 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:57:19,433 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:57:19,433 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:57:19,434 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:57:19,496 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:57:21,497 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:57:21,537 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:57:34,440 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:57:34,440 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:57:50,151 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:57:50,152 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:57:53,541 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:58:04,420 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:58:04,421 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:58:04,422 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:58:04,516 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:58:05,195 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:58:05,196 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:58:05,517 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:58:20,239 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:58:20,239 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:58:25,527 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:58:35,279 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:58:35,279 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:58:50,323 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:58:50,323 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:58:57,502 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:59:03,913 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 20:59:03,914 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 20:59:03,915 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 20:59:04,543 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 20:59:05,359 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:59:05,359 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:59:05,543 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 20:59:20,399 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:59:20,399 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:59:29,470 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 20:59:35,443 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:59:35,443 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 20:59:50,477 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 20:59:50,478 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:00:01,446 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:00:03,875 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:00:03,876 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:00:03,876 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:00:04,567 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:00:05,547 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:00:05,547 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:00:05,568 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:00:20,584 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:00:20,584 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:00:33,417 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:00:35,625 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:00:35,625 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:00:50,662 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:00:50,663 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:01:03,515 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:01:03,517 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:01:03,518 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:01:03,588 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:01:05,388 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:01:05,589 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:01:05,726 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:01:05,727 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:01:20,764 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:01:20,764 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:01:35,816 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:01:35,816 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:01:37,362 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:01:52,039 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:01:52,040 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:02:03,749 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:02:03,750 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:02:03,750 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:02:04,611 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:02:05,612 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:02:07,080 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:02:07,080 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:02:09,343 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:02:22,121 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:02:22,122 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:02:37,155 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:02:37,156 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:02:41,387 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:02:52,191 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:02:52,191 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:03:03,516 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:03:03,517 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:03:03,518 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:03:03,635 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:03:05,636 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:03:07,227 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:03:07,227 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:03:13,356 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:03:22,268 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:03:22,269 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:03:37,344 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:03:37,344 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:03:45,352 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:03:52,396 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:03:52,396 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:04:07,437 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:04:07,437 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:04:17,330 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:04:22,483 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:04:22,483 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:04:37,535 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:04:37,536 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:04:49,376 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:04:51,278 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:04:51,278 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:04:51,279 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:04:51,674 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:04:51,674 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:04:52,573 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:04:52,574 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:05:07,611 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:05:07,611 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:05:21,411 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:05:22,657 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:05:22,657 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:05:37,702 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:05:37,703 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:05:50,921 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:05:50,921 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:05:50,922 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:05:51,697 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:05:51,697 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:05:52,741 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:05:52,742 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:05:53,451 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:06:07,784 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:06:07,785 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:06:22,830 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:06:22,830 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:06:25,487 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:06:37,888 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:06:37,889 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:06:50,877 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:06:50,878 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:06:50,879 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:06:51,721 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:06:52,721 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:06:52,940 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:06:52,940 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:06:57,556 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:07:07,990 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:07:07,991 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:07:23,047 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:07:23,048 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:07:29,522 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:07:38,095 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:07:38,095 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:07:50,568 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:07:50,569 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:07:50,570 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:07:50,745 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:07:52,745 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:07:53,134 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:07:53,134 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:08:01,505 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:08:08,173 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:08:08,173 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:08:23,208 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:08:23,209 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:08:33,488 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:08:38,246 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:08:38,247 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:08:50,407 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:08:50,407 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:08:50,409 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:08:50,769 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:08:52,769 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:08:53,299 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:08:53,300 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:09:05,441 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:09:08,353 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:09:08,353 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:09:23,412 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:09:23,412 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:09:37,450 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:09:38,585 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:09:38,585 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:09:49,908 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:09:49,909 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:09:49,910 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:09:50,792 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:09:50,792 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:09:53,629 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:09:53,630 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:10:08,671 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:10:08,671 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:10:09,437 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:10:23,709 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:10:23,710 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:10:38,746 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:10:38,747 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:10:41,376 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:10:49,480 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:10:49,481 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:10:49,481 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:10:49,815 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:10:50,815 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:10:53,784 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:10:53,785 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:11:08,822 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:11:08,822 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:11:13,330 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:11:23,864 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:11:23,865 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:11:38,917 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:11:38,917 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:11:45,289 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:11:49,666 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:11:49,666 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:11:49,667 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:11:49,843 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:11:50,843 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:11:53,958 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:11:53,958 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:12:08,994 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:12:08,994 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:12:17,238 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:12:24,069 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:12:24,069 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:12:40,086 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:12:40,087 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:12:49,225 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:12:49,337 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:12:49,337 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:12:49,338 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:12:49,868 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:12:50,869 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:12:55,123 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:12:55,124 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:13:10,162 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:13:10,162 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:13:21,245 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:13:25,199 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:13:25,199 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:13:40,237 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:13:40,237 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:13:49,364 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:13:49,364 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:13:49,365 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:13:49,895 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:13:50,895 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:13:53,218 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:13:55,286 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:13:55,286 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:14:10,321 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:14:10,321 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:14:25,231 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:14:25,360 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:14:25,360 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:14:40,419 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:14:40,419 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:14:49,410 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:14:49,411 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:14:49,412 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:14:49,920 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:14:50,920 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:14:55,458 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:14:55,458 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:14:57,251 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:15:10,507 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:15:10,507 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:15:25,543 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:15:25,544 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:15:29,245 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:15:40,581 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:15:40,581 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:15:55,723 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:15:55,723 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:16:01,266 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:16:10,758 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:16:10,759 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:16:25,794 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:16:25,794 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:16:33,302 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:16:36,362 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:16:36,363 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:16:36,363 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:16:36,960 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:16:36,960 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:16:40,831 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:16:40,831 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:16:55,871 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:16:55,872 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:17:05,381 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:17:10,911 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:17:10,911 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:17:25,947 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:17:25,948 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:17:36,292 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:17:36,293 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:17:36,296 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:17:36,983 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:17:36,983 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:17:37,370 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:17:40,989 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:17:40,989 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:17:56,037 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:17:56,037 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:18:09,320 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:18:11,082 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:18:11,083 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:18:26,129 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:18:26,130 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:18:35,802 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:18:35,803 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:18:35,804 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:18:36,003 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:18:38,004 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:18:41,204 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:18:41,204 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:18:41,256 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:18:56,252 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:18:56,252 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:19:11,290 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:19:11,290 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:19:13,263 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:19:26,346 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:19:26,347 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:19:35,616 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:19:35,617 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:19:35,618 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:19:36,026 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:19:38,027 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:19:41,383 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:19:41,383 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:19:45,282 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:19:56,420 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:19:56,420 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:20:11,467 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:20:11,468 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:20:17,259 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:20:26,506 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:20:26,506 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:20:35,239 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:20:35,240 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:20:35,241 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:20:36,050 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:20:38,051 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:20:41,542 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:20:41,543 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:20:49,229 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:20:56,584 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:20:56,585 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:21:11,622 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:21:11,622 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:21:21,240 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:21:26,659 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:21:26,660 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:21:34,942 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:21:34,942 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:21:34,943 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:21:35,073 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:21:36,073 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:21:41,716 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:21:41,717 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:21:53,223 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:21:56,756 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:21:56,757 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:22:11,793 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:22:11,793 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:22:25,170 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:22:26,834 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:22:26,835 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:22:34,975 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:22:34,976 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:22:34,977 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:22:35,097 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:22:36,098 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:22:41,881 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:22:41,881 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:22:56,916 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:22:56,916 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:22:57,125 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:23:11,956 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:23:11,956 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:23:27,028 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:23:27,029 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:23:29,080 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:23:34,579 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:23:34,580 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:23:34,581 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:23:35,121 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:23:36,122 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:23:42,069 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:23:42,070 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:23:57,107 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:23:57,108 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:24:00,997 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:24:12,145 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:24:12,145 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:24:27,183 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:24:27,183 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:24:32,957 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:24:34,107 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:24:34,107 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:24:34,108 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:24:34,147 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:24:36,148 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:24:42,229 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:24:42,230 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:24:57,298 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:24:57,299 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:25:04,952 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:25:12,333 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:25:12,333 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:25:27,374 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:25:27,374 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:25:33,783 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:25:33,784 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:25:33,785 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:25:34,173 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:25:36,174 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:25:36,991 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:25:42,415 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:25:42,416 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:25:57,460 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:25:57,461 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:26:08,992 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:26:12,498 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:26:12,499 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:26:27,546 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:26:27,546 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:26:33,509 DEBUG   SenderThread:1530344 [sender.py:send():179] send: history
+2022-07-19 21:26:33,509 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:26:33,510 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:26:34,199 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:26:34,200 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:26:40,969 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:26:42,581 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:26:42,582 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:26:57,622 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:26:57,622 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:27:12,662 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:27:12,663 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:27:12,991 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:27:27,705 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:27:27,706 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:27:42,745 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: stop_status
+2022-07-19 21:27:42,746 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: stop_status
+2022-07-19 21:27:45,012 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:27:54,731 WARNING MainThread:1530344 [internal.py:wandb_internal():147] Internal process interrupt: 1
+2022-07-19 21:27:56,230 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:27:57,523 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:57,524 DEBUG   SenderThread:1530344 [sender.py:send():179] send: telemetry
+2022-07-19 21:27:57,524 DEBUG   SenderThread:1530344 [sender.py:send():179] send: exit
+2022-07-19 21:27:57,524 INFO    SenderThread:1530344 [sender.py:send_exit():287] handling exit code: 255
+2022-07-19 21:27:57,524 INFO    SenderThread:1530344 [sender.py:send_exit():295] send defer
+2022-07-19 21:27:57,525 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:57,526 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,526 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 0
+2022-07-19 21:27:57,526 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,526 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 0
+2022-07-19 21:27:57,526 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 1
+2022-07-19 21:27:57,527 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,527 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 1
+2022-07-19 21:27:57,679 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:57,679 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,679 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 1
+2022-07-19 21:27:57,679 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 2
+2022-07-19 21:27:57,680 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:57,680 DEBUG   SenderThread:1530344 [sender.py:send():179] send: stats
+2022-07-19 21:27:57,681 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,681 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 2
+2022-07-19 21:27:57,681 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,682 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 2
+2022-07-19 21:27:57,682 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 3
+2022-07-19 21:27:57,682 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,682 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 3
+2022-07-19 21:27:57,683 DEBUG   SenderThread:1530344 [sender.py:send():179] send: summary
+2022-07-19 21:27:57,684 INFO    SenderThread:1530344 [sender.py:_save_file():841] saving file wandb-summary.json with policy end
+2022-07-19 21:27:57,684 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,684 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 3
+2022-07-19 21:27:57,684 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 4
+2022-07-19 21:27:57,684 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,685 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 4
+2022-07-19 21:27:57,685 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,685 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 4
+2022-07-19 21:27:57,779 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 5
+2022-07-19 21:27:57,779 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:57,779 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 5
+2022-07-19 21:27:57,779 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:57,780 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 5
+2022-07-19 21:27:57,780 INFO    SenderThread:1530344 [dir_watcher.py:finish():282] shutting down directory watcher
+2022-07-19 21:27:57,782 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,231 INFO    Thread-8  :1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:27:58,231 INFO    SenderThread:1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/config.yaml
+2022-07-19 21:27:58,232 INFO    SenderThread:1530344 [dir_watcher.py:_on_file_modified():229] file/dir modified: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:27:58,232 INFO    SenderThread:1530344 [dir_watcher.py:finish():312] scan: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files
+2022-07-19 21:27:58,232 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json wandb-summary.json
+2022-07-19 21:27:58,232 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log output.log
+2022-07-19 21:27:58,233 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/config.yaml config.yaml
+2022-07-19 21:27:58,239 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/requirements.txt requirements.txt
+2022-07-19 21:27:58,239 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/conda-environment.yaml conda-environment.yaml
+2022-07-19 21:27:58,239 INFO    SenderThread:1530344 [dir_watcher.py:finish():318] scan save: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-metadata.json wandb-metadata.json
+2022-07-19 21:27:58,239 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 6
+2022-07-19 21:27:58,239 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,240 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:58,240 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 6
+2022-07-19 21:27:58,241 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:58,241 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 6
+2022-07-19 21:27:58,241 INFO    SenderThread:1530344 [file_pusher.py:finish():177] shutting down file pusher
+2022-07-19 21:27:58,342 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,343 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,445 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,445 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,508 INFO    Thread-12 :1530344 [upload_job.py:push():137] Uploaded file /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/wandb-summary.json
+2022-07-19 21:27:58,531 INFO    Thread-13 :1530344 [upload_job.py:push():137] Uploaded file /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/output.log
+2022-07-19 21:27:58,536 INFO    Thread-15 :1530344 [upload_job.py:push():137] Uploaded file /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/requirements.txt
+2022-07-19 21:27:58,547 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,547 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,555 INFO    Thread-16 :1530344 [upload_job.py:push():137] Uploaded file /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/conda-environment.yaml
+2022-07-19 21:27:58,558 INFO    Thread-14 :1530344 [upload_job.py:push():137] Uploaded file /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/files/config.yaml
+2022-07-19 21:27:58,648 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,649 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,750 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,750 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,759 INFO    Thread-7  :1530344 [sender.py:transition_state():308] send defer: 7
+2022-07-19 21:27:58,760 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:58,760 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 7
+2022-07-19 21:27:58,760 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:58,760 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 7
+2022-07-19 21:27:58,852 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:58,971 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 8
+2022-07-19 21:27:58,971 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:58,972 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:58,972 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 8
+2022-07-19 21:27:58,972 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:58,972 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 8
+2022-07-19 21:27:58,972 INFO    SenderThread:1530344 [sender.py:transition_state():308] send defer: 9
+2022-07-19 21:27:58,973 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: defer
+2022-07-19 21:27:58,973 INFO    HandlerThread:1530344 [handler.py:handle_request_defer():141] handle defer: 9
+2022-07-19 21:27:58,973 DEBUG   SenderThread:1530344 [sender.py:send():179] send: final
+2022-07-19 21:27:58,974 DEBUG   SenderThread:1530344 [sender.py:send():179] send: footer
+2022-07-19 21:27:58,974 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: defer
+2022-07-19 21:27:58,974 INFO    SenderThread:1530344 [sender.py:send_request_defer():304] handle sender defer: 9
+2022-07-19 21:27:59,072 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: poll_exit
+2022-07-19 21:27:59,073 DEBUG   SenderThread:1530344 [sender.py:send_request():193] send_request: poll_exit
+2022-07-19 21:27:59,073 INFO    SenderThread:1530344 [file_pusher.py:join():182] waiting for file pusher
+2022-07-19 21:27:59,074 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: get_summary
+2022-07-19 21:27:59,076 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: sampled_history
+2022-07-19 21:27:59,080 DEBUG   HandlerThread:1530344 [handler.py:handle_request():124] handle_request: shutdown
+2022-07-19 21:27:59,080 INFO    HandlerThread:1530344 [handler.py:finish():658] shutting down handler
+2022-07-19 21:27:59,973 INFO    WriterThread:1530344 [datastore.py:close():288] close: /home/maxgold/workspace/explore/proto_explore/exp_local/2022.07.19/204225_ddpg/wandb/run-20220719_204226-369ww62y/run-369ww62y.wandb
+2022-07-19 21:28:00,073 INFO    SenderThread:1530344 [sender.py:finish():947] shutting down sender
+2022-07-19 21:28:00,073 INFO    SenderThread:1530344 [file_pusher.py:finish():177] shutting down file pusher
+2022-07-19 21:28:00,073 INFO    SenderThread:1530344 [file_pusher.py:join():182] waiting for file pusher
+2022-07-19 21:28:00,075 INFO    MainThread:1530344 [internal.py:handle_exit():78] Internal process exited

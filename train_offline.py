@@ -32,6 +32,7 @@ def get_domain(task):
 def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
+GOAL_ARRAY = np.array([[-.15,.15],[-.15,-.15],[.15,-.15],[.15,.15]])
 
 def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg):
     step, episode, total_reward = 0, 0, 0
@@ -62,9 +63,8 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
         log("episode_length", step / episode)
         log("step", global_step)
 
-def eval_goal(agent, env, video_recorder, cfg, goal):
+def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
     step, episode, total_reward = 0, 0, 0
-    eval_until_episode = utils.Until(num_eval_episodes)
     env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     time_step = env.reset()
     video_recorder.init(env, enabled=True)
@@ -82,7 +82,12 @@ def eval_goal(agent, env, video_recorder, cfg, goal):
 
     episode += 1
     # TODO: expand goal
-    video_recorder.save(f"goal:{goal[0]--goal[1]}.mp4")
+    video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+    with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+        log("goal", goal)
+        log("episode_reward", total_reward)
+        log("episode_length", step)
+        log("step", global_step)
 
 
 def eval_random(env):
@@ -111,7 +116,7 @@ def main(cfg):
     device = torch.device(cfg.device)
 
     # create logger
-    logger = Logger(work_dir, use_tb=cfg.use_tb)
+    logger = Logger(work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
@@ -175,7 +180,13 @@ def main(cfg):
         # try to evaluate
         if eval_every_step(global_step+1):
             logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+            if cfg.goal:
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, GOAL_ARRAY[0])
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, GOAL_ARRAY[1])
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, GOAL_ARRAY[2])
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, GOAL_ARRAY[3])
+            else:
+                eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
 
         metrics = agent.update(replay_iter, global_step)
         logger.log_metrics(metrics, global_step, ty="train")
@@ -188,10 +199,6 @@ def main(cfg):
 
 
         global_step += 1
-    eval_goal(agent, env, video_recorder, cfg, (-.15,.15))
-    eval_goal(agent, env, video_recorder, cfg, (-.15,-.15))
-    eval_goal(agent, env, video_recorder, cfg, (.15,.15))
-    eval_goal(agent, env, video_recorder, cfg, (.15,-.15))
 
 
 if __name__ == "__main__":
