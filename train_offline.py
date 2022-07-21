@@ -1,7 +1,6 @@
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.simplefilter("ignore")
 
 import os
 
@@ -33,33 +32,99 @@ def get_domain(task):
 def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
+# GOAL_ARRAY = np.array([[-.15,.15],[-.15,-.15],[.15,-.15],[.15,.15]])
 
-def eval(global_step, agent, logger, num_eval_episodes, video_recorder,goals,goal_shape, cfg):
+def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg):
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
-    goal_ = goals[0][np.random.randint(0, len(goals[0]))]
     if cfg.goal:
-        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal_)
-        print('current goal', goal_)
+        goal = np.random.sample((2,)) * .5 - .25
+        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
         video_recorder.init(env, enabled=(episode == 0))
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
-                    action = agent.act(time_step.observation, goal_, global_step, eval_mode=True)
+                    #goal = np.array((.2, .2))
+                    action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
             time_step = env.step(action)
             video_recorder.record(env)
             total_reward += time_step.reward
             step += 1
+
         episode += 1
         video_recorder.save(f"{global_step}.mp4")
+
     with logger.log_and_dump_ctx(global_step, ty="eval") as log:
         log("episode_reward", total_reward / episode)
         log("episode_length", step / episode)
         log("step", global_step)
+
+def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal_array):
+    step, episode, total_reward = 0, 0, 0
+    if cfg.goal and global_step < 200000:
+        goal = np.random.sample((2,)) * .5 - .25
+        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+        
+        time_step = env.reset()
+        video_recorder.init(env, enabled=(episode == 0))
+        
+        while not time_step.last():
+            with torch.no_grad(), utils.eval_mode(agent):
+                if cfg.goal:
+                    action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+                else:
+                    action = agent.act(time_step.observation, global_step, eval_mode=True)
+            time_step = env.step(action)
+            video_recorder.record(env)
+            total_reward += time_step.reward
+            step += 1
+
+        episode += 1
+        video_recorder.save(f"{global_step}.mp4")
+        
+        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+            log("goal", goal)
+            log("episode_reward", total_reward)
+            log("episode_length", step)
+            log("step", global_step)
+
+    elif cfg.goal and global_step >= 200000:
+        total_reward_collection = []
+        total_step_collection = []
+        for goal in goal_array:
+            env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+            time_step = env.reset()
+            video_recorder.init(env, enabled=True)
+
+            while not time_step.last():
+                with torch.no_grad(), utils.eval_mode(agent):
+                    if cfg.goal:
+                        #goal = np.array((.2, .2))
+                        action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+                    else:
+                        action = agent.act(time_step.observation, global_step, eval_mode=True)
+                time_step = env.step(action)
+                video_recorder.record(env)
+                total_reward += time_step.reward
+                step += 1
+            
+            total_reward_collection.append(total_reward)
+            total_step_collection.append(step)
+
+#             episode += 1
+            # TODO: expand goal
+            video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+            
+        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+            log("goal", goal_array)
+            log("episode_reward", total_reward_collection)
+            log("episode_length", total_step_collection)
+            log("step", global_step)
+            
 
 
 def eval_random(env):
@@ -88,18 +153,18 @@ def main(cfg):
     device = torch.device(cfg.device)
 
     # create logger
-    logger = Logger(work_dir, use_tb=cfg.use_tb)
+    logger = Logger(work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
     # create envs
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25,.25,-.25))
-    goal_shape = (4,)
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
+
     # create agent
     if cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
             obs_shape=env.observation_spec().shape,
             action_shape=env.action_spec().shape,
-            goal_shape=env.observation_spec().shape
+            goal_shape=(2,),
         )
     else:
         agent = hydra.utils.instantiate(
@@ -121,6 +186,7 @@ def main(cfg):
     datasets_dir = work_dir / cfg.replay_buffer_dir
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     print(f"replay dir: {replay_dir}")
+    #import IPython as ipy; ipy.embed(colors="neutral")
 
     replay_loader = make_replay_loader(
         env,
@@ -134,10 +200,11 @@ def main(cfg):
 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
+    goal_array = replay_loader._get_goal_array(space=20, eval_mode=True)
+    print(goal_array.shape)
 
     # create video recorders
     video_recorder = VideoRecorder(work_dir if cfg.save_video else None)
-    #import IPython as ipy; ipy.embed(colors="neutral")
 
     timer = utils.Timer()
 
@@ -146,11 +213,17 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
+
+
     while train_until_step(global_step):
         # try to evaluate
-       # if eval_every_step(global_step):
-           # logger.log('eval_total_time', timer.total_time(), global_step)
-           # eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorderi, goal)
+        if eval_every_step(global_step+1):
+            logger.log("eval_total_time", timer.total_time(), global_step)
+            if cfg.goal:
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal_array)
+            else:
+                eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+
         metrics = agent.update(replay_iter, global_step)
         logger.log_metrics(metrics, global_step, ty="train")
         if log_every_step(global_step):
@@ -160,10 +233,6 @@ def main(cfg):
                 log("total_time", total_time)
                 log("step", global_step)
 
-        if eval_every_step(global_step):
-            goals = agent.eval_path_collector['future']
-            logger.log("eval_total_time", timer.total_time(), global_step)
-            eval(global_step, agent, logger, cfg.num_eval_episodes, video_recorder,goals,goal_shape, cfg)
 
         global_step += 1
 
