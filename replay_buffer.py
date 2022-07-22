@@ -338,16 +338,16 @@ class OfflineReplayBuffer(IterableDataset):
             self._get_goal_array()
             self._goal_array = True
         
-        goal_array = random.sample(np.ndarray.tolist(self.goal_array),4)
+        goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
 
         for goal in goal_array:
             rewards.append(my_reward(action, next_obs, goal))
 
         discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (4, 1))
-        action = np.tile(action, (4, 1))
-        discount = np.tile(discount, (4, 1))
-        next_obs = np.tile(next_obs, (4, 1))
+        obs = np.tile(obs, (5, 1))
+        action = np.tile(action, (5, 1))
+        discount = np.tile(discount, (5, 1))
+        next_obs = np.tile(next_obs, (5, 1))
         reward = np.array(rewards)
         goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)

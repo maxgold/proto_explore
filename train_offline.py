@@ -63,69 +63,30 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
         log("step", global_step)
 
 
-def eval_goal(global_step, agent, env, logger, video_recorder, cfg):
+def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
     step, episode, total_reward = 0, 0, 0
-    if cfg.goal and global_step < 300000:
-        goal = np.random.sample((2,)) * .5 - .25
-        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=goal) 
+    time_step = env.reset()
+    video_recorder.init(env, enabled=True)
         
-        time_step = env.reset()
-        video_recorder.init(env, enabled=(episode == 0))
-        
-        while not time_step.last():
-            with torch.no_grad(), utils.eval_mode(agent):
-                if cfg.goal:
-                    action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
-                else:
-                    action = agent.act(time_step.observation, global_step, eval_mode=True)
-            time_step = env.step(action)
-            video_recorder.record(env)
-            total_reward += time_step.reward
-            step += 1
+    while not time_step.last():
+        with torch.no_grad(), utils.eval_mode(agent):
+            if cfg.goal:
+                action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+            else:
+                action = agent.act(time_step.observation, global_step, eval_mode=True)
+        time_step = env.step(action)
+        video_recorder.record(env)
+        total_reward += time_step.reward
+        step += 1
 
-        episode += 1
-        video_recorder.save(f"{global_step}.mp4")
-        
-        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-            log("goal", goal)
-            log("episode_reward", total_reward)
-            log("episode_length", step)
-            log("steps", global_step)
-
-    elif cfg.goal and global_step >= 300000:
-        total_reward_collection = []
-        total_step_collection = []
-        goal_array = ndim_grid(2,20)
-        for goal in goal_array:
-            env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
-            time_step = env.reset()
-            video_recorder.init(env, enabled=True)
-
-            while not time_step.last():
-                with torch.no_grad(), utils.eval_mode(agent):
-                    if cfg.goal:
-                        #goal = np.array((.2, .2))
-                        action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
-                    else:
-                        action = agent.act(time_step.observation, global_step, eval_mode=True)
-                time_step = env.step(action)
-                video_recorder.record(env)
-                total_reward += time_step.reward
-                step += 1
-            
-            total_reward_collection.append(total_reward)
-            total_step_collection.append(step)
-
-#             episode += 1
-            # TODO: expand goal
-            video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
-            
-        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-            log("goal", goal_array)
-            log("episode_reward", total_reward_collection)
-            log("episode_length", total_step_collection)
-            log("step", global_step)
-            
+    episode += 1
+    video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+    with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+        log("goal", goal)
+        log("episode_reward", total_reward)
+        log("episode_length", step)
+        log("steps", global_step)
 
 def eval_random(env):
     time_step = env.reset()
@@ -220,9 +181,17 @@ def main(cfg):
         # try to evaluate
         if eval_every_step(global_step+1):
             logger.log("eval_total_time", timer.total_time(), global_step)
-            if cfg.goal:
-                eval_goal(global_step, agent, env, logger, video_recorder, cfg)
-
+            if cfg.goal and global_step >450000:
+                goal = np.random.sample((2,)) * .5 - .25
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
+            elif cfg.goal and global_step <=450000:
+                goal_array = ndim_grid(2,20)
+                for i in goal_array:
+                    i = i.round(decimals=2)
+                    print(i.dtype)
+                    print(i.shape)
+                    print(i)
+                    eval_goal(global_step, agent, env,logger, video_recorder, cfg, i)
             else:
                 eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
 
