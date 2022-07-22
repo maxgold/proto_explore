@@ -197,10 +197,21 @@ def main(cfg):
         cfg.discount,
         goal=cfg.goal
     )
+    
 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
-    goal_array = replay_loader._get_goal_array(space=20, eval_mode=True)
+    
+    iterable = OfflineReplayBuffer(
+        env,
+        replay_dir,
+        cfg.replay_buffer_size,
+        cfg.batch_size,
+        cfg.replay_buffer_num_workers,
+        cfg.discount,
+        goal=cfg.goal
+    )
+    goal_array = iterable._get_goal_array(space=20, eval_mode=True)
     print(goal_array.shape)
 
     # create video recorders
