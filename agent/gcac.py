@@ -31,6 +31,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
+
     def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
         super().__init__()
 
@@ -70,7 +71,7 @@ class GCACAgent:
                  nstep,
                  batch_size,
                  stddev_clip,
-                 use_tb,
+                 use_tb
                  has_next_action=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
@@ -177,6 +178,12 @@ class GCACAgent:
         reward = reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
         reward = reward.float()
+
+        #vae
+#         # augment and encode
+#         obs = self.aug_and_encode(obs)
+#         with torch.no_grad():
+#             next_obs = self.aug_and_encode(next_obs)
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()

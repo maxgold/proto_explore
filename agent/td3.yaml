@@ -13,3 +13,5 @@ stddev_clip: 0.3
 nstep: 1
 batch_size: 1024 # 256 for pixels
 has_next_action: False
+offset: 1
+offset_schedule: 1
