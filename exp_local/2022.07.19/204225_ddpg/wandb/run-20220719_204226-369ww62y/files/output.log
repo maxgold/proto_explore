@@ -1,0 +1,87 @@
+
+| [32meval[39m  | F: 0 | S: 0 | E: 0 | L: 1000 | R: 0.0000 | T: 0:00:00
+| [33mtrain[39m | F: 5000 | S: 5000 | E: 5 | L: 1000 | R: 0.0000 | FPS: 4.7618 | T: 0:03:30
+| [33mtrain[39m | F: 6000 | S: 6000 | E: 6 | L: 1000 | R: 0.0000 | FPS: 16.5950 | T: 0:04:30
+| [33mtrain[39m | F: 7000 | S: 7000 | E: 7 | L: 1000 | R: 0.0003 | FPS: 16.5593 | T: 0:05:30
+| [33mtrain[39m | F: 8000 | S: 8000 | E: 8 | L: 1000 | R: 4.0937 | FPS: 16.6572 | T: 0:06:30
+| [33mtrain[39m | F: 9000 | S: 9000 | E: 9 | L: 1000 | R: 3.3912 | FPS: 16.6656 | T: 0:07:30
+| [33mtrain[39m | F: 10000 | S: 10000 | E: 10 | L: 1000 | R: 3.8944 | FPS: 16.6713 | T: 0:08:30
+| [32meval[39m  | F: 10000 | S: 10000 | E: 10 | L: 1000 | R: 2.3703 | T: 0:08:30
+| [33mtrain[39m | F: 11000 | S: 11000 | E: 11 | L: 1000 | R: 2.1126 | FPS: 5.8823 | T: 0:11:20
+| [33mtrain[39m | F: 12000 | S: 12000 | E: 12 | L: 1000 | R: 14.0297 | FPS: 16.7186 | T: 0:12:20
+[34m[1mwandb[39m[22m: Network error resolved after 0:01:02.551833, resuming normal operation.
+| [33mtrain[39m | F: 13000 | S: 13000 | E: 13 | L: 1000 | R: 0.0040 | FPS: 16.7538 | T: 0:13:20
+| [33mtrain[39m | F: 14000 | S: 14000 | E: 14 | L: 1000 | R: 8.8850 | FPS: 16.7552 | T: 0:14:19
+[34m[1mwandb[39m[22m: Network error resolved after 0:01:57.297921, resuming normal operation.
+| [33mtrain[39m | F: 15000 | S: 15000 | E: 15 | L: 1000 | R: 0.0000 | FPS: 16.7437 | T: 0:15:19
+| [33mtrain[39m | F: 16000 | S: 16000 | E: 16 | L: 1000 | R: 22.7099 | FPS: 16.8087 | T: 0:16:19
+| [33mtrain[39m | F: 17000 | S: 17000 | E: 17 | L: 1000 | R: 14.9379 | FPS: 16.6774 | T: 0:17:19
+| [33mtrain[39m | F: 18000 | S: 18000 | E: 18 | L: 1000 | R: 0.0015 | FPS: 16.7671 | T: 0:18:18
+| [33mtrain[39m | F: 19000 | S: 19000 | E: 19 | L: 1000 | R: 2.1507 | FPS: 16.6020 | T: 0:19:18
+| [33mtrain[39m | F: 20000 | S: 20000 | E: 20 | L: 1000 | R: 0.0002 | FPS: 16.7315 | T: 0:20:18
+| [32meval[39m  | F: 20000 | S: 20000 | E: 20 | L: 1000 | R: 6.2045 | T: 0:20:18
+| [33mtrain[39m | F: 21000 | S: 21000 | E: 21 | L: 1000 | R: 0.0001 | FPS: 5.9736 | T: 0:23:06
+| [33mtrain[39m | F: 22000 | S: 22000 | E: 22 | L: 1000 | R: 4.3771 | FPS: 16.6787 | T: 0:24:06
+| [33mtrain[39m | F: 23000 | S: 23000 | E: 23 | L: 1000 | R: 0.0000 | FPS: 16.7531 | T: 0:25:05
+| [33mtrain[39m | F: 24000 | S: 24000 | E: 24 | L: 1000 | R: 14.5760 | FPS: 16.7116 | T: 0:26:05
+| [33mtrain[39m | F: 25000 | S: 25000 | E: 25 | L: 1000 | R: 0.0000 | FPS: 16.8064 | T: 0:27:05
+| [33mtrain[39m | F: 26000 | S: 26000 | E: 26 | L: 1000 | R: 0.0000 | FPS: 16.7864 | T: 0:28:04
+| [33mtrain[39m | F: 27000 | S: 27000 | E: 27 | L: 1000 | R: 0.0000 | FPS: 16.6153 | T: 0:29:04
+| [33mtrain[39m | F: 28000 | S: 28000 | E: 28 | L: 1000 | R: 11.5703 | FPS: 16.7584 | T: 0:30:04
+| [33mtrain[39m | F: 29000 | S: 29000 | E: 29 | L: 1000 | R: 0.1520 | FPS: 16.6594 | T: 0:31:04
+| [33mtrain[39m | F: 30000 | S: 30000 | E: 30 | L: 1000 | R: 35.6844 | FPS: 16.6537 | T: 0:32:04
+| [32meval[39m  | F: 30000 | S: 30000 | E: 30 | L: 1000 | R: 0.2269 | T: 0:32:04
+| [33mtrain[39m | F: 31000 | S: 31000 | E: 31 | L: 1000 | R: 0.0000 | FPS: 5.9922 | T: 0:34:51
+| [33mtrain[39m | F: 32000 | S: 32000 | E: 32 | L: 1000 | R: 0.0000 | FPS: 16.8036 | T: 0:35:50
+| [33mtrain[39m | F: 33000 | S: 33000 | E: 33 | L: 1000 | R: 0.0000 | FPS: 16.7189 | T: 0:36:50
+| [33mtrain[39m | F: 34000 | S: 34000 | E: 34 | L: 1000 | R: 1.7658 | FPS: 16.7720 | T: 0:37:50
+| [33mtrain[39m | F: 35000 | S: 35000 | E: 35 | L: 1000 | R: 9.3131 | FPS: 16.7498 | T: 0:38:50
+| [33mtrain[39m | F: 36000 | S: 36000 | E: 36 | L: 1000 | R: 30.8163 | FPS: 16.6574 | T: 0:39:50
+| [33mtrain[39m | F: 37000 | S: 37000 | E: 37 | L: 1000 | R: 5.2926 | FPS: 16.7774 | T: 0:40:49
+| [33mtrain[39m | F: 38000 | S: 38000 | E: 38 | L: 1000 | R: 25.2493 | FPS: 16.7986 | T: 0:41:49
+| [33mtrain[39m | F: 39000 | S: 39000 | E: 39 | L: 1000 | R: 23.9926 | FPS: 16.7572 | T: 0:42:48
+| [33mtrain[39m | F: 40000 | S: 40000 | E: 40 | L: 1000 | R: 21.9866 | FPS: 16.7434 | T: 0:43:48
+Traceback (most recent call last):
+  File "train_online.py", line 269, in <module>
+    main()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/main.py", line 49, in decorated_main
+    _run_hydra(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/_internal/utils.py", line 367, in _run_hydra
+    run_and_report(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/_internal/utils.py", line 211, in run_and_report
+    return func()
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/_internal/utils.py", line 368, in <lambda>
+    lambda: hydra.run(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/_internal/hydra.py", line 97, in run
+    ret = run_job(
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/hydra/core/utils.py", line 160, in run_job
+    ret.return_value = task_function(task_cfg)
+  File "train_online.py", line 265, in main
+    workspace.train()
+  File "/home/maxgold/workspace/explore/proto_explore/train_online.py", line 196, in train
+    self.eval()
+  File "/home/maxgold/workspace/explore/proto_explore/train_online.py", line 135, in eval
+    time_step = self.eval_env.step(action)
+  File "/home/maxgold/workspace/explore/proto_explore/dmc.py", line 249, in step
+    time_step = self._env.step(action)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/suite/wrappers/action_scale.py", line 91, in step
+    return self._env.step(self._transform(action))
+  File "/home/maxgold/workspace/explore/proto_explore/dmc.py", line 164, in step
+    time_step = self._env.step(action)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/suite/wrappers/pixels.py", line 92, in step
+    time_step = self._env.step(action)
+  File "/home/maxgold/workspace/explore/proto_explore/dmc.py", line 102, in step
+    time_step = self._env.step(action)
+  File "/home/maxgold/workspace/explore/proto_explore/dmc.py", line 191, in step
+    return self._env.step(action)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/rl/control.py", line 101, in step
+    self._physics.step(self._n_sub_steps)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/mujoco/engine.py", line 168, in step
+    mujoco.mj_step1(self.model.ptr, self.data.ptr)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/contextlib.py", line 120, in __exit__
+    next(self.gen)
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/mujoco/engine.py", line 321, in check_invalid_state
+    np.greater([w.number for w in self._warnings],
+  File "/home/maxgold/anaconda3/envs/games/lib/python3.8/site-packages/dm_control/mujoco/engine.py", line 321, in <listcomp>
+    np.greater([w.number for w in self._warnings],
+KeyboardInterrupt
