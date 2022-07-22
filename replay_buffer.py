@@ -265,19 +265,27 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
-            self.obs.append(episode['observation'])
+    
 
 
     
-    def _get_goal_array(self, space=9, eval_mode=False):
+    def _get_goal_array(self, eval_mode=False, space=9):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
-        obs_dim = self.env.observation_spec()['position'].shape[0]
-        state_space = ndim_grid(obs_dim, space)
-        
-        if eval_mode =False:
-            self.goal_array = [find_nearest(self.obs, i) for i in ndim_grid(obs_dim, space)]
+        #fix obs_dim. figure out how to index position & orientation 
+    
+        if eval_mode==False:
+            #obs_dim = self.env.observation_spec()['position'].shape[0]
+            obs_dim = 2
+            self.goal_array = ndim_grid(obs_dim, space)
+            #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
-            goal_array = [find_nearest(self.obs, i) for i in ndim_grid(obs_dim, space)]
+            if not self._loaded:
+                self._load()
+                self._loaded = True
+
+            #obs_dim = env.observation_spec()['position'].shape[0]
+            obs_dim = 2
+            goal_array = ndim_grid(obs_dim, space)
             return goal_array
         
 
@@ -327,19 +335,21 @@ class OfflineReplayBuffer(IterableDataset):
         #sampling 5 goals from uniform goal matrix
         
         if not self._goal_array:
-            self.get_goal_array()
+            self._get_goal_array()
             self._goal_array = True
-            
-        goal_array = random.sample(self.goal_array, 5)
+        
+        goal_array = random.sample(np.ndarray.tolist(self.goal_array),4)
+
         for goal in goal_array:
             rewards.append(my_reward(action, next_obs, goal))
-            
+
         discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (5, 1))
-        action = np.tile(action, (5, 1))
-        discount = np.tile(discount, (5, 1))
-        next_obs = np.tile(next_obs, (5, 1))
+        obs = np.tile(obs, (4, 1))
+        action = np.tile(action, (4, 1))
+        discount = np.tile(discount, (4, 1))
+        next_obs = np.tile(next_obs, (4, 1))
         reward = np.array(rewards)
+        goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)
 
 
@@ -353,6 +363,16 @@ class OfflineReplayBuffer(IterableDataset):
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
+
+    def find_nearest(self, value):
+        array = np.asarray(self.obs)
+        print('nearest neighbor', len(array))
+        value = np.asarray(value)
+        print('value', value)
+        idx = (np.abs(array - value)).argmin()
+        print('idx', idx)
+        print(array[idx])
+        return array[idx]
 
     def __iter__(self):
         while True:
@@ -393,7 +413,7 @@ def make_replay_loader(
         goal=goal,
         vae=vae,
     )
-    iterable._load()
+    iterable._load(relable=False)
 
     loader = torch.utils.data.DataLoader(
         iterable,
@@ -429,11 +449,6 @@ def make_replay_loader_online(
     )
     return loader
 
-
-def find_nearest(array, value):
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return array[idx]
 
 def ndim_grid(ndims, space):
     L = [np.linspace(-1,1,space) for i in range(ndims)]

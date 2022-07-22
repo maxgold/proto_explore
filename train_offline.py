@@ -19,7 +19,7 @@ import utils
 from logger import Logger
 from replay_buffer import make_replay_loader
 from video import VideoRecorder
-
+from replay_buffer import ndim_grid
 torch.backends.cudnn.benchmark = True
 
 
@@ -63,9 +63,9 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
         log("step", global_step)
 
 
-def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal_array):
+def eval_goal(global_step, agent, env, logger, video_recorder, cfg):
     step, episode, total_reward = 0, 0, 0
-    if cfg.goal and global_step < 200000:
+    if cfg.goal and global_step < 300000:
         goal = np.random.sample((2,)) * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
         
@@ -90,11 +90,12 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal_array):
             log("goal", goal)
             log("episode_reward", total_reward)
             log("episode_length", step)
-            log("step", global_step)
+            log("steps", global_step)
 
-    elif cfg.goal and global_step >= 200000:
+    elif cfg.goal and global_step >= 300000:
         total_reward_collection = []
         total_step_collection = []
+        goal_array = ndim_grid(2,20)
         for goal in goal_array:
             env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
             time_step = env.reset()
@@ -141,6 +142,7 @@ def eval_random(env):
 
     episode += 1
     video_recorder.save(f"rand_episode.mp4")
+
 
 
 @hydra.main(config_path=".", config_name="config")
@@ -199,8 +201,8 @@ def main(cfg):
 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
-    goal_array = replay_loader._get_goal_array(space=20, eval_mode=True)
-    print(goal_array.shape)
+    
+    #figure out a better way to load this goal set
 
     # create video recorders
     video_recorder = VideoRecorder(work_dir if cfg.save_video else None)
@@ -212,14 +214,15 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
-
+ 
 
     while train_until_step(global_step):
+        
         # try to evaluate
         if eval_every_step(global_step+1):
             logger.log("eval_total_time", timer.total_time(), global_step)
             if cfg.goal:
-                eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal_array)
+                eval_goal(global_step, agent, env, logger, video_recorder, cfg)
 
             else:
                 eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
