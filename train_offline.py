@@ -128,6 +128,8 @@ def main(cfg):
             action_shape=env.action_spec().shape,
             goal_shape=(2,),
         )
+    elif cfg.eval:
+        agent.load(cfg.path)
     else:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -174,38 +176,40 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
- 
-
+    
     while train_until_step(global_step):
-        
-        # try to evaluate
-        if eval_every_step(global_step+1):
+        if cfg.eval:
             logger.log("eval_total_time", timer.total_time(), global_step)
-            if cfg.goal and global_step >450000:
-                goal = np.random.sample((2,)) * .5 - .25
-                eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
-            elif cfg.goal and global_step <=450000:
-                goal_array = ndim_grid(2,20)
+            if cfg.goal:
+                goal_array = ndim_grid(2, 30)
                 for i in goal_array:
-                    i = i.round(decimals=2)
-                    print(i.dtype)
-                    print(i.shape)
-                    print(i)
-                    eval_goal(global_step, agent, env,logger, video_recorder, cfg, i)
-            else:
-                eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
 
-        metrics = agent.update(replay_iter, global_step)
-        logger.log_metrics(metrics, global_step, ty="train")
-        if log_every_step(global_step):
-            elapsed_time, total_time = timer.reset()
-            with logger.log_and_dump_ctx(global_step, ty="train") as log:
-                log("fps", cfg.log_every_steps / elapsed_time)
-                log("total_time", total_time)
-                log("step", global_step)
+        else:
+            # try to evaluate
+            if eval_every_step(global_step+1):
+                logger.log("eval_total_time", timer.total_time(), global_step)
+                if cfg.goal:
+                    goal = np.random.sample((2,)) * .5 - .25
+                    #import IPython as ipy; ipy.embed(colors="neutral")
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
+                else:
+                    eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+        
+            metrics = agent.update(replay_iter, global_step)
+            logger.log_metrics(metrics, global_step, ty="train")
+            if log_every_step(global_step):
+                elapsed_time, total_time = timer.reset()
+                with logger.log_and_dump_ctx(global_step, ty="train") as log:
+                    log("fps", cfg.log_every_steps / elapsed_time)
+                    log("total_time", total_time)
+                    log("step", global_step)
+        
+            if global_step >= 400000 and global_step%10000==0:
+                path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
+                torch.save(agent,path)
 
-
-        global_step += 1
+            global_step += 1
 
 
 if __name__ == "__main__":

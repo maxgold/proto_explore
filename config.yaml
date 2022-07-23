@@ -25,6 +25,8 @@ save_video: true
 use_tb: false
 use_wandb: false
 goal: false
+eval: false
+path: ./output/2022.07.23/015116_gcac/
 
 
 
