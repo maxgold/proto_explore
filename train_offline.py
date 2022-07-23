@@ -82,11 +82,19 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
 
     episode += 1
     video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
-    with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-        log("goal", goal)
-        log("episode_reward", total_reward)
-        log("episode_length", step)
-        log("steps", global_step)
+    if cfg.eval:
+        with logger.log_and_dump_ctx(global_step, ty="eval_mode") as log:
+            log("goal", goal)
+            log("final_obs", time_step.observation[:2])
+            log("episode_reward", total_reward)
+            log("episode_length", step)
+            log("steps", global_step)
+    else:
+        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+            log("goal", goal)
+            log("episode_reward", total_reward)
+            log("episode_length", step)
+            log("steps", global_step)
 
 def eval_random(env):
     time_step = env.reset()
@@ -129,7 +137,7 @@ def main(cfg):
             goal_shape=(2,),
         )
     elif cfg.eval:
-        agent.load(cfg.path)
+        agent = torch.load(cfg.path)
     else:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -183,7 +191,7 @@ def main(cfg):
             if cfg.goal:
                 goal_array = ndim_grid(2, 30)
                 for i in goal_array:
-                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg,i)
 
         else:
             # try to evaluate
@@ -209,7 +217,7 @@ def main(cfg):
                 path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
                 torch.save(agent,path)
 
-            global_step += 1
+        global_step += 1
 
 
 if __name__ == "__main__":

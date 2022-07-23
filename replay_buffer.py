@@ -269,7 +269,7 @@ class OfflineReplayBuffer(IterableDataset):
 
 
     
-    def _get_goal_array(self, eval_mode=False, space=9):
+    def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
         #fix obs_dim. figure out how to index position & orientation 
     
