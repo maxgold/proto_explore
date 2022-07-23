@@ -8,7 +8,7 @@ os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 
 from pathlib import Path
-
+import random 
 import hydra
 import numpy as np
 import torch
@@ -65,9 +65,10 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
 
 def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
     step, episode, total_reward = 0, 0, 0
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=goal) 
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     time_step = env.reset()
-    video_recorder.init(env, enabled=True)
+    if cfg.eval==False:
+        video_recorder.init(env, enabled=True)
         
     while not time_step.last():
         with torch.no_grad(), utils.eval_mode(agent):
@@ -76,25 +77,29 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
             else:
                 action = agent.act(time_step.observation, global_step, eval_mode=True)
         time_step = env.step(action)
-        video_recorder.record(env)
+        if cfg.eval==False:
+            video_recorder.record(env)
         total_reward += time_step.reward
         step += 1
 
     episode += 1
-    video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+    if cfg.eval==False:
+        video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
-        with logger.log_and_dump_ctx(global_step, ty="eval_mode") as log:
+        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+            
             log("goal", goal)
-            log("final_obs", time_step.observation[:2])
             log("episode_reward", total_reward)
             log("episode_length", step)
             log("steps", global_step)
+            log("final_obs", time_step.observation)
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
             log("goal", goal)
             log("episode_reward", total_reward)
             log("episode_length", step)
             log("steps", global_step)
+        
 
 def eval_random(env):
     time_step = env.reset()
@@ -129,22 +134,22 @@ def main(cfg):
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
 
     # create agent
-    if cfg.goal:
+    if cfg.eval:
+        agent = torch.load(cfg.path)
+    elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
             obs_shape=env.observation_spec().shape,
             action_shape=env.action_spec().shape,
             goal_shape=(2,),
-        )
-    elif cfg.eval:
-        agent = torch.load(cfg.path)
+         )
     else:
         agent = hydra.utils.instantiate(
             cfg.agent,
             obs_shape=env.observation_spec().shape,
             action_shape=env.action_spec().shape,
         )
-
+    #agent = torch.load(cfg.path)
     # create replay buffer
     data_specs = (
         env.observation_spec(),
@@ -186,24 +191,27 @@ def main(cfg):
     log_every_step = utils.Every(cfg.log_every_steps)
     
     while train_until_step(global_step):
-        if cfg.eval:
+        if cfg.eval and eval_every_step(global_step+1):
             logger.log("eval_total_time", timer.total_time(), global_step)
             if cfg.goal:
-                goal_array = ndim_grid(2, 30)
+                goal_array = ndim_grid(2, 100)
                 for i in goal_array:
-                    eval_goal(global_step, agent, env, logger, video_recorder, cfg,i)
+                #import IPython as ipy; ipy.embed(colors="neutral")
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal)
+                    global_step +=1
 
         else:
             # try to evaluate
             if eval_every_step(global_step+1):
                 logger.log("eval_total_time", timer.total_time(), global_step)
                 if cfg.goal:
-                    goal = np.random.sample((2,)) * .5 - .25
+                    #goal = np.random.sample((2,)) * .5 - .25
                     #import IPython as ipy; ipy.embed(colors="neutral")
+                    goal = np.random.sample((2,)) * .5 - .25
                     eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
                 else:
                     eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
-        
+
             metrics = agent.update(replay_iter, global_step)
             logger.log_metrics(metrics, global_step, ty="train")
             if log_every_step(global_step):
@@ -213,12 +221,12 @@ def main(cfg):
                     log("total_time", total_time)
                     log("step", global_step)
         
-            if global_step >= 400000 and global_step%10000==0:
+            if global_step%50000==0:
                 path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
                 torch.save(agent,path)
 
-        global_step += 1
+            global_step += 1
 
 
 if __name__ == "__main__":
-    main()
+    main() 
