@@ -20,6 +20,9 @@ from logger import Logger
 from replay_buffer import make_replay_loader
 from video import VideoRecorder
 from replay_buffer import ndim_grid
+import pandas as pd
+from logger import save
+import glob
 torch.backends.cudnn.benchmark = True
 
 
@@ -63,7 +66,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
         log("step", global_step)
 
 
-def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
+def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,work_dir):
     step, episode, total_reward = 0, 0, 0
     env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     time_step = env.reset()
@@ -86,13 +89,19 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
     if cfg.eval==False:
         video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
-        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
+        #with logger.log_and_dump_ctx(global_step, ty="eval") as log:
             
-            log("goal", goal)
-            log("episode_reward", total_reward)
-            log("episode_length", step)
-            log("steps", global_step)
-            log("final_obs", time_step.observation[:2])
+        #    log("goal", goal)
+        #    log("episode_reward", total_reward)
+        #    log("episode_length", step)
+        #    log("steps", global_step)
+        #    log("final_obs", time_step.observation[:2])
+        df = pd.DataFrame()
+        df['goal'] = goal 
+        df['episode_reward'] = total_reward
+        df['final_obs'] = time_step.observation[:2]
+        print(model.split('.')[-2])
+        save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
             log("goal", goal)
@@ -135,7 +144,8 @@ def main(cfg):
 
     # create agent
     if cfg.eval:
-        agent = torch.load(cfg.path)
+        print('evulating')
+    #    agent = torch.load(cfg.path)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -190,16 +200,31 @@ def main(cfg):
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
     
-    while train_until_step(global_step):
-        if cfg.eval and eval_every_step(global_step+1):
-            logger.log("eval_total_time", timer.total_time(), global_step)
-            if cfg.goal:
-                goal_array = ndim_grid(2, 40)
-                for goal in goal_array:
-                #import IPython as ipy; ipy.embed(colors="neutral")
-                    eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal)
-                    global_step +=1
+    step=0
 
+    while train_until_step(global_step):
+        if cfg.eval:
+            model_lst = glob.glob(str(cfg.path)+'*.pth')
+            
+            if len(model_lst)>0:
+                for ix in range(len(model_lst)):
+                    print(ix)
+                    agent = torch.load(model_lst[ix])
+                     #logger.log("eval_total_time", timer.total_time(), global_step)
+                    if cfg.goal:
+
+                        goal_array = ndim_grid(2, 40)
+                        while step <5000:
+                            for goal in goal_array:
+                                print('evaluating', goal, 'model', model_lst[ix])
+                                #import IPython as ipy; ipy.embed(colors="neutral")
+                                eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                                
+                                step +=1
+                                print(step)
+                        
+                        step=0
+                        print(step)
         else:
             # try to evaluate
             if eval_every_step(global_step+1):
@@ -208,7 +233,7 @@ def main(cfg):
                     #goal = np.random.sample((2,)) * .5 - .25
                     #import IPython as ipy; ipy.embed(colors="neutral")
                     goal = np.random.sample((2,)) * .5 - .25
-                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal)
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, goal, work_dir)
                 else:
                     eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
 
