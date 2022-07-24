@@ -89,18 +89,6 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
     if cfg.eval==False:
         video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
-        #with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-            
-        #    log("goal", goal)
-        #    log("episode_reward", total_reward)
-        #    log("episode_length", step)
-        #    log("steps", global_step)
-        #    log("final_obs", time_step.observation[:2])
-        df = pd.DataFrame()
-        df['goal'] = goal 
-        df['episode_reward'] = total_reward
-        df['final_obs'] = time_step.observation[:2]
-        print(model.split('.')[-2])
         save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
@@ -145,7 +133,6 @@ def main(cfg):
     # create agent
     if cfg.eval:
         print('evulating')
-    #    agent = torch.load(cfg.path)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -200,6 +187,7 @@ def main(cfg):
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
     
+
     step=0
 
     while train_until_step(global_step):
