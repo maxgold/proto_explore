@@ -92,7 +92,7 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
             log("episode_reward", total_reward)
             log("episode_length", step)
             log("steps", global_step)
-            log("final_obs", time_step.observation)
+            log("final_obs", time_step.observation[:2])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
             log("goal", goal)
@@ -194,8 +194,8 @@ def main(cfg):
         if cfg.eval and eval_every_step(global_step+1):
             logger.log("eval_total_time", timer.total_time(), global_step)
             if cfg.goal:
-                goal_array = ndim_grid(2, 100)
-                for i in goal_array:
+                goal_array = ndim_grid(2, 40)
+                for goal in goal_array:
                 #import IPython as ipy; ipy.embed(colors="neutral")
                     eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal)
                     global_step +=1
