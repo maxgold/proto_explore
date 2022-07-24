@@ -269,7 +269,7 @@ class OfflineReplayBuffer(IterableDataset):
 
 
     
-    def _get_goal_array(self, eval_mode=False, space=9):
+    def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
         #fix obs_dim. figure out how to index position & orientation 
     
@@ -338,16 +338,16 @@ class OfflineReplayBuffer(IterableDataset):
             self._get_goal_array()
             self._goal_array = True
         
-        goal_array = random.sample(np.ndarray.tolist(self.goal_array),4)
-
+        goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
+        #goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
         for goal in goal_array:
             rewards.append(my_reward(action, next_obs, goal))
 
         discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (4, 1))
-        action = np.tile(action, (4, 1))
-        discount = np.tile(discount, (4, 1))
-        next_obs = np.tile(next_obs, (4, 1))
+        obs = np.tile(obs, (5, 1))
+        action = np.tile(action, (5, 1))
+        discount = np.tile(discount, (5, 1))
+        next_obs = np.tile(next_obs, (5, 1))
         reward = np.array(rewards)
         goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)
@@ -451,6 +451,6 @@ def make_replay_loader_online(
 
 
 def ndim_grid(ndims, space):
-    L = [np.linspace(-1,1,space) for i in range(ndims)]
+    L = [np.linspace(-.25,.25,space) for i in range(ndims)]
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 

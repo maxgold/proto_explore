@@ -25,6 +25,8 @@ save_video: true
 use_tb: false
 use_wandb: false
 goal: false
+eval: false
+path: ../../../../buffer/proto_explore/models/space_4/optimizer_400000.pth
 
 
 
