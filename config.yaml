@@ -4,6 +4,7 @@ defaults:
 
 # unsupervised exploration
 expl_agent: proto
+tag:
 # task settings
 task: walker_walk
 discount: 0.99
@@ -30,4 +31,4 @@ goal: false
 
 hydra:
   run:
-    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
+    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}${tag}

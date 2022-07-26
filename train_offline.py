@@ -13,11 +13,12 @@ import hydra
 import numpy as np
 import torch
 from dm_env import specs
+from kdtree import KNN
 
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import make_replay_loader
+from replay_buffer import make_replay_loader, make_replay_buffer
 from video import VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -27,6 +28,13 @@ def get_domain(task):
     if task.startswith("point_mass_maze"):
         return "point_mass_maze"
     return task.split("_", 1)[0]
+
+
+def save_agent(agent, path):
+    torch.save(agent, path)
+
+def load_agent(path):
+    return torch.load(path)
 
 
 def get_data_seed(seed, num_data_seeds):
@@ -107,6 +115,14 @@ def eval_random(env):
     video_recorder.save(f"rand_episode.mp4")
 
 
+# THINGS TODO:
+# 1. try weighting the loss function based on inverse density
+#   a. can use heatmap or sklearn.knn.density to estimate density preprocess and then
+#       just send through to the actor...should be easy
+# 2. use the trained model to generate a heatmap of goals
+# 3a. Pretrain a goal-rl model and then use this goal-rl model in proto-rl to collect more data
+# 3b. to generate the goals use a knn and the resulting state space should be more spread
+
 @hydra.main(config_path=".", config_name="config")
 def main(cfg):
     work_dir = Path.cwd()
@@ -149,7 +165,6 @@ def main(cfg):
     datasets_dir = work_dir / cfg.replay_buffer_dir
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     print(f"replay dir: {replay_dir}")
-    #import IPython as ipy; ipy.embed(colors="neutral")
 
     replay_loader = make_replay_loader(
         env,
@@ -160,7 +175,6 @@ def main(cfg):
         cfg.discount,
         goal=cfg.goal
     )
-
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
 
@@ -196,6 +210,7 @@ def main(cfg):
                 log("fps", cfg.log_every_steps / elapsed_time)
                 log("total_time", total_time)
                 log("step", global_step)
+            save_agent(agent, work_dir / "agent")
 
 
         global_step += 1
