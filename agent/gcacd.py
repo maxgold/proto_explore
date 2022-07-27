@@ -56,7 +56,7 @@ class Critic(nn.Module):
         return q1, q2
 
 
-class GCACDAGENT:
+class GCACDAgent:
     def __init__(self,
                  name,
                  obs_shape,
@@ -71,6 +71,7 @@ class GCACDAGENT:
                  batch_size,
                  stddev_clip,
                  use_tb,
+                 distill,
                  has_next_action=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
@@ -80,6 +81,7 @@ class GCACDAGENT:
         self.use_tb = use_tb
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
+        self.distill = distill
 
         # models
         self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
@@ -166,10 +168,15 @@ class GCACDAGENT:
 
     def update(self, replay_iter, step):
         metrics = dict()
-
+        
+        #import IPython as ipy; ipy.embed(colors='neutral')
         batch = next(replay_iter)
-        obs, action, reward, discount, next_obs, goal = utils.to_torch(
+        if self.distill=False:
+            obs, action, reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
+        else:
+            obs, action, reward, discount, next_obs, goal, q_value  = utils.to_torch(
+                                batch, self.device)
         obs = obs.reshape(-1, 4).float()
         next_obs = next_obs.reshape(-1, 4).float()
         goal = goal.reshape(-1, 2).float()
