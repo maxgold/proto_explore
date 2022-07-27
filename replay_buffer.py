@@ -53,13 +53,14 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 1
+        r = 10
     else:
-        upper = 0.015
-        margin = 0.1
-        scale = np.sqrt(-2 * np.log(0.1))
-        x = (dist_to_target - upper) / margin
-        r = np.exp(-0.5 * (x * scale) ** 2)
+        r=-1
+        #upper = 0.015
+        #margin = 0.1
+        #scale = np.sqrt(-2 * np.log(0.1))
+        #x = (dist_to_target - upper) / margin
+        #r = np.exp(-0.5 * (x * scale) ** 2)
     return float(r * control_reward)
 
 

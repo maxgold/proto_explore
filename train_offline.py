@@ -89,6 +89,7 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
     if cfg.eval==False:
         video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
+        print('saving')
         save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
@@ -186,14 +187,14 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
-    
+    print('ok')
 
     step=0
 
     while train_until_step(global_step):
         if cfg.eval:
             model_lst = glob.glob(str(cfg.path)+'*.pth')
-            
+            #print('model list', model_lst)
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)

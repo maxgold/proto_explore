@@ -26,7 +26,7 @@ use_tb: false
 use_wandb: false
 goal: false
 eval: false
-path: ../../../../proto_explore/models/space_4/
+path: ../../../output/2022.07.25/052403_gcac/
 
 
 
