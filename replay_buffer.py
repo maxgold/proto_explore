@@ -60,9 +60,8 @@ def my_reward(action, next_obs, goal):
         #scale = np.sqrt(-2 * np.log(0.1))
         #x = (dist_to_target - upper) / margin
         #r = np.exp(-0.5 * (x * scale) ** 2)
-        r = -1
+        r=-1
     return float(r * control_reward)
-
 
 class ReplayBufferStorage:
     def __init__(self, data_specs, meta_specs, replay_dir):
@@ -76,7 +75,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta):
+    def add(self, time_step, meta, q, task):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -85,6 +84,10 @@ class ReplayBufferStorage:
                 value = np.full(spec.shape, value, spec.dtype)
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
+        for i in range(length(q)):
+            self._current_episode['q_value'].append(q[i])
+        for i in range(length(task)):
+            self._current_episode['task'].append(task)
         if time_step.last():
             episode = dict()
             for spec in self._data_specs:
@@ -93,6 +96,13 @@ class ReplayBufferStorage:
             for spec in self._meta_specs:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
+            
+            value = self._current_episode['q_value']
+            episode['q_value'] = np.array(value, np.float64)
+            
+            value = self._current_episode['task']
+            episode['task'] = np.array(value, np.float64)
+            
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
 
@@ -214,8 +224,7 @@ class ReplayBuffer(IterableDataset):
 #GOAL_ARRAY = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(
-        self,
+    def __init__(self,
         env,
         replay_dir,
         max_size,
@@ -226,6 +235,12 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
+        #gamma,
+        #agent,
+        #method,
+        #baw_delta,
+        #baw_max,
+        #num_replay_goals
     ):
 
         self._env = env
@@ -244,6 +259,15 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
+        #self.gamma = gamma
+        #self.method = method
+        #self.baw_delta = baw_delta
+        #self.baw_max = baw_max
+        #self.num_replay_goals = num_replay_goals
+        
+        
+        #future_p = 1 - (1. / (1 + self.num_replay_goals))
+        
     def _load(self, relable=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
@@ -266,7 +290,6 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
-    
 
 
     
@@ -321,6 +344,45 @@ class OfflineReplayBuffer(IterableDataset):
         #        )
         #        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
+    
+    def _sample_sequence(self, offset=10):
+        
+        #len of obs should be 10 
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - offset) + 1
+        obs = episode["observation"][idx - 1:idx + 9]
+        action = episode["action"][idx-1:idx+9]
+        next_obs = episode["observation"][idx:idx+10]
+        reward = episode["action"][idx-1:idx+9]
+        q_value = episode["q"][idx-1:idx+9]
+        split = episode['task'][0].split('_')
+       
+        
+        if split[-2] == 'top':
+            #check these coordinates
+            
+            if split[-1] == 'left':
+                x_coor = -.25 * np.random.sample((len(obs)))
+                y_coor = .25 * np.random.sample((len(obs)))
+                
+            else:
+                x_coor = .25 * np.random.sample((len(obs)))
+                y_coor = .25 * np.random.sample((len(obs)))
+        else:
+            
+            if split[-1] == 'left':
+                x_coor = -.25 * np.random.sample((len(obs)))
+                y_coor = -.25 * np.random.sample((len(obs)))
+                
+            else:
+                x_coor = .25 * np.random.sample((len(obs)))
+                y_coor = -.25 * np.random.sample((len(obs)))
+        
+        goal = np.array(zip(x_coor, y_coor))
+        
+        return (obs, action, reward, discount, next_obs, goal, q)
+    
 
     def _sample_goal(self):
         episode = self._sample_episode()
@@ -364,17 +426,79 @@ class OfflineReplayBuffer(IterableDataset):
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
-
-    def find_nearest(self, value):
-        array = np.asarray(self.obs)
-        print('nearest neighbor', len(array))
-        value = np.asarray(value)
-        print('value', value)
-        idx = (np.abs(array - value)).argmin()
-        print('idx', idx)
-        print(array[idx])
-        return array[idx]
-
+    
+#     def _sample_supervised_transitions(self):
+#         batch_size = 10
+#         episode = self._sample_episode()
+#         t_samples = np.random.randint(len(episode), size=batch_size)
+#         for i in range(len(t_samples)):
+#             #change data type of transitions
+#             self.transitions += episode[t_samples[i]]
+# #             transitions = {key: episode_batch[key][episode_idxs, t_samples].copy()
+# #                             for key in episode_batch.keys()}
+#             #if in range
+#             self.transitions['goal'] = episode[t_samples[i]+100]
+#         #what is her_indexes used for?
+#         her_indexes = (np.random.uniform() < future_p)
+#         #returns true or false. future_p is prob. of picking future goal?
+#         offset = np.random.uniform() * (len(episode)-t_sample)
+#         offset = future_offset.astype(int)
+#         future_t = t_samples + 1 + offset
+#         original_g = 
+#         if her_indexes:
+#             future_achieved_goal = episode[future_t]
+#         else: 
+            
+#         method_lst = method.split('_')
+        
+#         if 'gamma' in method_lst:
+#             weights = pow(gamma, offset)
+#         else:
+#             weights = np.ones(batch_size)
+#         if 'adv' in method_lst:
+#             ##fix. what is value?
+#             Q1, Q2 = agent.critic(self.transitions['obs'], self.transitions['goal'], policy.sample(clip=agent.stddev_clip))
+#             value = torch.min(Q1, Q2).reshape(-1)
+#             Q1, Q2 = self.critic(self.transitions['next_obs'], self.transitions['goal'], policy.sample(clip=self.stddev_clip))
+#             next_value = torch.min(Q1, Q2).reshape(-1)
+#             adv = self.my_reward(transitions['achieved_goal_next'], transitions['goal']) + discount * next_value - value
+            
+#             if 'baw' in method_lis:
+#                 advque.update(adv)
+#                 global global_threshold
+#                 global_threshold = min(global_threshold + baw_delta, baw_max)
+#                 threshold = advque.get(global_threshold)'
+                
+#             if 'exp' in method_lis:  # exp weights
+#                 if 'clip10' in method_lis:
+#                     weights *= np.clip(np.exp(adv), 0, 10)
+#                 elif 'clip5' in method_lis:
+#                     weights *= np.clip(np.exp(adv), 0, 5)
+#                 elif 'clip1' in method_lis:
+#                     weights *= np.clip(np.exp(adv), 0, 1)
+#                 else:
+#                     weights *= np.exp(adv) 
+                    
+                    
+#             if 'baw' in method_lis:
+#                 positive = adv.copy()
+#                 positive[adv >= threshold] = 1
+#                 positive[adv < threshold] = 0.05
+#                 weights *= positive
+                
+#         loss = train_policy(o=transitions['o'], g=transitions['g'], u=transitions['u'], weights=weights) 
+        
+#         keep_origin_rate = 0.2
+#         origin_index = (np.random.uniform(size=batch_size) < keep_origin_rate)
+#         transitions['g'][origin_index] = original_g[origin_index]
+#         transitions['r'] = _get_reward(transitions['ag_2'], transitions['g']) 
+#         ## make next_ob and ag_2 
+        
+#         return _sample_supervised_transitions, _sample_her_transitions
+                
+                
+                
+                
     def __iter__(self):
         while True:
             if self.goal:
