@@ -236,12 +236,12 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        gamma,
-        agent,
-        method,
-        baw_delta,
-        baw_max,
-        num_replay_goals
+        #gamma,
+        #agent,
+        #method,
+        #baw_delta,
+        #baw_max,
+        #num_replay_goals
     ):
 
         self._env = env
@@ -260,14 +260,14 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        self.gamma = gamma
-        self.method = method
-        self.baw_delta = baw_delta
-        self.baw_max = baw_max
-        self.num_replay_goals = num_replay_goals
+        #self.gamma = gamma
+        #self.method = method
+        #self.baw_delta = baw_delta
+        #self.baw_max = baw_max
+        #self.num_replay_goals = num_replay_goals
         
         
-        future_p = 1 - (1. / (1 + self.num_replay_goals))
+        #future_p = 1 - (1. / (1 + self.num_replay_goals))
         
     def _load(self, relable=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
