@@ -64,9 +64,9 @@ def my_reward(action, next_obs, goal):
 
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir):
+    def __init__(self, data_specs,  replay_dir):
         self._data_specs = data_specs
-        self._meta_specs = meta_specs
+#         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
         replay_dir.mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
@@ -75,9 +75,9 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta, q, task):
-        for key, value in meta.items():
-            self._current_episode[key].append(value)
+    def add(self, time_step, q, task):
+#         for key, value in meta.items():
+#             self._current_episode[key].append(value)
         for spec in self._data_specs:
             value = time_step[spec.name]
             if np.isscalar(value):
@@ -93,9 +93,9 @@ class ReplayBufferStorage:
             for spec in self._data_specs:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
-            for spec in self._meta_specs:
-                value = self._current_episode[spec.name]
-                episode[spec.name] = np.array(value, spec.dtype)
+#             for spec in self._meta_specs:
+#                 value = self._current_episode[spec.name]
+#                 episode[spec.name] = np.array(value, spec.dtype)
             
             value = self._current_episode['q_value']
             episode['q_value'] = np.array(value, np.float64)
