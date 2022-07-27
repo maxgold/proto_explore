@@ -42,7 +42,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
     if cfg.goal:
-        goal = np.random.sample((2,)) * .5 - .25
+        goal = np.random.sample() * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
@@ -203,7 +203,7 @@ def main(cfg):
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     if cfg.goal:
 
-                        goal_array = ndim_grid(2, 40)
+                        goal = zip(np.random.sample() * -.25, np.random.sample() * -.25)
                         while step <5000:
                             for goal in goal_array:
                                 print('evaluating', goal, 'model', model_lst[ix])
