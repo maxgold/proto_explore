@@ -220,8 +220,7 @@ class ReplayBuffer(IterableDataset):
 #GOAL_ARRAY = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(
-        self,
+    def __init__(self,
         env,
         replay_dir,
         max_size,
@@ -413,12 +412,12 @@ class OfflineReplayBuffer(IterableDataset):
         offset = np.random.uniform() * (len(episode)-t_sample)
         offset = future_offset.astype(int)
         future_t = t_samples + 1 + offset
-        original_g = 
+#        original_g = 
         if her_indexes:
             future_achieved_goal = episode[future_t]
         else: 
             
-        method_lst = method.split('_')
+            method_lst = method.split('_')
         
         if 'gamma' in method_lst:
             weights = pow(gamma, offset)
@@ -436,7 +435,7 @@ class OfflineReplayBuffer(IterableDataset):
                 advque.update(adv)
                 global global_threshold
                 global_threshold = min(global_threshold + baw_delta, baw_max)
-                threshold = advque.get(global_threshold)'
+                threshold = advque.get(global_threshold)
                 
             if 'exp' in method_lis:  # exp weights
                 if 'clip10' in method_lis:
@@ -464,7 +463,7 @@ class OfflineReplayBuffer(IterableDataset):
         ## make next_ob and ag_2 
         
         return _sample_supervised_transitions, _sample_her_transitions
-                
+              
                 
                 
                 

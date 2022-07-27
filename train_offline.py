@@ -204,8 +204,10 @@ def main(cfg):
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     if cfg.goal:
 
-                        goal_array = ndim_grid(2, 40)
-                        while step <5000:
+                        #goal_array = ndim_grid(2, 40)
+                        goal = zip(np.random.sample() * -.25, np.random.sample() * -.25)
+
+                        while step <5:
                             for goal in goal_array:
                                 print('evaluating', goal, 'model', model_lst[ix])
                                 #import IPython as ipy; ipy.embed(colors="neutral")

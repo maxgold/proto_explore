@@ -26,7 +26,7 @@ use_tb: false
 use_wandb: false
 goal: false
 eval: false
-path: ../../../output/2022.07.25/052403_gcac/
+path: /home/ubuntu/exorl/output/2022.07.27/011206_td3/
 
 
 
