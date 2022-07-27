@@ -78,20 +78,39 @@ class ReplayBufferStorage:
     def add(self, time_step, q, task):
 #         for key, value in meta.items():
 #             self._current_episode[key].append(value)
-        print('adding')
+        
         for spec in self._data_specs:
             value = time_step[spec.name]
             if np.isscalar(value):
                 value = np.full(spec.shape, value, spec.dtype)
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
+        
         for i in range(len(q)):
             self._current_episode['q_value'].append(q[i])
+        
+        
         for i in range(len(task)):
-            self._current_episode['task'].append(task)
+            tmp = task.split('/')
+            split = tmp[-2].split('_')
+            
+            if split[-1] == 'right':
+                if split[-2] == 'top':
+                    self._current_episode['task'].append(np.array(1.))
+                    #print('top right')
+                else:
+                    self._current_episode['task'].append(np.array(4.))
+                    #print('top left')
+            elif split[-1] == 'left':
+                if split[-2]=='top':
+                    self._current_episode['task'].append(np.array(2.))
+                    #print('top left')
+                else:
+                    self._current_episode['task'].append(np.array(3.))
+                    #print('bottom left')
+
         #print(self._current_episode['task'])
-        if time_step.last():
-            print('last_step')
+        if time_step.last():    
             episode = dict()
             for spec in self._data_specs:
                 value = self._current_episode[spec.name]
@@ -106,7 +125,7 @@ class ReplayBufferStorage:
             value = self._current_episode['task']
             episode['task'] = np.array(value, np.float64)
             
-            print('_store')
+    
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
 
