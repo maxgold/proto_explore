@@ -214,7 +214,7 @@ def main(cfg):
                     agent = torch.load(model_lst[ix])
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     
-                    goal_array = ndim_grid(2,10) 
+                    goal_array = ndim_grid(2,16) 
                     #goal = zip(np.random.sample() * -.25, np.random.sample() * -.25)
                     #while step<5000:
                     for goal in goal_array:

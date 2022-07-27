@@ -163,7 +163,10 @@ def main(cfg):
     # create data storage
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
-    replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    if cfg.distill==False:
+        replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    else:
+        replay_dir = datasets_dir.resolve() / "buffer"
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -174,7 +177,8 @@ def main(cfg):
         cfg.batch_size,
         cfg.replay_buffer_num_workers,
         cfg.discount,
-        goal=cfg.goal
+        goal=cfg.goal,
+        distill=cfg.distill
     )
     
 
