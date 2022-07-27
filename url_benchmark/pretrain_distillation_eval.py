@@ -5,7 +5,7 @@ import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 import os
-
+import glob
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
@@ -20,7 +20,7 @@ from dm_env import specs
 import dmc
 import utils
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
+from replay_buffer import ReplayBufferStorage, make_replay_loader, ndim_grid
 from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -67,10 +67,11 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        if cfg.eval==True:
-            self.agent = torch.load(cfg.path)
-        else:
-            self.agent = make_agent(cfg.obs_type,
+        #if cfg.eval==True:
+        #    print('eval')
+            #self.agent = torch.load(model_path)
+        #else:
+        self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
                                 cfg.num_seed_frames // cfg.action_repeat,
@@ -89,12 +90,14 @@ class Workspace:
                                                   self.work_dir / 'buffer')
 
         # create replay buffer
-        self.replay_loader = make_replay_loader(self.replay_storage,
+        if cfg.eval==False:
+            self.replay_loader = make_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount)
-        self._replay_iter = None
+        
+            self._replay_iter = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
@@ -248,15 +251,24 @@ def main(cfg):
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
+    print('ok')
     if snapshot.exists():
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
         
     if cfg.eval==True:
-        goal_array = ndim_grid(2, 30)
-        while train_until_step(self.global_step):
-            for goal in goal_array:
-                workspace.eval(goal)
+        model_lst = glob.glob(str(cfg.path)+'*.pth')
+        if len(model_lst)>0:
+            for ix in range(len(model_lst)):
+                self.agent = torch.load(model_lst[ix])
+                goal_array = ndim_grid(2, 2)
+                while self._global_step < 5:
+                    for goal in goal_array:
+                        workspace.eval(goal)
+                        print(goal)
+                        print(model_lst[ix])
+            else:
+                print('no files found')
     else:
         workspace.train()
 
