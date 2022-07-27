@@ -70,10 +70,12 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
 
 def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,work_dir):
     step, episode, total_reward = 0, 0, 0
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+    env = dmc.make(cfg.task, seed=None, goal=goal)
     time_step = env.reset()
-    if cfg.eval==False:
-        video_recorder.init(env, enabled=True)
+    print(time_step.observation)
+    goal = np.array([np.random.sample() * -.25, np.random.sample() * .25])
+    #if cfg.eval==False:
+    video_recorder.init(env, enabled=True)
         
     while not time_step.last():
         with torch.no_grad(), utils.eval_mode(agent):
@@ -82,15 +84,16 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
             else:
                 action = agent.act(time_step.observation, global_step, eval_mode=True)
         time_step = env.step(action)
-        if cfg.eval==False:
-            video_recorder.record(env)
+        #if cfg.eval==False:
+        video_recorder.record(env)
         total_reward += time_step.reward
         step += 1
 
     episode += 1
-    if cfg.eval==False:
-        video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+    #if cfg.eval==False:
+    video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
+        print('saving')
         save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
@@ -188,33 +191,34 @@ def main(cfg):
     train_until_step = utils.Until(cfg.num_grad_steps)
     eval_every_step = utils.Every(cfg.eval_every_steps)
     log_every_step = utils.Every(cfg.log_every_steps)
-    
+    print('ok')
 
     step=0
 
     while train_until_step(global_step):
         if cfg.eval:
             model_lst = glob.glob(str(cfg.path)+'*.pth')
-            
+            #print('model list', model_lst)
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
                     agent = torch.load(model_lst[ix])
                      #logger.log("eval_total_time", timer.total_time(), global_step)
-                    if cfg.goal:
-
-                        goal = zip(np.random.sample() * -.25, np.random.sample() * -.25)
-                        while step <5000:
-                            for goal in goal_array:
-                                print('evaluating', goal, 'model', model_lst[ix])
-                                #import IPython as ipy; ipy.embed(colors="neutral")
-                                eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                    #if cfg.goal:
+                    #import IPython as ipy; ipy.embed(colors="neutral")
+                        #goal_array = ndim_grid(2, 40)
+                    goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
+                    while step <5:
+                        #for goal in goal_array:
+                        print('evaluating', goal, 'model', model_lst[ix])
+                        #import IPython as ipy; ipy.embed(colors="neutral")
+                        eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
                                 
-                                step +=1
-                                print(step)
-                        
-                        step=0
+                        step +=1
                         print(step)
+                        
+                    step=0
+                    print(step)
         else:
             # try to evaluate
             if eval_every_step(global_step+1):

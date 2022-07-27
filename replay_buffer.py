@@ -53,13 +53,14 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 1
+        r = 10
     else:
-        upper = 0.015
-        margin = 0.1
-        scale = np.sqrt(-2 * np.log(0.1))
-        x = (dist_to_target - upper) / margin
-        r = np.exp(-0.5 * (x * scale) ** 2)
+        r=-1
+        #upper = 0.015
+        #margin = 0.1
+        #scale = np.sqrt(-2 * np.log(0.1))
+        #x = (dist_to_target - upper) / margin
+        #r = np.exp(-0.5 * (x * scale) ** 2)
     return float(r * control_reward)
 
 
@@ -224,8 +225,7 @@ class ReplayBuffer(IterableDataset):
 #GOAL_ARRAY = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(
-        self,
+    def __init__(self,
         env,
         replay_dir,
         max_size,
@@ -236,12 +236,12 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        gamma,
-        agent,
-        method,
-        baw_delta,
-        baw_max,
-        num_replay_goals
+        #gamma,
+        #agent,
+        #method,
+        #baw_delta,
+        #baw_max,
+        #num_replay_goals
     ):
 
         self._env = env
@@ -260,14 +260,14 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        self.gamma = gamma
-        self.method = method
-        self.baw_delta = baw_delta
-        self.baw_max = baw_max
-        self.num_replay_goals = num_replay_goals
+        #self.gamma = gamma
+        #self.method = method
+        #self.baw_delta = baw_delta
+        #self.baw_max = baw_max
+        #self.num_replay_goals = num_replay_goals
         
         
-        future_p = 1 - (1. / (1 + self.num_replay_goals))
+        #future_p = 1 - (1. / (1 + self.num_replay_goals))
         
     def _load(self, relable=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
