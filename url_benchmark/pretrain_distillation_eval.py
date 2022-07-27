@@ -61,21 +61,20 @@ class Workspace:
             task = PRIMAL_TASKS[self.cfg.domain]
         except:
             task = self.cfg.domain
-        self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
-        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
+        #self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+        #                          cfg.action_repeat, cfg.seed)
+
+        self.eval_env = dmc.make(task, self.cfg.seed, goal=(0.25, -0.25))
 
         # create agent
         #if cfg.eval==True:
         #    print('eval')
-            #self.agent = torch.load(model_path)
+        #self.agent = torch.load(model_path)
         #else:
-        self.agent = make_agent(cfg.obs_type,
-                                self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
-                                cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent)
+        self.agent = hydra.utils.instantiate(cfg.agent,
+                                    obs_shape=env.observation_spec().shape,
+                                    action_shape=env.action_spec().shape,
+                                    goal_shape=(2,))
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -90,7 +89,7 @@ class Workspace:
                                                   self.work_dir / 'buffer')
 
         # create replay buffer
-        if cfg.eval==False:
+        if self.cfg.eval==False:
             self.replay_loader = make_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
@@ -133,7 +132,7 @@ class Workspace:
 
     def eval(self, goal):
         step, episode, total_reward = 0, 0, 0
-        env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+        env = dmc.make(self.cfg.task, seed=self.cfg.seed, goal=goal)
         time_step = env.reset()
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
@@ -148,7 +147,7 @@ class Workspace:
                 q = self.agent.get_q_value(time_step.observation, action)
 
             meta = self.agent.init_meta()    
-            self.replay_storage.add(time_step, meta, q, cfg.task)  
+            self.replay_storage.add(time_step, meta, q, self.cfg.task)  
             time_step = self.eval_env.step(action)
             #self.video_recorder.record(self.eval_env)
             total_reward += time_step.reward
@@ -260,9 +259,9 @@ def main(cfg):
         model_lst = glob.glob(str(cfg.path)+'*.pth')
         if len(model_lst)>0:
             for ix in range(len(model_lst)):
-                self.agent = torch.load(model_lst[ix])
+                workspace.agent = torch.load(model_lst[ix])
                 goal_array = ndim_grid(2, 2)
-                while self._global_step < 5:
+                while workspace._global_step < 5:
                     for goal in goal_array:
                         workspace.eval(goal)
                         print(goal)
