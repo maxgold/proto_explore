@@ -145,7 +145,7 @@ class Workspace:
                 q = self.agent.get_q_value(time_step.observation, action)
 
             meta = self.agent.init_meta()    
-            self.replay_storage.add(time_step, meta, q)  
+            self.replay_storage.add(time_step, meta, q, cfg.task)  
             time_step = self.eval_env.step(action)
             #self.video_recorder.record(self.eval_env)
             total_reward += time_step.reward
@@ -253,7 +253,7 @@ def main(cfg):
         workspace.load_snapshot()
         
     if cfg.eval==True:
-        goal_array = ndim_grid(2, 40)
+        goal_array = ndim_grid(2, 30)
         while train_until_step(self.global_step):
             for goal in goal_array:
                 workspace.eval()
