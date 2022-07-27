@@ -75,7 +75,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta, q):
+    def add(self, time_step, meta, q, task):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -86,6 +86,8 @@ class ReplayBufferStorage:
             self._current_episode[spec.name].append(value)
         for i in range(length(q)):
             self._current_episode['q_value'].append(q[i])
+        for i in range(length(task)):
+            self._current_episode['task'].append(task)
         if time_step.last():
             episode = dict()
             for spec in self._data_specs:
@@ -97,6 +99,9 @@ class ReplayBufferStorage:
             
             value = self._current_episode['q_value']
             episode['q_value'] = np.array(value, np.float64)
+            
+            value = self._current_episode['task']
+            episode['task'] = np.array(value)
             
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
@@ -341,14 +346,14 @@ class OfflineReplayBuffer(IterableDataset):
         #        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
     
-#     def _sample_sequence(self, offset=100):
-#         episode = self._sample_episode()
-#         # add +1 for the first dummy transition
-#         idx = np.random.randint(0, episode_len(episode) - offset) + 1
-#         obs = episode["observation"][idx - 1:idx + 99]
-#         action = episode["action"][idx-1:idx+99]
-#         goal = episode["observation"][idx+100]
-#         return obs, action, goal
+    def _sample_sequence(self, offset=100):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - offset) + 1
+        obs = episode["observation"][idx - 1:idx + 9]
+        action = episode["action"][idx-1:idx+9]
+        
+        return (obs, action, reward, discount, next_obs, goal)
 
         
 
