@@ -78,17 +78,20 @@ class ReplayBufferStorage:
     def add(self, time_step, q, task):
 #         for key, value in meta.items():
 #             self._current_episode[key].append(value)
+        print('adding')
         for spec in self._data_specs:
             value = time_step[spec.name]
             if np.isscalar(value):
                 value = np.full(spec.shape, value, spec.dtype)
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
-        for i in range(length(q)):
+        for i in range(len(q)):
             self._current_episode['q_value'].append(q[i])
-        for i in range(length(task)):
+        for i in range(len(task)):
             self._current_episode['task'].append(task)
+        #print(self._current_episode['task'])
         if time_step.last():
+            print('last_step')
             episode = dict()
             for spec in self._data_specs:
                 value = self._current_episode[spec.name]
@@ -103,6 +106,7 @@ class ReplayBufferStorage:
             value = self._current_episode['task']
             episode['task'] = np.array(value, np.float64)
             
+            print('_store')
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
 
@@ -115,12 +119,14 @@ class ReplayBufferStorage:
             self._num_transitions += int(eps_len)
 
     def _store_episode(self, episode):
+        print('storing now')
         eps_idx = self._num_episodes
         eps_len = episode_len(episode)
         self._num_episodes += 1
         self._num_transitions += eps_len
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
+        print('eps_fn')
         save_episode(episode, self._replay_dir / eps_fn)
 
 
