@@ -128,7 +128,7 @@ class GCACDAgent:
 #             target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
 #             target_V = torch.min(target_Q1, target_Q2)
 #             target_Q = reward + (discount * target_V)
-
+        #import IPython as ipy; ipy.embed(colors='neutral')
         Q1, Q2 = self.critic(obs, goal, action)
         critic_loss = F.mse_loss(Q1, teacher_q) + F.mse_loss(Q2, teacher_q)
 
@@ -171,26 +171,26 @@ class GCACDAgent:
         
         #import IPython as ipy; ipy.embed(colors='neutral')
         batch = next(replay_iter)
-        if self.distill=False:
-            obs, action, reward, discount, next_obs, goal = utils.to_torch(
-            batch, self.device)
+        if self.distill==False:
+            obs, action, reward, discount, next_obs, goal = utils.to_torch(batch, self.device)
         else:
-            obs, action, reward, discount, next_obs, goal, q_value  = utils.to_torch(
-                                batch, self.device)
+            obs, action, reward, discount, next_obs, goal, q_value  = utils.to_torch(batch, self.device)
         obs = obs.reshape(-1, 4).float()
         next_obs = next_obs.reshape(-1, 4).float()
         goal = goal.reshape(-1, 2).float()
         action = action.reshape(-1, 2).float()
         reward = reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
-        reward = reward.float()
-
+        q_value = q_value.reshape(-1, 1).float()
+        #reward = reward.float()
+         
+        #import IPython as ipy; ipy.embed(colors='neutral')
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 
         # update critic
         metrics.update(
-            self.update_critic(obs, goal, action, reward, discount, next_obs, step))
+            self.update_critic(obs, goal, action, reward, discount, next_obs, q_value, step))
 
         # update actor
         metrics.update(self.update_actor(obs, goal, action, step))

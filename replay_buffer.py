@@ -307,7 +307,6 @@ class OfflineReplayBuffer(IterableDataset):
         #print(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
         random.shuffle(eps_fns)
-        #import IPython as ipy; ipy.embed(colors='neutral')
         for eps_fn in eps_fns:
             if self._size > self._max_size:
                 break
@@ -320,7 +319,7 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
-
+        #import IPython as ipy; ipy.embed(colors='neutral')
 
     
     def _get_goal_array(self, eval_mode=False, space=6):
@@ -376,7 +375,6 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs)
     
     def _sample_sequence(self, offset=10):
-        
         #len of obs should be 10 
         episode = self._sample_episode()
         # add +1 for the first dummy transition
@@ -385,29 +383,42 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx-1:idx+9]
         next_obs = episode["observation"][idx:idx+10]
         reward = episode["action"][idx-1:idx+9]
-        q_value = episode["q"][idx-1:idx+9]
-        task = episode['task']
-       
+        q_value = episode["q_value"][idx-1:idx+9]
+        discount = episode["discount"][idx-1:idx+9]
+        task = episode['task'][idx-1:idx+9]
+        x_coor = [] 
+        y_coor = []
+        goal = []
         
-        if task  == 2.:
+        if task[0] == 2.:
             #check these coordinates
-            x_coor = -.25 * np.random.sample((len(obs)))
-            y_coor = .25 * np.random.sample((len(obs)))
+            x_coor.append(-.25 * np.random.sample((len(obs))))
+            y_coor.append(.25 * np.random.sample((len(obs))))
 
-        elif task == 1.:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-        elif task == 3.:
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-        elif task == 4.:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
+        elif task[0] == 1.:
+            x_coor.append(.25 * np.random.sample((len(obs))))
+            y_coor.append(.25 * np.random.sample((len(obs))))
+        elif task[0] == 3.:
+            x_coor.append(-.25 * np.random.sample((len(obs))))
+            y_coor.append(-.25 * np.random.sample((len(obs))))
+        elif task[0] == 4.:
+            x_coor.append(.25 * np.random.sample((len(obs))))
+            y_coor.append(-.25 * np.random.sample((len(obs))))
         else:
-            import IPython as ipy; ipy.embed(colors="neutral")
-        goal = np.array(zip(x_coor, y_coor))
-        
-        return (obs, action, reward, discount, next_obs, goal, q)
+            #import IPython as ipy; ipy.embed(colors="neutral")
+            print('cant determine task')
+            print('task', i)
+
+        goal.append(np.array([x_coor, y_coor]))
+        goal = np.array(goal)
+        #print('obs', obs.shape)
+        #print('action',action.shape)
+        #print('reward', reward.shape)
+        #print('discount',discount.shape)
+        #print('next_obs',next_obs.shape)
+        #print('goal',goal.shape)
+        #print('q_value',q_value.shape)
+        return (obs, action, reward, discount, next_obs, goal, q_value)
     
 
     def _sample_goal(self):
@@ -527,12 +538,12 @@ class OfflineReplayBuffer(IterableDataset):
                 
     def __iter__(self):
         while True:
-            if self.goal:
+            if self.distill:
+                yield self._sample_sequence()
+            elif self.goal:
                 yield self._sample_goal()
             elif self.vae:
                 yield self._sample_future()
-            elif self.distill:
-                yield self._sample_sequence()
             else:
                 yield self._sample()
 

@@ -138,6 +138,14 @@ def main(cfg):
     # create agent
     if cfg.eval:
         print('evulating')
+    if cfg.distill:
+        agent = hydra.utils.instantiate(
+                                        cfg.agent,
+                                        obs_shape=(4,),
+                                        action_shape=(2,),
+                                        goal_shape=(2,), 
+                                        distill=cfg.distill
+                                        )
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
