@@ -191,8 +191,8 @@ def main(cfg):
         cfg.batch_size,
         cfg.replay_buffer_num_workers,
         cfg.discount,
-        goal=cfg.goal
-    )
+        goal=cfg.goal,
+        distill=cfg.distill)
     
 
     replay_iter = iter(replay_loader)

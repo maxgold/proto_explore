@@ -161,8 +161,9 @@ class BCDAgent:
 #         Q1, Q2 = self.critic(obs, policy.sample(clip=self.stddev_clip))
 #         Q = torch.min(Q1, Q2)
 
-        actor_loss = F.mse_loss(np.tile(policy.mean, (4,1)), actions)
-        
+        #actor_loss = F.mse_loss(policy.mean, actions)
+        log_prob = policy.log_prob(action).sum(-1, keepdim=True)
+        actor_loss = (-log_prob).mean()
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
@@ -183,7 +184,7 @@ class BCDAgent:
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
-        
+        metrics.update(self.update_actor(obs, action, step))
 #         action = expert_1.act(obs, eval=True)
 
 #         # update critic
@@ -191,24 +192,24 @@ class BCDAgent:
 #             self.update_critic(obs, action, reward, discount, next_obs, step))
 
         # update actor
-        for ix, x in enumerate([expert_1, expert_2, expert_3, expert_4]):
-            if ix ==0:
-                goal = np.tile(np.array([.15, .15]), 256, 1)
-                action = x.act(obs, step)
-                metrics.update(self.update_actor(obs, action, goal, step))
-            elif ix ==1:
-                goal = np.tile(np.array([-.15, .15]), 256, 1)
-                action = x.act(obs, step)
-                metrics.update(self.update_actor(obs, action, goal, step))
-            elif ix ==2:
-                goal = np.tile(np.array([-.15, -.15]), 256, 1)
-                action = x.act(obs, step)
-                metrics.update(self.update_actor(obs, action, goal, step))
+        #for ix, x in enumerate([expert_1, expert_2, expert_3, expert_4]):
+        #    if ix ==0:
+        #        goal = np.tile(np.array([.15, .15]), 256, 1)
+        #        action = x.act(obs, step)
+        #        metrics.update(self.update_actor(obs, action, goal, step))
+        #    elif ix ==1:
+        #        goal = np.tile(np.array([-.15, .15]), 256, 1)
+        #        action = x.act(obs, step)
+        #        metrics.update(self.update_actor(obs, action, goal, step))
+        #    elif ix ==2:
+        #        goal = np.tile(np.array([-.15, -.15]), 256, 1)
+        #        action = x.act(obs, step)
+        #        metrics.update(self.update_actor(obs, action, goal, step))
 
-            elif ix ==3:
-                goal = np.tile(np.array([.15, -.15]), 256, 1)
-                action = x.act(obs, step)
-                metrics.update(self.update_actor(obs, action, goal, step))
+         #   elif ix ==3:
+         #       goal = np.tile(np.array([.15, -.15]), 256, 1)
+         #       action = x.act(obs, step)
+         #       metrics.update(self.update_actor(obs, action, goal, step))
 
 
 #         # update critic target
