@@ -73,9 +73,9 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
     env = dmc.make(cfg.task, seed=None, goal=goal)
     time_step = env.reset()
     print(time_step.observation)
-    goal = np.array([np.random.sample() * -.25, np.random.sample() * .25])
-    #if cfg.eval==False:
-    video_recorder.init(env, enabled=True)
+    #goal = np.array([np.random.sample() * -.25, np.random.sample() * .25])
+    if cfg.eval==False:
+        video_recorder.init(env, enabled=True)
         
     while not time_step.last():
         with torch.no_grad(), utils.eval_mode(agent):
@@ -84,14 +84,14 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
             else:
                 action = agent.act(time_step.observation, global_step, eval_mode=True)
         time_step = env.step(action)
-        #if cfg.eval==False:
-        video_recorder.record(env)
+        if cfg.eval==False:
+            video_recorder.record(env)
         total_reward += time_step.reward
         step += 1
 
     episode += 1
-    #if cfg.eval==False:
-    video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
+    if cfg.eval==False:
+        video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
         print('saving')
         save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
@@ -134,7 +134,6 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
-    
     expert_1 = torch.load(cfg.path_expert1)
     expert_2 = torch.load(cfg.path_expert2)
     expert_3 = torch.load(cfg.path_expert3)
@@ -223,19 +222,19 @@ def main(cfg):
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     #if cfg.goal:
                     #import IPython as ipy; ipy.embed(colors="neutral")
-                        #goal_array = ndim_grid(2, 40)
-                    goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
-                    while step <5:
-                        #for goal in goal_array:
-                        print('evaluating', goal, 'model', model_lst[ix])
-                        #import IPython as ipy; ipy.embed(colors="neutral")
-                        eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                    goal_array = ndim_grid(2, 40)
+                    #goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
+                    while step <5000:
+                        for goal in goal_array:
+                            print('evaluating', goal, 'model', model_lst[ix])
+                            #import IPython as ipy; ipy.embed(colors="neutral")
+                            eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
                                 
-                        step +=1
-                        print(step)
+                            step +=1
+                            print(step)
                         
-                    step=0
-                    print(step)
+                        step=0
+                        print(step)
         else:
             # try to evaluate
             if eval_every_step(global_step+1):
