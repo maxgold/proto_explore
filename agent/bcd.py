@@ -113,10 +113,11 @@ class BCDAgent:
         self.actor.train(training)
 #         self.critic.train(training)
 
-    def act(self, obs, step, eval_mode):
+    def act(self, obs, goal, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        goal = torch.as_tensor(goal, device=self.device).unsqueeze(0)
         stddev = utils.schedule(self.stddev_schedule, step)
-        policy = self.actor(obs, stddev)
+        policy = self.actor(obs, goal, stddev)
         if eval_mode:
             action = policy.mean
         else:
@@ -192,20 +193,20 @@ class BCDAgent:
         # update actor
         for ix, x in enumerate([expert_1, expert_2, expert_3, expert_4]):
             if ix ==0:
-                goal = np.tile(np.array([.15, .15]), 1024, 1)
+                goal = np.tile(np.array([.15, .15]), 256, 1)
                 action = x.act(obs, step)
                 metrics.update(self.update_actor(obs, action, goal, step))
             elif ix ==1:
-                goal = np.tile(np.array([-.15, .15]), 1024, 1)
+                goal = np.tile(np.array([-.15, .15]), 256, 1)
                 action = x.act(obs, step)
                 metrics.update(self.update_actor(obs, action, goal, step))
             elif ix ==2:
-                goal = np.tile(np.array([-.15, -.15]), 1024, 1)
+                goal = np.tile(np.array([-.15, -.15]), 256, 1)
                 action = x.act(obs, step)
                 metrics.update(self.update_actor(obs, action, goal, step))
 
             elif ix ==3:
-                goal = np.tile(np.array([.15, -.15]), 1024, 1)
+                goal = np.tile(np.array([.15, -.15]), 256, 1)
                 action = x.act(obs, step)
                 metrics.update(self.update_actor(obs, action, goal, step))
 
