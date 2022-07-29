@@ -14,6 +14,7 @@ discount: 0.99
 num_train_frames: 2000010
 num_seed_frames: 4000
 # eval
+eval: False
 eval_every_frames: 10000
 num_eval_episodes: 10
 # snapshot
@@ -35,6 +36,7 @@ use_wandb: false
 # experiment
 experiment: exp
 
+path: /misc/vlgscratch4/FergusGroup/mortensen/exorl/models/pmm_top_right/
 
 hydra:
   run:

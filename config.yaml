@@ -14,7 +14,7 @@ log_every_steps: 1000
 eval_every_steps: 10000
 num_eval_episodes: 10
 # dataset
-replay_buffer_dir: ../../../datasets # make sure to update this if you change hydra run dir
+replay_buffer_dir: ../../../distill_data  # make sure to update this if you change hydra run dir
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 4
 batch_size: ${agent.batch_size}
@@ -26,7 +26,8 @@ use_tb: false
 use_wandb: false
 goal: false
 eval: false
-path: /home/ubuntu/exorl/output/2022.07.27/011206_td3/
+distill: false
+path: /misc/vlgscratch4/FergusGroup/mortensen/exorl/models/pmm_top_right/
 
 
 

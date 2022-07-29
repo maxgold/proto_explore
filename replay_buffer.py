@@ -55,14 +55,13 @@ def my_reward(action, next_obs, goal):
     if dist_to_target < 0.015:
         r = 10
     else:
-        r=-1
         #upper = 0.015
         #margin = 0.1
         #scale = np.sqrt(-2 * np.log(0.1))
         #x = (dist_to_target - upper) / margin
         #r = np.exp(-0.5 * (x * scale) ** 2)
+        r=-1
     return float(r * control_reward)
-
 
 class ReplayBufferStorage:
     def __init__(self, data_specs,  replay_dir):
@@ -79,17 +78,39 @@ class ReplayBufferStorage:
     def add(self, time_step, q, task):
 #         for key, value in meta.items():
 #             self._current_episode[key].append(value)
+        
         for spec in self._data_specs:
             value = time_step[spec.name]
             if np.isscalar(value):
                 value = np.full(spec.shape, value, spec.dtype)
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
-        for i in range(length(q)):
+        
+        for i in range(len(q)):
             self._current_episode['q_value'].append(q[i])
-        for i in range(length(task)):
-            self._current_episode['task'].append(task)
-        if time_step.last():
+        
+        
+        for i in range(len(task)):
+            tmp = task.split('/')
+            split = tmp[-2].split('_')
+            
+            if split[-1] == 'right':
+                if split[-2] == 'top':
+                    self._current_episode['task'].append(np.array(1.))
+                    #print('top right')
+                else:
+                    self._current_episode['task'].append(np.array(4.))
+                    #print('top left')
+            elif split[-1] == 'left':
+                if split[-2]=='top':
+                    self._current_episode['task'].append(np.array(2.))
+                    #print('top left')
+                else:
+                    self._current_episode['task'].append(np.array(3.))
+                    #print('bottom left')
+
+        #print(self._current_episode['task'])
+        if time_step.last():    
             episode = dict()
             for spec in self._data_specs:
                 value = self._current_episode[spec.name]
@@ -104,6 +125,7 @@ class ReplayBufferStorage:
             value = self._current_episode['task']
             episode['task'] = np.array(value, np.float64)
             
+    
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
 
@@ -116,12 +138,14 @@ class ReplayBufferStorage:
             self._num_transitions += int(eps_len)
 
     def _store_episode(self, episode):
+        print('storing now')
         eps_idx = self._num_episodes
         eps_len = episode_len(episode)
         self._num_episodes += 1
         self._num_transitions += eps_len
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
+        print('eps_fn')
         save_episode(episode, self._replay_dir / eps_fn)
 
 
@@ -236,6 +260,7 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
+        distill=False
         #gamma,
         #agent,
         #method,
@@ -260,6 +285,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
+        self.distill = distill
         #self.gamma = gamma
         #self.method = method
         #self.baw_delta = baw_delta
@@ -276,9 +302,11 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+
         eps_fns = sorted(self._replay_dir.glob("*.npz"))
+        #print(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
-        obs_tmp = []
+        random.shuffle(eps_fns)
         for eps_fn in eps_fns:
             if self._size > self._max_size:
                 break
@@ -291,7 +319,7 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
-
+        #import IPython as ipy; ipy.embed(colors='neutral')
 
     
     def _get_goal_array(self, eval_mode=False, space=6):
@@ -305,7 +333,7 @@ class OfflineReplayBuffer(IterableDataset):
             #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
             if not self._loaded:
-                self._load()
+                self._load(relable=False)
                 self._loaded = True
 
             #obs_dim = env.observation_spec()['position'].shape[0]
@@ -316,7 +344,7 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _sample_episode(self):
         if not self._loaded:
-            self._load()
+            self._load(relable=False)
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
@@ -347,7 +375,6 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs)
     
     def _sample_sequence(self, offset=10):
-        
         #len of obs should be 10 
         episode = self._sample_episode()
         # add +1 for the first dummy transition
@@ -356,33 +383,42 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx-1:idx+9]
         next_obs = episode["observation"][idx:idx+10]
         reward = episode["action"][idx-1:idx+9]
-        q_value = episode["q"][idx-1:idx+9]
-        split = episode['task'][0].split('_')
-       
+        q_value = episode["q_value"][idx-1:idx+9]
+        discount = episode["discount"][idx-1:idx+9]
+        task = episode['task'][idx-1:idx+9]
+        x_coor = [] 
+        y_coor = []
+        goal = []
         
-        if split[-2] == 'top':
+        if task[0] == 2.:
             #check these coordinates
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
+            x_coor.append(-.25 * np.random.sample((len(obs))))
+            y_coor.append(.25 * np.random.sample((len(obs))))
+
+        elif task[0] == 1.:
+            x_coor.append(.25 * np.random.sample((len(obs))))
+            y_coor.append(.25 * np.random.sample((len(obs))))
+        elif task[0] == 3.:
+            x_coor.append(-.25 * np.random.sample((len(obs))))
+            y_coor.append(-.25 * np.random.sample((len(obs))))
+        elif task[0] == 4.:
+            x_coor.append(.25 * np.random.sample((len(obs))))
+            y_coor.append(-.25 * np.random.sample((len(obs))))
         else:
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-        
-        goal = np.array(zip(x_coor, y_coor))
-        
-        return (obs, action, reward, discount, next_obs, goal, q)
+            #import IPython as ipy; ipy.embed(colors="neutral")
+            print('cant determine task')
+            print('task', i)
+
+        goal.append(np.array([x_coor, y_coor]))
+        goal = np.array(goal)
+        #print('obs', obs.shape)
+        #print('action',action.shape)
+        #print('reward', reward.shape)
+        #print('discount',discount.shape)
+        #print('next_obs',next_obs.shape)
+        #print('goal',goal.shape)
+        #print('q_value',q_value.shape)
+        return (obs, action, reward, discount, next_obs, goal, q_value)
     
 
     def _sample_goal(self):
@@ -502,7 +538,9 @@ class OfflineReplayBuffer(IterableDataset):
                 
     def __iter__(self):
         while True:
-            if self.goal:
+            if self.distill:
+                yield self._sample_sequence()
+            elif self.goal:
                 yield self._sample_goal()
             elif self.vae:
                 yield self._sample_future()
@@ -526,6 +564,7 @@ def make_replay_loader(
     offset=100,
     goal=False,
     vae=False,
+    distill=False
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -538,6 +577,7 @@ def make_replay_loader(
         offset,
         goal=goal,
         vae=vae,
+        distill=distill
     )
     iterable._load(relable=False)
 
