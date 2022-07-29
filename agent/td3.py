@@ -186,7 +186,7 @@ class TD3Agent:
 
         return metrics
     
-    def get_q_value(obs,action):
+    def get_q_value(self, obs,action):
         #get q value for non-goal-conditioned policies
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
