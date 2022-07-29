@@ -112,24 +112,6 @@ class BCDAgent:
 
         obs, action, reward, discount, next_obs = utils.to_torch(
             batch, self.device)
-        for ix, x in enumerate([self.expert_1, self.expert_2, self.expert_3, self.expert_4]):
-            if ix ==0:
-                goal = torch.tensor([.15, .15]))
-                action = x.act(obs, step, eval_mode=True)
-                print(goal)
-                metrics.update(self.update_actor(obs, action, goal, step))
-            elif ix ==1:
-                goal = torch.tensor([-.15, .15])
-                action = x.act(obs, step, eval_mode=True)
-                metrics.update(self.update_actor(obs, action, goal, step))
-            elif ix ==2:
-                goal = torch.tensor([-.15, -.15])
-                action = x.act(obs, step, eval_mode=True)
-                metrics.update(self.update_actor(obs, action, goal, step))
-            elif ix ==3:
-                goal = torch.tensor([.15, -.15])
-                action = x.act(obs, step, eval_mode=True)
-                metrics.update(self.update_actor(obs, action, goal, step))
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()

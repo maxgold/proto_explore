@@ -27,13 +27,14 @@ use_wandb: false
 goal: false
 eval: false
 distill: false
-path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/
+path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill_bc/
 
-path: /home/ubuntu/buffer/proto_explore/models/pmm_top_right/
-path_expert1: /home/ubuntu/buffer/proto_explore/models/pmm_top_right/agent499999.pth
-path_expert2: /home/ubuntu/buffer/proto_explore/models/pmm_top_left/agent_499999.pth
-path_expert3: /home/ubuntu/buffer/proto_explore/models/pmm_bottom_left/agent_499999.pth
-path_expert4: /home/ubuntu/buffer/proto_explore/models/pmm_bottom_right/agent_499999.pth
+path_expert1: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/optimizer_150000.pth
+path_expert2: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/optimizer_150000.pth
+path_expert3: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/optimizer_150000.pth
+
+path_expert4: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/optimizer_150000.pth
+
 
 hydra:
   run:

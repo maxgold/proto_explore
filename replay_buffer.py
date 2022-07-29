@@ -550,7 +550,7 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.distill:
-                yield self._sample()
+                yield self._sample_goal()
             elif self.goal:
                 yield self._sample_goal()
             elif self.vae:
