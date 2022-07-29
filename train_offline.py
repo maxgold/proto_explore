@@ -94,7 +94,8 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
         video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     if cfg.eval:
         print('saving')
-        save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
+        path = os.path.join(work_dir, 'eval_{}_{}.csv'.format(model.split('/')[-2], model.split('/')[-1].split('.')[-2]))
+        save(path, [[goal, total_reward, time_step.observation[:2]]])
     else:
         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
             log("goal", goal)
@@ -174,7 +175,7 @@ def main(cfg):
     if cfg.distill==False:
         replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     else:
-        replay_dir = datasets_dir.resolve() / "buffer"
+        replay_dir = datasets_dir.resolve()
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -209,8 +210,7 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'*.pth')
-            #print('model list', model_lst)
+            model_lst = glob.glob(str(cfg.path)+'*99999.pth')
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
