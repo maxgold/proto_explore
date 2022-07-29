@@ -210,7 +210,7 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'*99999.pth')
+            model_lst = glob.glob(str(cfg.path)+'*_50000.pth')
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
@@ -252,7 +252,7 @@ def main(cfg):
                     log("total_time", total_time)
                     log("step", global_step)
         
-            if global_step%50000==0:
+            if global_step%10000==0:
                 path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
                 torch.save(agent,path)
 

@@ -92,8 +92,9 @@ class BCAgent:
         stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs, goal, stddev)
 
-        log_prob = policy.log_prob(action).sum(-1, keepdim=True)
-        actor_loss = (-log_prob).mean()
+        #log_prob = policy.log_prob(action).sum(-1, keepdim=True)
+        #actor_loss = (-log_prob).mean()
+        actor_loss = F.mse_loss(policy.mean, actions)
 
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
