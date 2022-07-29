@@ -27,8 +27,7 @@ use_wandb: false
 goal: false
 eval: false
 distill: false
-path: /misc/vlgscratch4/FergusGroup/mortensen/exorl/models/pmm_top_right/
-
+path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/distill/
 
 
 hydra:
