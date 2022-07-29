@@ -134,10 +134,24 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
-
+    
+    expert_1 = torch.load(cfg.path_expert1)
+    expert_2 = torch.load(cfg.path_expert2)
+    expert_3 = torch.load(cfg.path_expert3)
+    expert_4 = torch.load(cfg.path_expert4)
     # create agent
     if cfg.eval:
         print('evulating')
+    elif cfg.distill:
+        agent = hydra.utils.instantiate(
+                cfg.agent,
+                obs_shape=env.observation_spec().shape,
+                action_shape=env.action_spec().shape,
+                goal_shape=(2,),
+                expert_1=expert_1,
+                expert_2=expert_2,
+                expert_3=expert_3,
+                expert_4=expert_4,)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -152,10 +166,6 @@ def main(cfg):
             action_shape=env.action_spec().shape,
         )
         
-    expert_1 = torch.load(cfg.path_expert1) 
-    expert_2 = torch.load(cfg.path_expert2) 
-    expert_3 = torch.load(cfg.path_expert3) 
-    expert_4 = torch.load(cfg.path_expert4)
     
 
     # create replay buffer
