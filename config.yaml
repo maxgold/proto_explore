@@ -28,9 +28,28 @@ goal: false
 eval: false
 distill: false
 path: /misc/vlgscratch4/FergusGroup/mortensen/exorl/models/pmm_top_right/
+goal_lst: ???
+#experiment
+experiment: exp
 
 
-
+# @package _global_
 hydra:
   run:
     dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
+  sweep:
+    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
+    subdir: ${hydra.job.num}
+        params:
+          +goal_lst: [-0.25, -0.25], [-0.25, -0.083], [-0.25, 0.083], [-0.25, 0.25], [-0.083, -0.25], [-0.083, -0.083],
+       [-0.083, 0.083], [-0.083, 0.25], [0.083, -0.25], [0.083, -0.083], [0.083, 0.083], [0.083,0.25], [0.25, -0.25],
+       [0.25, -0.083], [0.25, 0.083], [0.25, 0.25]
+  launcher:
+   timeout_min: 4300
+   cpus_per_task: 10
+   gpus_per_node: 1
+   tasks_per_node: 1
+   mem_gb: 160
+   nodes: 1
+   submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+       
