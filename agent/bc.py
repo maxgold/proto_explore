@@ -23,8 +23,6 @@ class Actor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
-        print('obs', obs)
-        print('goal', goal)
         mu = self.policy(torch.concat([obs,goal],-1))
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
@@ -49,7 +47,8 @@ class BCAgent:
                  expert_1=None,
                  expert_2=None,
                  expert_3=None,
-                 expert_4=None):
+                 expert_4=None,
+                 distill=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
@@ -60,6 +59,7 @@ class BCAgent:
         self.expert_2=expert_2
         self.expert_3=expert_3
         self.expert_4=expert_4
+        self.distill = distill
         # models
         self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
                            hidden_dim).to(device)
@@ -88,15 +88,31 @@ class BCAgent:
 
     def update_actor(self, obs, goal, action, step):
         metrics = dict()
-        print('obs', obs.shape)
-        print('goal', goal.shape)
         stddev = utils.schedule(self.stddev_schedule, step)
+        if step%4==0:    
+            action = self.expert_1.act(obs, step, eval_mode=True)
+            action = torch.as_tensor(action, device=self.device)
+            goal = torch.as_tensor([.15, .15], device=self.device)
+            goal = torch.broadcast_to(goal, (1024,2))
+        elif step%4==1:
+            action = self.expert_2.act(obs, step, eval_mode=True)
+            goal = torch.as_tensor([-.15, .15], device=self.device)
+            goal = torch.broadcast_to(goal, (1024, 2))
+        elif step%4==2:
+            action = self.expert_3.act(obs, step, eval_mode=True)
+            action = torch.as_tensor(action, device=self.device)
+            goal = torch.as_tensor([-.15, -.15], device=self.device)
+            goal = torch.broadcast_to(goal, (1024, 2))
+        elif step%4==3:
+            action = self.expert_4.act(obs, step, eval_mode=True)
+            action = torch.as_tensor(action, device=self.device)
+            goal = torch.as_tensor([.15, -.15], device=self.device)
+            goal = torch.broadcast_to(goal, (1024, 2))
+
+        action = torch.as_tensor(action, device=self.device)
+        
         policy = self.actor(obs, goal, stddev)
         
-      #  for ix, x in enumerate([self.expert_1, self.expert_2, self.expert_3, self.expert_4]):
-      #      if ix ==0:
-      #          goal = torch.tensor([.15, .15]))
-      #          goal = torch.broadcast_to(goal, action.Size)
         log_prob = policy.log_prob(action).sum(-1, keepdim=True)
         actor_loss = (-log_prob).mean()
 
@@ -114,19 +130,26 @@ class BCAgent:
         metrics = dict()
 
         batch = next(replay_iter)
+        if self.distill:
+            obs, action, reward, discount, next_obs = utils.to_torch(batch, self.device)
+            action = action.reshape(-1, 2).float()
+            obs = obs.reshape(-1, 4).float()
+        elif self.goal:
+            obs, action, reward, discount, next_obs, goal = utils.to_torch(batch, self.device)
+            action = action.reshape(-1, 2).float()
+            obs = obs.reshape(-1, 4).float()
+            goal = goal.reshape(-1,2).float()
+        else:
+            obs, action, reward, discount, next_obs = utils.to_torch(batch, self.device)
+            action = action.reshape(-1, 2).float()
+            obs = obs.reshape(-1, 4).float()
 
-        obs, action, reward, discount, next_obs, goal = utils.to_torch(
-            batch, self.device)
-        action = action.reshape(-1, 2).float()
-        obs = obs.reshape(-1, 4).float()
-        goal = goal.reshape(-1,2).float()
-        self.expert_1.act(obs, step, eval_mode=True)
         #for ix, x in enumerate([self.expert_1, self.expert_2, self.expert_3, self.expert_4]):
-            #if ix ==0:
-            #    goal = torch.tensor([.15, .15]))
-            #    action = x.act(obs, step, eval_mode=True)
-            #    print(goal)
-            #    metrics.update(self.update_actor(obs, action, goal, step))
+        #    if ix ==0:
+        #        goal = torch.tensor([.15, .15]))
+        #        action = x.act(obs, step, eval_mode=True)
+        #        print(goal)
+        #        metrics.update(self.update_actor(obs, action, goal, step))
             #elif ix ==1:
              #   goal = torch.tensor([-.15, .15])
               #  action = x.act(obs, step, eval_mode=True)
@@ -140,7 +163,8 @@ class BCAgent:
              #   action = x.act(obs, step, eval_mode=True)
               #  metrics.update(self.update_actor(obs, action, goal, step))
 
-
+        goal = torch.tensor([1,1], device=self.device)
+        goal.reshape(-1,2).float()
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 

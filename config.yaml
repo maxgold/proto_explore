@@ -14,7 +14,7 @@ log_every_steps: 1000
 eval_every_steps: 10000
 num_eval_episodes: 10
 # dataset
-replay_buffer_dir: /home/ubuntu/buffer/proto_explore/distill_data/ # make sure to update this if you change hydra run dir
+replay_buffer_dir: ../../../datasets # make sure to update this if you change hydra run dir
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 4
 batch_size: ${agent.batch_size}
@@ -28,7 +28,7 @@ goal: false
 eval: false
 distill: false
 
-path: /home/ubuntu/proto_explore/output/2022.07.29/065417_gcacd/
+path: /home/ubuntu/buffer/proto_explore/models/distill_bc_full/
 path_expert1: /home/ubuntu/buffer/proto_explore/models/pmm_top_right/agent499999.pth
 path_expert2: /home/ubuntu/buffer/proto_explore/models/pmm_top_left/agent_499999.pth
 path_expert3: /home/ubuntu/buffer/proto_explore/models/pmm_bottom_left/agent_499999.pth

@@ -310,8 +310,6 @@ class OfflineReplayBuffer(IterableDataset):
         random.shuffle(eps_fns)
         for eps_fn in eps_fns:
             if self._size > self._max_size:
-                print(self._size, self._max_size)
-                print('break')
                 break
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:
@@ -325,8 +323,6 @@ class OfflineReplayBuffer(IterableDataset):
             #print('size', self._size)
             #print('len', len(self._episodes))
         #import IPython as ipy; ipy.embed(colors='neutral')
-        print('final_size', self._size)
-        print(self._episodes)
     
     def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
@@ -553,7 +549,7 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.distill:
-                yield self._sample_sequence()
+                yield self._sample()
             elif self.goal:
                 yield self._sample_goal()
             elif self.vae:

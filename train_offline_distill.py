@@ -150,7 +150,8 @@ def main(cfg):
                 expert_1=expert_1,
                 expert_2=expert_2,
                 expert_3=expert_3,
-                expert_4=expert_4,)
+                expert_4=expert_4,
+                distill=cfg.distill)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -178,7 +179,7 @@ def main(cfg):
     # create data storage
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
-    replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    replay_dir = datasets_dir.resolve()  / domain / cfg.expl_agent / "buffer"
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -256,7 +257,7 @@ def main(cfg):
                     log("total_time", total_time)
                     log("step", global_step)
         
-            if global_step%50000==0:
+            if global_step%10000==0:
                 path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
                 torch.save(agent,path)
 
