@@ -194,7 +194,7 @@ def save(file_name, records):
     csvWriter = csv.writer(csv_file,delimiter=',')
     if os.stat(file_name).st_size ==0:
         print('writing header')
-        csvWriter.writerow(['goal',"episode_reward", "final_obs"])
+        csvWriter.writerow(['goal',"episode_reward", "final_obs", "episode_length"])
         for record in records:
             csvWriter.writerows([record])
             print(record)
