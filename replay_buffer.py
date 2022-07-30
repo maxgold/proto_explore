@@ -120,7 +120,7 @@ class ReplayBufferStorage:
 #                 episode[spec.name] = np.array(value, spec.dtype)
             
             value = self._current_episode['q_value']
-            episode['q_value'] = np.array(value, np.float64)
+            episode['q_value'] = torch.tensor(value)
             
             value = self._current_episode['task']
             episode['task'] = np.array(value, np.float64)
@@ -304,7 +304,8 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = 0
 
         eps_fns = sorted(self._replay_dir.glob("*.npz"))
-        #print(eps_fns)
+       # print(self._replay_dir)
+       # print(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
         random.shuffle(eps_fns)
         for eps_fn in eps_fns:
@@ -319,6 +320,8 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
+            print('size', self._size)
+            print('len', len(self._episodes))
         #import IPython as ipy; ipy.embed(colors='neutral')
 
     
@@ -394,16 +397,24 @@ class OfflineReplayBuffer(IterableDataset):
             #check these coordinates
             x_coor.append(-.25 * np.random.sample((len(obs))))
             y_coor.append(.25 * np.random.sample((len(obs))))
-
+            #x_coor=np.tile(-.15, (len(task), 1))
+            #y_coor=np.tile(.15, (len(task), 1))
+            
         elif task[0] == 1.:
             x_coor.append(.25 * np.random.sample((len(obs))))
             y_coor.append(.25 * np.random.sample((len(obs))))
+            #x_coor=np.tile(.15, (len(task), 1))
+            #y_coor=np.tile(.15, (len(task), 1))
         elif task[0] == 3.:
             x_coor.append(-.25 * np.random.sample((len(obs))))
             y_coor.append(-.25 * np.random.sample((len(obs))))
+            #x_coor=np.tile(-.15, (len(task), 1))
+            #y_coor=np.tile(-.15, (len(task), 1))
         elif task[0] == 4.:
             x_coor.append(.25 * np.random.sample((len(obs))))
             y_coor.append(-.25 * np.random.sample((len(obs))))
+            #x_coor=np.tile(.15, (len(task), 1))
+            #y_coor=np.tile(-.15, (len(task), 1))
         else:
             #import IPython as ipy; ipy.embed(colors="neutral")
             print('cant determine task')
@@ -539,7 +550,7 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.distill:
-                yield self._sample_sequence()
+                yield self._sample_goal()
             elif self.goal:
                 yield self._sample_goal()
             elif self.vae:

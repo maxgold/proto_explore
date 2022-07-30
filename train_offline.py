@@ -95,7 +95,6 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
                 
             total_reward += time_step.reward
             step += 1
-        
     
         if cfg.eval==False and and ix%100==0:
             video_recorder.save("goal{}_{}.mp4".format(x, global_step))
@@ -106,14 +105,6 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
             
         else:
             
-    #         with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-    #             log("goal", goal)
-    #             log("episode_reward", total_reward)
-    #             log("episode_length", step)
-    #             log("steps", global_step)
-    
-            #if not cfg.eval then current goal is passed as "model" variable
-        
             print('saving')
             save(str(work_dir)+'eval_{}_{}.csv'.format(x, global_step), [[x, total_reward, time_step.observation[:2], step]])
     
@@ -155,7 +146,7 @@ def main(cfg):
     # create agent
     if cfg.eval:
         print('evulating')
-    if cfg.distill:
+    elif cfg.distill:
         agent = hydra.utils.instantiate(
                                         cfg.agent,
                                         obs_shape=(4,),
@@ -191,7 +182,7 @@ def main(cfg):
     if cfg.distill==False:
         replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     else:
-        replay_dir = datasets_dir.resolve() / "buffer"
+        replay_dir = datasets_dir.resolve()
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -226,8 +217,7 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'*.pth')
-            #print('model list', model_lst)
+            model_lst = glob.glob(str(cfg.path)+'*50000.pth')
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
@@ -235,16 +225,16 @@ def main(cfg):
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     #if cfg.goal:
                     #import IPython as ipy; ipy.embed(colors="neutral")
-                        #goal_array = ndim_grid(2, 40)
-                    goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
-                    while step <5:
-                        #for goal in goal_array:
-                        print('evaluating', goal, 'model', model_lst[ix])
+                    goal_array = ndim_grid(2, 40)
+                    #goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
+                    while step <1000:
+                        for goal in goal_array:
+                            print('evaluating', goal, 'model', model_lst[ix])
                         #import IPython as ipy; ipy.embed(colors="neutral")
-                        eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                            eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
                                 
-                        step +=1
-                        print(step)
+                            step +=1
+                            print(step)
                         
                     step=0
                     print(step)
