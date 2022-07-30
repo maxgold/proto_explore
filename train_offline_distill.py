@@ -150,7 +150,8 @@ def main(cfg):
                 expert_1=expert_1,
                 expert_2=expert_2,
                 expert_3=expert_3,
-                expert_4=expert_4,)
+                expert_4=expert_4,
+                distill)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,

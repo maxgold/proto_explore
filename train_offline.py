@@ -210,7 +210,7 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'*50000.pth')
+            model_lst = sorted(glob.glob(str(cfg.path)+'*0000.pth'))
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
@@ -220,7 +220,7 @@ def main(cfg):
                     #import IPython as ipy; ipy.embed(colors="neutral")
                     goal_array = ndim_grid(2, 40)
                     #goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
-                    while step <1000:
+                    while step <3000:
                         for goal in goal_array:
                             print('evaluating', goal, 'model', model_lst[ix])
                         #import IPython as ipy; ipy.embed(colors="neutral")
