@@ -38,9 +38,9 @@
     </body>
 
     <geom name="target" pos="-0.15 -0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
-    <geom name="target" pos="0.15 -0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
-    <geom name="target" pos="0.15 0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
-    <geom name="target" pos="-0.15 0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
+    <geom name="target_1" pos="0.15 -0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
+    <geom name="target_2" pos="0.15 0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
+    <geom name="target_3" pos="-0.15 0.15 .01" material="target" type="sphere" size=".015"  contype="0" conaffinity="0"/>
 
   </worldbody>
 
