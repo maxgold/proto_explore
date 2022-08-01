@@ -25,6 +25,7 @@ from replay_buffer import ndim_grid
 import pandas as pd
 from logger import save
 import glob
+from __main__ import *
 torch.backends.cudnn.benchmark = True
 
 
@@ -78,8 +79,8 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
         env = dmc.make(cfg.task, seed=None, goal=x)
         time_step = env.reset()
         
-        if cfg.eval==False and ix%100==0:
-            video_recorder.init(env, enabled=True)
+        #if cfg.eval==False:
+        #    video_recorder.init(env, enabled=True)
 
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
@@ -90,23 +91,23 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
             
             time_step = env.step(action)
             
-            if cfg.eval==False and ix%100==0:
-                video_recorder.record(env)
+            #if cfg.eval==False:
+            #    video_recorder.record(env)
                 
             total_reward += time_step.reward
             step += 1
     
-        if cfg.eval==False and and ix%100==0:
-            video_recorder.save("goal{}_{}.mp4".format(x, global_step))
+        #if cfg.eval==False:
+        #    video_recorder.save("goal{}_{}.mp4".format(x, global_step))
             
         if cfg.eval:
             print('saving')
-            save(str(work_dir)+'eval_{}.csv'.format(model.split('.')[-2]), [[x, total_reward, time_step.observation[:2], step]])
+            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2]), [[x, total_reward, time_step.observation[:2], step]])
             
         else:
             
             print('saving')
-            save(str(work_dir)+'eval_{}_{}.csv'.format(x, global_step), [[x, total_reward, time_step.observation[:2], step]])
+            save(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step), [[x, total_reward, time_step.observation[:2], step]])
     
     episode += 1
     
@@ -141,7 +142,8 @@ def main(cfg):
     logger = Logger(work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
     # create envs
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=cfg.goal_lst)
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=global_goal)
+    print('global goal create env', global_goal)
 
     # create agent
     if cfg.eval:
@@ -245,10 +247,11 @@ def main(cfg):
                 
                 #goal = np.random.sample((2,)) * .5 - .25
                 #import IPython as ipy; ipy.embed(colors="neutral")
-                goal = np.random.sample((2,)) * .5 - .25
-                eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, goal, work_dir)
-
-
+                if global_step>490000:
+                    goal = np.random.sample((2,)) * .5 - .25
+                    eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, goal, work_dir)
+                else:
+                    eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
             metrics = agent.update(replay_iter, global_step)
             logger.log_metrics(metrics, global_step, ty="train")
             if log_every_step(global_step):
@@ -259,11 +262,17 @@ def main(cfg):
                     log("step", global_step)
         
             if global_step%10000==0:
-                path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(cfg.goal_lst, global_step))
+                path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(global_index, global_step))
                 torch.save(agent,path)
 
             global_step += 1
 
 
 if __name__ == "__main__":
-    main() 
+    goal_array = ndim_grid(2,4)
+
+    for iz,z in enumerate(goal_array):
+        global_index = iz
+        global_goal = z
+        print('global_goal', global_goal)
+        main() 

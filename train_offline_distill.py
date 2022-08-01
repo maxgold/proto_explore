@@ -134,10 +134,43 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
-    expert_1 = torch.load(cfg.path_expert1)
-    expert_2 = torch.load(cfg.path_expert2)
-    expert_3 = torch.load(cfg.path_expert3)
-    expert_4 = torch.load(cfg.path_expert4)
+    
+    #load experts
+    expert_lst = {}
+    expert_paths = sorted(glob.glob(str(cfg.path_expert) + '/*.pth'))
+    print(expert_paths)
+    num = 0
+
+    #calculate goals
+    goal_lst = {}
+    goal_arr = ndim_grid(2,4)
+    for num in range(len(expert_paths)):
+        key = num
+        goal = expert_paths[num]
+        one = goal.split('_')[-2]
+        two = goal.split('_')[-3]
+        print('-2', one, '/n-3', two)
+        if two == 'goal':
+            goal_num = int(one)
+            goal_lst[key] = goal_arr[goal_num]
+        else:
+            if two == 'bottom':
+                if one =='left':
+                    goal_lst[key] = [-.15, -.15]
+                elif one == 'right':
+                    goal_lst[key] = [.15, -.15]
+                else:
+                    import IPython as ipy; ipy.embed(colors="neutral")
+            elif two == 'top':
+                if one =='left':
+                    goal_lst[key] = [-.15, .15]
+                elif one == 'right':
+                    goal_lst[key] = [.15, .15]
+                else:
+                    import IPython as ipy; ipy.embed(colors="neutral")
+        value = torch.load(expert_paths[num])
+        expert_lst[key] = value
+
     # create agent
     if cfg.eval:
         print('evulating')
@@ -147,11 +180,9 @@ def main(cfg):
                 obs_shape=env.observation_spec().shape,
                 action_shape=env.action_spec().shape,
                 goal_shape=(2,),
-                expert_1=expert_1,
-                expert_2=expert_2,
-                expert_3=expert_3,
-                expert_4=expert_4,
-                distill)
+                expert_lst=expert_lst,
+                goal_lst = goal_lst,
+                distill=cfg.distill)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -179,7 +210,7 @@ def main(cfg):
     # create data storage
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
-    replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    replay_dir = datasets_dir.resolve()  / domain / cfg.expl_agent / "buffer"
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -240,7 +271,7 @@ def main(cfg):
             # try to evaluate
             if eval_every_step(global_step+1):
                 logger.log("eval_total_time", timer.total_time(), global_step)
-                if cfg.goal:
+                if global_step>490000:
                     #goal = np.random.sample((2,)) * .5 - .25
                     #import IPython as ipy; ipy.embed(colors="neutral")
                     goal = np.random.sample((2,)) * .5 - .25
@@ -257,8 +288,8 @@ def main(cfg):
                     log("total_time", total_time)
                     log("step", global_step)
         
-            if global_step%50000==0:
-                path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
+            if global_step%10000==0:
+                path = os.path.join(work_dir, 'optimizer_expert_{}_{}.pth'.format(len(expert_paths), global_step))
                 torch.save(agent,path)
 
             global_step += 1

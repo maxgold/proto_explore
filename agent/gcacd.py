@@ -128,7 +128,7 @@ class GCACDAgent:
 #             target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
 #             target_V = torch.min(target_Q1, target_Q2)
 #             target_Q = reward + (discount * target_V)
-        #import IPython as ipy; ipy.embed(colors='neutral')
+#        #import IPython as ipy; ipy.embed(colors='neutral')
         Q1, Q2 = self.critic(obs, goal, action)
         critic_loss = F.mse_loss(Q1, teacher_q) + F.mse_loss(Q2, teacher_q)
 
@@ -153,8 +153,10 @@ class GCACDAgent:
         Q1, Q2 = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
         Q = torch.min(Q1, Q2)
 
-        actor_loss = -Q.mean()
-
+        log_prob = policy.log_prob(action).sum(-1, keepdim=True)
+        actor_loss = (-log_prob).mean()
+        #actor_loss = F.mse_loss(policy.mean, action)
+        #actor_loss = -Q.mean()
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()
@@ -190,7 +192,7 @@ class GCACDAgent:
 
         # update critic
         metrics.update(
-            self.update_critic(obs, goal, action, reward, discount, next_obs, q_value, step))
+           self.update_critic(obs, goal, action, reward, discount, next_obs, q_value, step))
 
         # update actor
         metrics.update(self.update_actor(obs, goal, action, step))
