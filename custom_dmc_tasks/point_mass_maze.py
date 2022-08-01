@@ -42,6 +42,7 @@ TASKS = [
     ("reach_top_right", np.array([0.15, 0.15, 0.01])),
     ("reach_bottom_left", np.array([-0.15, -0.15, 0.01])),
     ("reach_bottom_right", np.array([0.15, -0.15, 0.01])),
+    ("env1", np.array([0.15, -0.15, 0.01]))
 ]
 
 
@@ -50,8 +51,9 @@ def make(task, task_kwargs=None, environment_kwargs=None, visualize_reward=False
     if environment_kwargs is not None:
         task_kwargs = task_kwargs.copy()
         task_kwargs["environment_kwargs"] = environment_kwargs
-    if "custom_goal" not in task:
-        environment_kwargs.pop("goal")
+#     if "custom_goal" or "env_1" not in task:
+#         print(task)
+#         environment_kwargs.pop("goal")
     env = SUITE[task](**task_kwargs)
     env.task.visualize_reward = visualize_reward
     return env
@@ -116,6 +118,21 @@ def reach_bottom_right(
     return control.Environment(
         physics, task, time_limit=time_limit, **environment_kwargs
     )
+
+@SUITE.add('benchmarking')
+def env1(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'env1'
+    physics = Physics.from_xml_string(*get_model_and_assets('env1'))
+    task = MultiTaskPointMassMaze(target_id=2, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
 
 
 def make_target_str(goal):
