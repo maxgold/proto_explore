@@ -44,10 +44,7 @@ class BCAgent:
                  stddev_schedule,
                  use_tb,
                  has_next_action=False,
-                 expert_1=None,
-                 expert_2=None,
-                 expert_3=None,
-                 expert_4=None,
+                 expert_dict=None,
                  distill=False):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
@@ -55,10 +52,7 @@ class BCAgent:
         self.device = device
         self.stddev_schedule = stddev_schedule
         self.use_tb = use_tb
-        self.expert_1=expert_1
-        self.expert_2=expert_2
-        self.expert_3=expert_3
-        self.expert_4=expert_4
+        self.expert_dict=expert_dict
         self.distill = distill
         # models
         self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
@@ -87,27 +81,16 @@ class BCAgent:
         return action.cpu().numpy()[0]
 
     def update_actor(self, obs, goal, action, step):
+        
         metrics = dict()
         stddev = utils.schedule(self.stddev_schedule, step)
-        if step%4==0:    
-            action = self.expert_1.act(obs, step, eval_mode=True)
-            action = torch.as_tensor(action, device=self.device)
-            goal = torch.as_tensor([.15, .15], device=self.device)
-            goal = torch.broadcast_to(goal, (1024,2))
-        elif step%4==1:
-            action = self.expert_2.act(obs, step, eval_mode=True)
-            goal = torch.as_tensor([-.15, .15], device=self.device)
-            goal = torch.broadcast_to(goal, (1024, 2))
-        elif step%4==2:
-            action = self.expert_3.act(obs, step, eval_mode=True)
-            action = torch.as_tensor(action, device=self.device)
-            goal = torch.as_tensor([-.15, -.15], device=self.device)
-            goal = torch.broadcast_to(goal, (1024, 2))
-        elif step%4==3:
-            action = self.expert_4.act(obs, step, eval_mode=True)
-            action = torch.as_tensor(action, device=self.device)
-            goal = torch.as_tensor([.15, -.15], device=self.device)
-            goal = torch.broadcast_to(goal, (1024, 2))
+        #subject to change, maybe passed in or parsed in train_offline.py
+        goal_lst = ndim_grid(2,4) 
+        key = step % len(self.expert_dict.keys())
+        action = self.expert_dict[key].act(obs, step, eval_mode=True)
+        action = torch.as_tensor(action, device=self.device)
+        goal = torch.as_tensor(goal_lst[key], device=self.device)
+        goal = torch.broadcast_to(goal, (1024,2))
 
         action = torch.as_tensor(action, device=self.device)
         
