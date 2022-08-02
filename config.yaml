@@ -1,22 +1,23 @@
 defaults:
   - agent: td3
-  - override hydra/launcher: submitit_local
+  - override hydra/launcher: joblib
 
 # unsupervised exploration
 expl_agent: proto
+tag: 16_goal
 # task settings
-task: walker_walk
+task: point_mass_maze_reach_custom_goal
 discount: 0.99
 # train settings
 num_grad_steps: 500000
 log_every_steps: 1000
 # eval
 eval_every_steps: 10000
-num_eval_episodes: 10
+num_eval_episodes: 1
 # dataset
 replay_buffer_dir: ../../../datasets # make sure to update this if you change hydra run dir
 replay_buffer_size: 1000000
-replay_buffer_num_workers: 4
+replay_buffer_num_workers: 16
 batch_size: ${agent.batch_size}
 # misc
 seed: 1
@@ -27,27 +28,15 @@ use_wandb: false
 goal: false
 eval: false
 distill: false
-goal_lst: ???
-
+experiment: exp
 path: /home/ubuntu/buffer/proto_explore/models/distill_bc_full/
-path_expert1: /home/ubuntu/buffer/proto_explore/models/pmm_top_right/agent499999.pth
-path_expert2: /home/ubuntu/buffer/proto_explore/models/pmm_top_left/agent_499999.pth
-path_expert3: /home/ubuntu/buffer/proto_explore/models/pmm_bottom_left/agent_499999.pth
-path_expert4: /home/ubuntu/buffer/proto_explore/models/pmm_bottom_right/agent_499999.pth
+path_expert: /home/ubuntu/buffer/proto_explore/models/16_goals/final
 
 
 hydra:
   run:
-    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}${tag}      
-  sweep:
-    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
-    subdir: ${hydra.job.num}
+    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}${tag}    
 
-  launcher:
-    timeout_min: 4300
-    cpus_per_task: 10
-    gpus_per_node: 1
-    tasks_per_node: 1
-    mem_gb: 160
-    nodes: 1
-    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+  sweep:
+    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}_${experiment}
+    subdir: ${hydra.job.num} 

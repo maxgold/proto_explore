@@ -335,7 +335,7 @@ class OfflineReplayBuffer(IterableDataset):
             #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
             if not self._loaded:
-                self._load()
+                self._load(relable=False)
                 self._loaded = True
 
             #obs_dim = env.observation_spec()['position'].shape[0]
@@ -346,7 +346,7 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _sample_episode(self):
         if not self._loaded:
-            self._load()
+            self._load(relable=False)
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
@@ -589,7 +589,7 @@ def make_replay_loader(
         vae=vae,
         distill=distill
     )
-    iterable._load()
+    iterable._load(relable=False)
 
     loader = torch.utils.data.DataLoader(
         iterable,
