@@ -47,7 +47,8 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
-        video_recorder.init(env, enabled=(episode == 0))
+        if cfg.eval==False:
+            video_recorder.init(env, enabled=(episode == 0))
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
@@ -56,12 +57,14 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
             time_step = env.step(action)
-            video_recorder.record(env)
+            if cfg.eval==False:
+                video_recorder.record(env)
             total_reward += time_step.reward
             step += 1
 
         episode += 1
-        video_recorder.save(f"{global_step}.mp4")
+        if cfg.eval==False:
+            video_recorder.save(f"{global_step}.mp4")
 
     with logger.log_and_dump_ctx(global_step, ty="eval") as log:
         log("episode_reward", total_reward / episode)
@@ -102,11 +105,12 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
             
         if cfg.eval:
             print('saving')
-            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2]), [[x, total_reward, time_step.observation[:2], step]])
+            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x, total_reward, time_step.observation[:2], step]])
             
         else:
             
             print('saving')
+            print(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step))
             save(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step), [[x, total_reward, time_step.observation[:2], step]])
     
     episode += 1
@@ -219,27 +223,33 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'*_40000.pth')
+            model_lst = glob.glob(str(global_model_path)+'/*490000.pth')
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(ix)
                     agent = torch.load(model_lst[ix])
                      #logger.log("eval_total_time", timer.total_time(), global_step)
-                    #if cfg.goal:
-                    #import IPython as ipy; ipy.embed(colors="neutral")
-                    goal_array = ndim_grid(2, 40)
-                    #goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
-                    while step <3000:
-                        for goal in goal_array:
-                            print('evaluating', goal, 'model', model_lst[ix])
-                        #import IPython as ipy; ipy.embed(colors="neutral")
-                            eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
-                                
-                            step +=1
-                            print(step)
-                        
-                    step=0
-                    print(step)
+                    ##if cfg.goal:
+                    ##import IPython as ipy; ipy.embed(colors="neutral")
+                    #goal_array = ndim_grid(2, 40)
+                    ##goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
+                    #while step <3000:
+                    #    for goal in goal_array:
+                    #        print('evaluating', goal, 'model', model_lst[ix])
+                    #    #import IPython as ipy; ipy.embed(colors="neutral")
+                    #        eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                    #            
+                    #        step +=1
+                    #        print(step)
+                    #    
+                    #step=0
+                    #print(step)
+                    goal = np.random.sample((2,)) * .5 - .25
+                    logger.log("eval_total_time", timer.total_time(), global_step)
+                    for i in range(1):
+                        eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model_lst[ix], work_dir)
+            global_step = 500000
+            global_step +=1
         else:
             # try to evaluate
             if eval_every_step(global_step+1):
@@ -270,9 +280,12 @@ def main(cfg):
 
 if __name__ == "__main__":
     goal_array = ndim_grid(2,4)
-
+    model_path = sorted(glob.glob('/home/ubuntu/buffer/proto_explore/models/16_goals/goal*'))
     for iz,z in enumerate(goal_array):
         global_index = iz
         global_goal = z
+        global_model_path = model_path[iz]
+        print('global_index', global_index)
         print('global_goal', global_goal)
+        print('global_model', global_model_path)
         main() 
