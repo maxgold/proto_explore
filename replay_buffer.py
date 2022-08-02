@@ -260,7 +260,9 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        distill=False
+        distill=False,
+        expert_dict=None,
+        goal_dict=None
         #gamma,
         #agent,
         #method,
@@ -302,7 +304,8 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-
+        
+        print(self._replay_dir)
         eps_fns = sorted(self._replay_dir.glob("*.npz"))
        # print(self._replay_dir)
        # print(eps_fns)
@@ -335,7 +338,7 @@ class OfflineReplayBuffer(IterableDataset):
             #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
             if not self._loaded:
-                self._load()
+                self._load(relable=False)
                 self._loaded = True
 
             #obs_dim = env.observation_spec()['position'].shape[0]
@@ -346,7 +349,7 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _sample_episode(self):
         if not self._loaded:
-            self._load()
+            self._load(relable=False)
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
@@ -376,6 +379,15 @@ class OfflineReplayBuffer(IterableDataset):
         #        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
     
+    def _sample_distill(self):
+        step=1
+        #eval mode step doesn't matter
+        obs, action, reward, discount, next_obs = self._sample()
+        key = np.random.choice(range(len(self.expert_dict.keys())))
+        action = self.expert_dict[key].act(obs, step, eval_mode=True)
+        goal = np.array(self.goal_dict[key])
+        return (obs, action, reward, discount, next_obs, goal)
+
     def _sample_sequence(self, offset=10):
         #len of obs should be 10 
         episode = self._sample_episode()
@@ -574,7 +586,7 @@ def make_replay_loader(
     offset=100,
     goal=False,
     vae=False,
-    distill=False
+    distill=False,
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -587,9 +599,9 @@ def make_replay_loader(
         offset,
         goal=goal,
         vae=vae,
-        distill=distill
+        distill=distill,
     )
-    iterable._load()
+    iterable._load(relable=False)
 
     loader = torch.utils.data.DataLoader(
         iterable,
