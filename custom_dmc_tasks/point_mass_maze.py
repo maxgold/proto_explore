@@ -51,9 +51,8 @@ def make(task, task_kwargs=None, environment_kwargs=None, visualize_reward=False
     if environment_kwargs is not None:
         task_kwargs = task_kwargs.copy()
         task_kwargs["environment_kwargs"] = environment_kwargs
-#     if "custom_goal" or "env_1" not in task:
-#         print(task)
-#         environment_kwargs.pop("goal")
+    if "custom_goal" not in task:
+        environment_kwargs.pop("goal")
     env = SUITE[task](**task_kwargs)
     env.task.visualize_reward = visualize_reward
     return env
@@ -259,8 +258,8 @@ class MultiTaskPointMassMaze(base.Task):
           physics: An instance of `mujoco.Physics`.
         """
         randomizers.randomize_limited_and_rotational_joints(physics, self.random)
-        physics.data.qpos[0] = np.random.uniform(-0.29, -0.15)
-        physics.data.qpos[1] = np.random.uniform(0.15, 0.29)
+        physics.data.qpos[0] = np.random.uniform(-.15, -.29)
+        physics.data.qpos[1] = np.random.uniform(0.15, .29)
         # import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos["target"][:] = self._target
 

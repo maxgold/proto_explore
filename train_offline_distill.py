@@ -42,7 +42,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
     if cfg.goal:
-        goal = np.random.sample() * .5 - .25
+        goal = np.random.sample((2,)) * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
@@ -69,38 +69,35 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
 
 
 def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,work_dir):
-    step, episode, total_reward = 0, 0, 0
-    env = dmc.make(cfg.task, seed=None, goal=goal)
-    time_step = env.reset()
-    print(time_step.observation)
-    #goal = np.array([np.random.sample() * -.25, np.random.sample() * .25])
-    if cfg.eval==False:
-        video_recorder.init(env, enabled=True)
-        
-    while not time_step.last():
-        with torch.no_grad(), utils.eval_mode(agent):
-            if cfg.goal:
-                action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
-            else:
-                action = agent.act(time_step.observation, global_step, eval_mode=True)
-        time_step = env.step(action)
-        if cfg.eval==False:
-            video_recorder.record(env)
-        total_reward += time_step.reward
-        step += 1
+    goal_array = ndim_grid(2, 40)
+    for ix, x in enumerate(goal_array):
 
-    episode += 1
-    if cfg.eval==False:
-        video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
-    if cfg.eval:
-        print('saving')
-        save(str(work_dir)+'{}.csv'.format(model.split('.')[-2]), [[goal, total_reward, time_step.observation[:2]]])
-    else:
-        with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-            log("goal", goal)
-            log("episode_reward", total_reward)
-            log("episode_length", step)
-            log("steps", global_step)
+        step, episode, total_reward = 0, 0, 0
+        env = dmc.make(cfg.task, seed=None, goal=x)
+        time_step = env.reset()
+        #goal = np.array([np.random.sample() * -.25, np.random.sample() * .25])
+        #if cfg.eval==False and ix%100==0:
+        #    video_recorder.init(env, enabled=True)
+        
+        while not time_step.last():
+            with torch.no_grad(), utils.eval_mode(agent):
+                if cfg.goal:
+                    action = agent.act(time_step.observation, x, global_step, eval_mode=True)
+                else:
+                    action = agent.act(time_step.observation, global_step, eval_mode=True)
+            time_step = env.step(action)
+        #    if cfg.eval==False and ix%100==0:
+        #        video_recorder.record(env)
+            total_reward += time_step.reward
+            step += 1
+        episode+=1
+        #if cfg.eval==False and ix%100==0::
+        #    video_recorder.save("goal{}_{}.mp4".format(x, global_step))
+        if cfg.eval:
+            print('saving')
+            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2]), [[x, total_reward, time_step.observation[:2], step]])
+        else:
+            save(str(work_dir)+'/eval_{}_{}.csv'.format(ix, global_step), [[x, total_reward, time_step.observation[:2], step]])
         
 
 def eval_random(env):
@@ -134,10 +131,45 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=(0.25, -0.25))
-    expert_1 = torch.load(cfg.path_expert1)
-    expert_2 = torch.load(cfg.path_expert2)
-    expert_3 = torch.load(cfg.path_expert3)
-    expert_4 = torch.load(cfg.path_expert4)
+    
+    #load experts
+    expert_lst = {}
+    expert_paths = sorted(glob.glob(str(cfg.path_expert) + '/*.pth'))
+    print(expert_paths)
+    num = 0
+
+    #calculate goals
+    goal_lst = {}
+    goal_arr = ndim_grid(2,4)
+    for num in range(len(expert_paths)):
+        key = num
+        goal = expert_paths[num]
+        one = goal.split('_')[-2]
+        two = goal.split('_')[-3]
+        print('-2', one, '/n-3', two)
+        if two == 'goal':
+            goal_num = int(one)
+            goal_lst[key] = goal_arr[goal_num]
+        else:
+            two = two.split('/')[-1]
+            print(two)
+            if two == 'bottom':
+                if one =='left':
+                    goal_lst[key] = [-.15, -.15]
+                elif one == 'right':
+                    goal_lst[key] = [.15, -.15]
+                else:
+                    import IPython as ipy; ipy.embed(colors="neutral")
+            elif two == 'top':
+                if one =='left':
+                    goal_lst[key] = [-.15, .15]
+                elif one == 'right':
+                    goal_lst[key] = [.15, .15]
+                else:
+                    import IPython as ipy; ipy.embed(colors="neutral")
+        value = torch.load(expert_paths[num])
+        expert_lst[key] = value
+
     # create agent
     if cfg.eval:
         print('evulating')
@@ -147,10 +179,9 @@ def main(cfg):
                 obs_shape=env.observation_spec().shape,
                 action_shape=env.action_spec().shape,
                 goal_shape=(2,),
-                expert_1=expert_1,
-                expert_2=expert_2,
-                expert_3=expert_3,
-                expert_4=expert_4,)
+                expert_dict=expert_lst,
+                goal_dict = goal_lst,
+                distill=cfg.distill)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -178,7 +209,7 @@ def main(cfg):
     # create data storage
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
-    replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    replay_dir = datasets_dir.resolve()  / domain / cfg.expl_agent / "buffer"
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -191,7 +222,9 @@ def main(cfg):
         cfg.replay_buffer_num_workers,
         cfg.discount,
         goal=cfg.goal,
-        distill=cfg.distill)
+        distill=cfg.distill,
+        expert_dict=expert_lst,
+        goal_dict=goal_lst)
     
 
     replay_iter = iter(replay_loader)
@@ -239,7 +272,7 @@ def main(cfg):
             # try to evaluate
             if eval_every_step(global_step+1):
                 logger.log("eval_total_time", timer.total_time(), global_step)
-                if cfg.goal:
+                if global_step>490000:
                     #goal = np.random.sample((2,)) * .5 - .25
                     #import IPython as ipy; ipy.embed(colors="neutral")
                     goal = np.random.sample((2,)) * .5 - .25
@@ -256,8 +289,8 @@ def main(cfg):
                     log("total_time", total_time)
                     log("step", global_step)
         
-            if global_step%50000==0:
-                path = os.path.join(work_dir, 'optimizer_{}.pth'.format(global_step))
+            if global_step%10000==0:
+                path = os.path.join(work_dir, 'optimizer_expert_{}_{}.pth'.format(len(expert_paths), global_step))
                 torch.save(agent,path)
 
             global_step += 1

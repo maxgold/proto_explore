@@ -260,7 +260,9 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        distill=False
+        distill=False,
+        expert_dict=None,
+        goal_dict=None
         #gamma,
         #agent,
         #method,
@@ -302,7 +304,8 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-
+        
+        print(self._replay_dir)
         eps_fns = sorted(self._replay_dir.glob("*.npz"))
        # print(self._replay_dir)
        # print(eps_fns)
@@ -320,10 +323,9 @@ class OfflineReplayBuffer(IterableDataset):
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
-            print('size', self._size)
-            print('len', len(self._episodes))
+            #print('size', self._size)
+            #print('len', len(self._episodes))
         #import IPython as ipy; ipy.embed(colors='neutral')
-
     
     def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
@@ -364,7 +366,7 @@ class OfflineReplayBuffer(IterableDataset):
         next_obs = episode["observation"][idx]
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
-        reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
+        #reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
         #        control_reward = rewards.tolerance(
         #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
         #        ).mean()
@@ -377,6 +379,15 @@ class OfflineReplayBuffer(IterableDataset):
         #        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
     
+    def _sample_distill(self):
+        step=1
+        #eval mode step doesn't matter
+        obs, action, reward, discount, next_obs = self._sample()
+        key = np.random.choice(range(len(self.expert_dict.keys())))
+        action = self.expert_dict[key].act(obs, step, eval_mode=True)
+        goal = np.array(self.goal_dict[key])
+        return (obs, action, reward, discount, next_obs, goal)
+
     def _sample_sequence(self, offset=10):
         #len of obs should be 10 
         episode = self._sample_episode()
@@ -550,7 +561,7 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.distill:
-                yield self._sample_goal()
+                yield self._sample()
             elif self.goal:
                 yield self._sample_goal()
             elif self.vae:
@@ -575,7 +586,7 @@ def make_replay_loader(
     offset=100,
     goal=False,
     vae=False,
-    distill=False
+    distill=False,
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -588,7 +599,7 @@ def make_replay_loader(
         offset,
         goal=goal,
         vae=vae,
-        distill=distill
+        distill=distill,
     )
     iterable._load(relable=False)
 
