@@ -4,6 +4,7 @@ import random
 import traceback
 import copy
 from collections import defaultdict
+import tqdm
 
 import numpy as np
 import torch
@@ -32,7 +33,7 @@ def load_episode(fn):
         return episode
 
 
-def relable_episode(env, episode):
+def relabel_episode(env, episode):
     rewards = []
     reward_spec = env.reward_spec()
     states = episode["physics"]
@@ -310,16 +311,17 @@ class OfflineReplayBuffer(IterableDataset):
        # print(self._replay_dir)
        # print(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
-        random.shuffle(eps_fns)
-        for eps_fn in eps_fns:
+        #random.shuffle(eps_fns)
+        #for eps_fn in eps_fns:
+        for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
             if self._size > self._max_size:
                 break
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:
                 continue
             episode = load_episode(eps_fn)
-            if relable:
-                episode = self._relable_reward(episode)
+            if relabel:
+                episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
@@ -354,8 +356,8 @@ class OfflineReplayBuffer(IterableDataset):
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
 
-    def _relable_reward(self, episode):
-        return relable_episode(self._env, episode)
+    def _relabel_reward(self, episode):
+        return relabel_episode(self._env, episode)
 
     def _sample(self):
         episode = self._sample_episode()
@@ -461,10 +463,16 @@ class OfflineReplayBuffer(IterableDataset):
             self._goal_array = True
         
         goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
-        goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
+        #goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
         for goal in goal_array:
             rewards.append(my_reward(action, next_obs, goal))
 
+        #cand_goals = np.random.uniform(-.2,.2, size=(50,2))
+        #cand_goals = cand_goals[np.abs(cand_goals[:,0])>.05]
+        #cand_goals = cand_goals[np.abs(cand_goals[:,1])>.05]
+        #cand_goals = cand_goals[:4]
+        #for goal in cand_goals:
+        #    rewards.append(my_reward(action, next_obs, goal))
         discount = np.ones_like(episode["discount"][idx])
         obs = np.tile(obs, (5, 1))
         action = np.tile(action, (5, 1))
@@ -474,13 +482,14 @@ class OfflineReplayBuffer(IterableDataset):
         goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)
 
+        #return (obs, action, reward, discount, next_obs, cand_goals)
 
     def _sample_future(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
         obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
+        action = ["action"][idx]
         next_obs = episode["observation"][idx + self.offset]
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
@@ -569,11 +578,61 @@ class OfflineReplayBuffer(IterableDataset):
             else:
                 yield self._sample()
 
+    def parse_dataset(self, start_ind=0, end_ind=-1):
+        states = []
+        actions = []
+        futures = []
+        for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
+            episode = self._episodes[eps_fn]
+            offsets = [25, 50, 75, 100, 100]
+            ep_len = next(iter(episode.values())).shape[0] - 1
+            for idx in range(ep_len - 100):
+                ys = []
+                states.append(episode["observation"][idx - 1][None])
+                actions.append(episode["action"][idx][None])
+                for off in offsets:
+                    ys.append(episode["observation"][idx + off][:,None])
+                futures.append(np.concatenate(ys,1)[None])
+        return (
+            np.concatenate(states, 0),
+            np.concatenate(actions, 0),
+            np.concatenate(futures, 0),
+        )
+
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
     random.seed(seed)
+
+
+def make_replay_buffer(
+    env,
+    replay_dir,
+    max_size,
+    batch_size,
+    num_workers,
+    discount,
+    offset=100,
+    goal=False,
+    vae=False,
+    relabel=False
+):
+    max_size_per_worker = max_size // max(1, num_workers)
+
+    iterable = OfflineReplayBuffer(
+        env,
+        replay_dir,
+        max_size_per_worker,
+        num_workers,
+        discount,
+        offset,
+        goal=goal,
+        vae=vae,
+    )
+    iterable._load(relabel=relabel)
+
+    return iterable
 
 
 def make_replay_loader(

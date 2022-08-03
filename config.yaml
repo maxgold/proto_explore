@@ -4,7 +4,7 @@ defaults:
 
 # unsupervised exploration
 expl_agent: proto
-tag: 16_goal
+tag:
 # task settings
 task: point_mass_maze_reach_custom_goal
 discount: 0.99
