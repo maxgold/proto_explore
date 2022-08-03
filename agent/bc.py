@@ -56,6 +56,7 @@ class BCAgent:
         self.expert_dict=expert_dict
         self.goal_dict=goal_dict
         self.distill = distill
+        self.batch_size = batch_size
         # models
         self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
                            hidden_dim).to(device)
@@ -86,19 +87,28 @@ class BCAgent:
         
         metrics = dict()
         stddev = utils.schedule(self.stddev_schedule, step)
-        action = np.zeros((obs.size(dim=0),2))
-        goal=np.zeros((obs.size(dim=0),2))
-        z = np.random.choice(len(self.expert_dict.keys()))
-        for i in range(obs.size(dim=0)):
-            key = (i+z)%len(self.expert_dict.keys())
+        #action = torch.empty((2,1))
+        #goal = torch.empty((2,1))
+        action = []
+        goal = []
+        #z = np.random.choice(len(self.expert_dict.keys()))
+        for key in range(len(self.expert_dict.keys())):
+            #key = (i+z)%len(self.expert_dict.keys())
         
-            action[i] = self.expert_dict[key].act(obs[i], step, eval_mode=True)
-            #action = torch.as_tensor(action, device=self.device)
-            goal[i] = self.goal_dict[key]
-        #action = np.array(action)
-        #goal = np.array(goal)
+            action_ = self.expert_dict[key].act(obs, step, eval_mode=True)
+            #action_ = torch.as_tensor(action_, device=self.device)
+            action.append(action_)
+            goal_ = self.goal_dict[key]
+            goal_ = np.tile(goal_, (len(obs),1))
+            goal.append(goal_)
+        action = np.array(action)
+        goal = np.array(goal)
         action = torch.as_tensor(action, device=self.device).float()
         goal = torch.as_tensor(goal, device=self.device).float()       
+        obs = torch.tile(obs, (len(self.expert_dict.keys()), 1))
+        action = action.reshape((len(obs), 2))
+        goal = goal.reshape((len(obs), 2))
+        #obs = torch.as_tensor(obs, device=self.device).float()
         policy = self.actor(obs, goal, stddev)
 
         log_prob = policy.log_prob(action).sum(-1, keepdim=True)

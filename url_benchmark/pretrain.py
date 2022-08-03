@@ -213,7 +213,11 @@ class Workspace:
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter, self.global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
-
+            
+            #save agent
+            if self._global_step%100000==0:
+                path = os.path.join(work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent),global_step))
+                torch.save(self.agent, path)
             # take env step
             time_step = self.train_env.step(action)
             episode_reward += time_step.reward

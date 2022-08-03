@@ -43,7 +43,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     step, episode, total_reward = 0, 0, 0
     eval_until_episode = utils.Until(num_eval_episodes)
     if cfg.goal:
-        goal = np.random.sample() * .5 - .25
+        goal = np.random.sample((2,)) * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
     while eval_until_episode(episode):
         time_step = env.reset()
@@ -88,6 +88,7 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
+                    #import IPython as ipy; ipy.embed(colors='neutral')
                     action = agent.act(time_step.observation, x, global_step, eval_mode=True)
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
@@ -146,8 +147,7 @@ def main(cfg):
     logger = Logger(work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
     # create envs
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=global_goal)
-    print('global goal create env', global_goal)
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=(-.15, .15))
 
     # create agent
     if cfg.eval:
@@ -185,10 +185,10 @@ def main(cfg):
     # create data storage
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
-    if cfg.distill==False:
-        replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
-    else:
-        replay_dir = datasets_dir.resolve()
+    #if cfg.distill==False:
+    replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+    #else:
+    replay_dir = datasets_dir.resolve()
     print(f"replay dir: {replay_dir}")
     #import IPython as ipy; ipy.embed(colors="neutral")
 
@@ -223,10 +223,10 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(global_model_path)+'/*490000.pth')
+            model_lst = glob.glob(str(cfg.path)+'/*400000.pth')
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
-                    print(ix)
+                    print(model_lst[ix])
                     agent = torch.load(model_lst[ix])
                      #logger.log("eval_total_time", timer.total_time(), global_step)
                     ##if cfg.goal:
@@ -257,7 +257,7 @@ def main(cfg):
                 
                 #goal = np.random.sample((2,)) * .5 - .25
                 #import IPython as ipy; ipy.embed(colors="neutral")
-                if global_step>490000:
+                if global_step%50000==0:
                     goal = np.random.sample((2,)) * .5 - .25
                     eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, goal, work_dir)
                 else:
@@ -272,20 +272,21 @@ def main(cfg):
                     log("step", global_step)
         
             if global_step%10000==0:
-                path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(global_index, global_step))
+                path = os.path.join(work_dir, 'optimizer_distill_{}_{}.pth'.format(global_index,global_step))
                 torch.save(agent,path)
 
             global_step += 1
 
 
 if __name__ == "__main__":
-    goal_array = ndim_grid(2,4)
-    model_path = sorted(glob.glob('/home/ubuntu/buffer/proto_explore/models/16_goals/goal*'))
-    for iz,z in enumerate(goal_array):
-        global_index = iz
-        global_goal = z
-        global_model_path = model_path[iz]
-        print('global_index', global_index)
-        print('global_goal', global_goal)
-        print('global_model', global_model_path)
-        main() 
+    global_index=8
+    #goal_array = ndim_grid(2,4)
+    #model_path = sorted(glob.glob('/home/ubuntu/buffer/proto_explore/models/16_goals/goal*'))
+    #for iz,z in enumerate(goal_array):
+    #    global_index = iz
+    #    global_goal = z
+    #    global_model_path = model_path[iz]
+    #    print('global_index', global_index)
+    #    print('global_goal', global_goal)
+    #    print('global_model', global_model_path)
+    main() 

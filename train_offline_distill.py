@@ -228,9 +228,7 @@ def main(cfg):
         cfg.discount,
         goal=cfg.goal,
         distill=cfg.distill,
-        expert_dict=expert_lst,
-        goal_dict=goal_lst)
-    
+        )
 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs

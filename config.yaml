@@ -29,11 +29,9 @@ goal: false
 eval: false
 distill: false
 experiment: exp
-path: /home/ubuntu/buffer/proto_explore/models/distill_bc_full/
+path: /home/ubuntu/proto_explore/output/2022.08.02/130412_bc16_goal
 path_expert: /home/ubuntu/buffer/proto_explore/models/16_goals/final
 
-path: None
-path_expert: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/16_goals/final 
 
 hydra:
   run:

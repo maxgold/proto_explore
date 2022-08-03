@@ -124,7 +124,12 @@ class TD3Agent:
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
-
+        
+        #print('obs', obs)
+        #print('action', action)
+        #print('reward', reward)
+        #print('discount', discount)
+        #print('next_obs', next_obs)
         Q1, Q2 = self.critic(obs, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
@@ -169,6 +174,13 @@ class TD3Agent:
         batch = next(replay_iter)
         obs, action, reward, discount, next_obs = utils.to_torch(
             batch, self.device)
+
+        obs = obs.reshape(-1, 4).float()
+        next_obs = next_obs.reshape(-1, 4).float()
+        action = action.reshape(-1, 2).float()
+        reward = reward.reshape(-1, 1).float()
+        discount = discount.reshape(-1, 1).float()
+        reward = reward.float()
 
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
