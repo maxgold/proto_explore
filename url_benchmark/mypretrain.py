@@ -319,7 +319,12 @@ class Workspace:
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1
             self._global_step += 1
-
+            
+            #save agent
+            if self._global_step%100000==0:
+                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent),global_step))
+                torch.save(self.agent, path)
+    
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
         snapshot_dir.mkdir(exist_ok=True, parents=True)

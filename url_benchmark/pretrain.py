@@ -216,7 +216,7 @@ class Workspace:
             
             #save agent
             if self._global_step%100000==0:
-                path = os.path.join(work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent),global_step))
+                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
             # take env step
             time_step = self.train_env.step(action)
