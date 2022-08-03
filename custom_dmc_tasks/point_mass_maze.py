@@ -134,6 +134,50 @@ def env1(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
+@SUITE.add('benchmarking')
+def env2(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'env2'
+    physics = Physics.from_xml_string(*get_model_and_assets('env2'))
+    task = MultiTaskPointMassMaze(target_id=2, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+@SUITE.add('benchmarking')
+def env3(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'env3'
+    physics = Physics.from_xml_string(*get_model_and_assets('env3'))
+    task = MultiTaskPointMassMaze(target_id=2, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def env16(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'env16'
+    physics = Physics.from_xml_string(*get_model_and_assets('env16'))
+    task = MultiTaskPointMassMaze(target_id=2, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
 
 def make_target_str(goal):
     new_pos_str = 'pos="'
