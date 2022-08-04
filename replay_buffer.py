@@ -75,7 +75,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, q, task):
+    def add(self, time_step, q, task, model_time_step):
 #         for key, value in meta.items():
 #             self._current_episode[key].append(value)
         
@@ -127,7 +127,7 @@ class ReplayBufferStorage:
             
     
             self._current_episode = defaultdict(list)
-            self._store_episode(episode)
+            self._store_episode(episode, model_time_step)
 
     def _preload(self):
         self._num_episodes = 0
@@ -137,14 +137,14 @@ class ReplayBufferStorage:
             self._num_episodes += 1
             self._num_transitions += int(eps_len)
 
-    def _store_episode(self, episode):
+    def _store_episode(self, episode, time_step):
         print('storing now')
         eps_idx = self._num_episodes
         eps_len = episode_len(episode)
         self._num_episodes += 1
         self._num_transitions += eps_len
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-        eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
+        eps_fn = f"{ts}_{time_step}_{eps_idx}_{eps_len}.npz"
         print('eps_fn')
         save_episode(episode, self._replay_dir / eps_fn)
 
@@ -460,16 +460,16 @@ class OfflineReplayBuffer(IterableDataset):
             self._get_goal_array()
             self._goal_array = True
         
-        goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
-        #goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
+        #goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
+        goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
         for goal in goal_array:
             rewards.append(my_reward(action, next_obs, goal))
 
         discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (5, 1))
-        action = np.tile(action, (5, 1))
-        discount = np.tile(discount, (5, 1))
-        next_obs = np.tile(next_obs, (5, 1))
+        obs = np.tile(obs, (len(goal_array), 1))
+        action = np.tile(action, (len(goal_array), 1))
+        discount = np.tile(discount, (len(goal_array), 1))
+        next_obs = np.tile(next_obs, (len(goal_array), 1))
         reward = np.array(rewards)
         goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)

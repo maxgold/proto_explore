@@ -1,9 +1,10 @@
 defaults:
   - agent: td3
-  - override hydra/launcher: submitit_local
+  - override hydra/launcher: joblib
 
 # unsupervised exploration
 expl_agent: proto
+tag: 
 # task settings
 task: walker_walk
 discount: 0.99
@@ -12,9 +13,9 @@ num_grad_steps: 500000
 log_every_steps: 1000
 # eval
 eval_every_steps: 10000
-num_eval_episodes: 1
+num_eval_episodes: 10
 # dataset
-replay_buffer_dir: ../../../datasets # make sure to update this if you change hydra run dir
+replay_buffer_dir: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/datasets # make sure to update this if you change hydra run dir
 replay_buffer_size: 1000000
 replay_buffer_num_workers: 4
 batch_size: ${agent.batch_size}
@@ -27,8 +28,8 @@ use_wandb: false
 goal: false
 eval: false
 distill: false
-
-path: None
+experiment: exp
+path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/16_goals/final
 path_expert: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/16_goals/final 
 
 hydra:
@@ -38,11 +39,11 @@ hydra:
     dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}
 
-  launcher:
-    timeout_min: 4300
-    cpus_per_task: 10
-    gpus_per_node: 1
-    tasks_per_node: 1
-    mem_gb: 160
-    nodes: 1
-    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+#  launcher:
+#    timeout_min: 4300
+#    cpus_per_task: 10
+#    gpus_per_node: 1
+#    tasks_per_node: 1
+#    mem_gb: 160
+#    nodes: 1
+#    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
