@@ -241,6 +241,7 @@ class ReplayBuffer(IterableDataset):
             step_reward = episode["reward"][idx + i]
             reward += discount * step_reward
             discount *= episode["discount"][idx + i] * self._discount
+        print('sampling from online replay buffer')
         return (obs, action, reward, discount, next_obs, *meta)
 
     def __iter__(self):
@@ -308,6 +309,7 @@ class OfflineReplayBuffer(IterableDataset):
         return relabel_episode(self._env, episode)
 
     def _sample(self):
+        print('sampling from offline buffer')
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode)) + 1
@@ -602,76 +604,6 @@ class OfflineReplayBuffer(IterableDataset):
         discount = episode["discount"][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
     
-#     def _sample_supervised_transitions(self):
-#         batch_size = 10
-#         episode = self._sample_episode()
-#         t_samples = np.random.randint(len(episode), size=batch_size)
-#         for i in range(len(t_samples)):
-#             #change data type of transitions
-#             self.transitions += episode[t_samples[i]]
-# #             transitions = {key: episode_batch[key][episode_idxs, t_samples].copy()
-# #                             for key in episode_batch.keys()}
-#             #if in range
-#             self.transitions['goal'] = episode[t_samples[i]+100]
-#         #what is her_indexes used for?
-#         her_indexes = (np.random.uniform() < future_p)
-#         #returns true or false. future_p is prob. of picking future goal?
-#         offset = np.random.uniform() * (len(episode)-t_sample)
-#         offset = future_offset.astype(int)
-#         future_t = t_samples + 1 + offset
-#         original_g = 
-#         if her_indexes:
-#             future_achieved_goal = episode[future_t]
-#         else: 
-            
-#         method_lst = method.split('_')
-        
-#         if 'gamma' in method_lst:
-#             weights = pow(gamma, offset)
-#         else:
-#             weights = np.ones(batch_size)
-#         if 'adv' in method_lst:
-#             ##fix. what is value?
-#             Q1, Q2 = agent.critic(self.transitions['obs'], self.transitions['goal'], policy.sample(clip=agent.stddev_clip))
-#             value = torch.min(Q1, Q2).reshape(-1)
-#             Q1, Q2 = self.critic(self.transitions['next_obs'], self.transitions['goal'], policy.sample(clip=self.stddev_clip))
-#             next_value = torch.min(Q1, Q2).reshape(-1)
-#             adv = self.my_reward(transitions['achieved_goal_next'], transitions['goal']) + discount * next_value - value
-            
-#             if 'baw' in method_lis:
-#                 advque.update(adv)
-#                 global global_threshold
-#                 global_threshold = min(global_threshold + baw_delta, baw_max)
-#                 threshold = advque.get(global_threshold)'
-                
-#             if 'exp' in method_lis:  # exp weights
-#                 if 'clip10' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 10)
-#                 elif 'clip5' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 5)
-#                 elif 'clip1' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 1)
-#                 else:
-#                     weights *= np.exp(adv) 
-                    
-                    
-#             if 'baw' in method_lis:
-#                 positive = adv.copy()
-#                 positive[adv >= threshold] = 1
-#                 positive[adv < threshold] = 0.05
-#                 weights *= positive
-                
-#         loss = train_policy(o=transitions['o'], g=transitions['g'], u=transitions['u'], weights=weights) 
-        
-#         keep_origin_rate = 0.2
-#         origin_index = (np.random.uniform(size=batch_size) < keep_origin_rate)
-#         transitions['g'][origin_index] = original_g[origin_index]
-#         transitions['r'] = _get_reward(transitions['ag_2'], transitions['g']) 
-#         ## make next_ob and ag_2 
-        
-#         return _sample_supervised_transitions, _sample_her_transitions
-                
-                
                 
                 
     def __iter__(self):

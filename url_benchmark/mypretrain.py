@@ -60,11 +60,12 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
+    cfg.goal_shape = goal_shape
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -85,6 +86,7 @@ def make_generator(env, cfg):
     states = states.astype(np.float64)
     knn = KNN(states[:, :2], futures)
     return knn
+
 
 def make_expert():
     return ExpertAgent()
@@ -124,6 +126,7 @@ class Workspace:
         self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
+                                (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent)
 
@@ -161,8 +164,8 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
         self.expert = make_expert()
-        self.knn = make_generator(self.eval_env, cfg)
-        self.use_expert = True
+        #self.knn = make_generator(self.eval_env, cfg)
+        self.use_expert = False
 
     @property
     def global_step(self):
@@ -201,7 +204,14 @@ class Workspace:
         all_dists, _ = torch.topk(z_to_c, 3, dim=1, largest=True)
         ind = all_dists.mean(-1).argmax().item()
         return cands[ind].cpu().numpy()
-        
+
+    
+    def sample_goal_proto(self, obs):
+        current_protos = self.agent.protos.weight.data.clone()
+        current_protos = F.normalize(current_protos, dim=1, p=2)
+        print('current_protos shape', current_protos.shape)
+        return np.random.choice(current_protos)
+
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -249,7 +259,7 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
-        goal = self.sample_goal(time_step.observation)[:2]
+        goal = self.sample_goal_proto(time_step.observation)[:2]
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -281,8 +291,8 @@ class Workspace:
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
                     self.save_snapshot()
-                episode_step = 0
-                episode_reward = 0
+                    episode_step = 0
+                    episode_reward = 0
 
             # try to evaluate
             if eval_every_step(self.global_step):
@@ -292,7 +302,7 @@ class Workspace:
 
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             if episode_step % resample_goal_every == 0:
-                goal = self.sample_goal(time_step.observation)[:2]
+                goal = self.sample_goal_proto(time_step.observation)[:2]
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.use_expert:
@@ -302,7 +312,7 @@ class Workspace:
                                             eval_mode=False)
                 else:
                     action = self.agent.act(time_step.observation,
-                                            #goal,
+                                            goal,
                                             meta,
                                             self.global_step,
                                             eval_mode=False)
@@ -322,7 +332,7 @@ class Workspace:
             
             #save agent
             if self._global_step%100000==0:
-                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent),global_step))
+                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent.name),global_step))
                 torch.save(self.agent, path)
     
     def save_snapshot(self):
@@ -350,3 +360,5 @@ def main(cfg):
 
 if __name__ == '__main__':
     main()
+import warnings
+

@@ -263,7 +263,8 @@ class OfflineReplayBuffer(IterableDataset):
         vae=False,
         distill=False,
         expert_dict=None,
-        goal_dict=None
+        goal_dict=None,
+        relabel = False
         #gamma,
         #agent,
         #method,
@@ -289,6 +290,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._goal_array = False
         self.obs = []
         self.distill = distill
+        self.relabel = relabel
         #self.gamma = gamma
         #self.method = method
         #self.baw_delta = baw_delta
@@ -298,7 +300,8 @@ class OfflineReplayBuffer(IterableDataset):
         
         #future_p = 1 - (1. / (1 + self.num_replay_goals))
         
-    def _load(self, relable=True):
+    def _load(self):
+        relabel=self.relabel
         #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
         try:
@@ -340,7 +343,7 @@ class OfflineReplayBuffer(IterableDataset):
             #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
             if not self._loaded:
-                self._load(relable=False)
+                self._load()
                 self._loaded = True
 
             #obs_dim = env.observation_spec()['position'].shape[0]
@@ -351,9 +354,10 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _sample_episode(self):
         if not self._loaded:
-            self._load(relable=False)
+            self._load()
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
+        
         return self._episodes[eps_fn]
 
     def _relabel_reward(self, episode):
@@ -367,6 +371,7 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx]
         next_obs = episode["observation"][idx]
         reward = episode["reward"][idx]
+        #print('reward', reward)
         discount = episode["discount"][idx] * self._discount
         #reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
         #        control_reward = rewards.tolerance(
@@ -646,6 +651,7 @@ def make_replay_loader(
     goal=False,
     vae=False,
     distill=False,
+    relabel=False
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -659,8 +665,9 @@ def make_replay_loader(
         goal=goal,
         vae=vae,
         distill=distill,
+        relabel=relabel
     )
-    iterable._load(relable=False)
+    iterable._load()
 
     loader = torch.utils.data.DataLoader(
         iterable,

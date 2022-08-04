@@ -53,6 +53,7 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     if cfg.goal:
         goal = np.random.sample((2,)) * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+    print('evaluating random goal', cfg.goal)
     while eval_until_episode(episode):
         time_step = env.reset()
         if cfg.eval==False:
@@ -162,8 +163,8 @@ def main(cfg):
     logger = Logger(work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
     # create envs
-    env = dmc.make(cfg.task, seed=cfg.seed, goal=(-.15, .15))
-
+    env = dmc.make(cfg.task, seed=cfg.seed, goal=global_goal)
+    print('making env', global_goal)
     # create agent
     if cfg.eval:
         print('evulating')
@@ -203,7 +204,7 @@ def main(cfg):
     #if cfg.distill==False:
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     #else:
-    replay_dir = datasets_dir.resolve()
+    #replay_dir = datasets_dir.resolve()
     print(f"replay dir: {replay_dir}")
 
     replay_loader = make_replay_loader(
@@ -214,7 +215,8 @@ def main(cfg):
         cfg.replay_buffer_num_workers,
         cfg.discount,
         goal=cfg.goal,
-        distill=cfg.distill
+        distill=cfg.distill,
+        relabel=cfg.relabel
     )
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
@@ -284,21 +286,22 @@ def main(cfg):
                     log("step", global_step)
         
             if global_step%10000==0:
-                path = os.path.join(work_dir, 'optimizer_distill_{}_{}.pth'.format(global_index,global_step))
+                path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(global_index,global_step))
                 torch.save(agent,path)
 
             global_step += 1
 
 
 if __name__ == "__main__":
-    global_index=8
-    #goal_array = ndim_grid(2,4)
+
+    goal_array = ndim_grid(2,4)
+    goal_array = [goal_array[10], goal_array[13]]
     #model_path = sorted(glob.glob('/home/ubuntu/buffer/proto_explore/models/16_goals/goal*'))
-    #for iz,z in enumerate(goal_array):
-    #    global_index = iz
-    #    global_goal = z
-    #    global_model_path = model_path[iz]
-    #    print('global_index', global_index)
-    #    print('global_goal', global_goal)
-    #    print('global_model', global_model_path)
-    main() 
+    for iz,z in enumerate(goal_array):
+        global_index = iz
+        global_goal = z
+        #global_model_path = model_path[iz]
+        print('global_index', global_index)
+        print('global_goal', global_goal)
+        #print('global_model', global_model_path)
+        main() 

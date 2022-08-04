@@ -8,7 +8,7 @@ lr: 1e-4
 critic_target_tau: 0.01
 use_tb: ${use_tb}
 hidden_dim: 1024
-stddev_schedule: 0.2
+stddev_schedule: 0.1
 stddev_clip: 0.3
 nstep: 1
 batch_size: 1024 # 256 for pixels

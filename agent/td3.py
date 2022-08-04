@@ -121,6 +121,7 @@ class TD3Agent:
             stddev = utils.schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
+    
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
@@ -181,7 +182,6 @@ class TD3Agent:
         reward = reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
         reward = reward.float()
-
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 
