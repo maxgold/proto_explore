@@ -268,7 +268,6 @@ class DDPGAgent:
 
     def update_actor(self, obs, goal, action, step):
         metrics = dict()
-
         stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, goal, stddev)
         action = dist.sample(clip=self.stddev_clip)

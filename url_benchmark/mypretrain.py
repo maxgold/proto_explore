@@ -216,12 +216,13 @@ class Workspace:
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
+        goal = np.random.sample((2,)) * .5 - .25
+        self.eval_env = dmc.make(self.cfg.task, seed=None, goal=goal)
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
         while eval_until_episode(episode):
             time_step = self.eval_env.reset()
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-            goal = np.random.sample((2,)) * .5 - .25
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
                     if self.cfg.goal:
@@ -260,7 +261,7 @@ class Workspace:
         
         #final evaluation over all final prototypes
         #load final agent model to get them
-        if cfg.eval:
+        if self.cfg.eval:
             proto2d = visualize_prototypes(proto)
             plt.clf()
             fig, ax = plt.subplots()
@@ -275,9 +276,10 @@ class Workspace:
             plt.savefig(f"./{self._global_step}_proto2d.png")
         
         for ix, x in enumerate(proto2d):
-            
+            print('goal', x)   
+            print(ix)
             step, episode, total_reward = 0, 0, 0
-            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=x)
+            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=x.cpu().detach().numpy())
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
             
@@ -304,15 +306,15 @@ class Workspace:
                                                 eval_mode=True)
                    
                     time_step = self.eval_env.step(action)
-                    self.video_recorder.record(self.eval_env)
+                    #self.video_recorder.record(self.eval_env)
                     total_reward += time_step.reward
                     step += 1
 
-                self.video_recorder.save(f'{self.global_frame}.mp4')
+                #self.video_recorder.save(f'{self.global_frame}.mp4')
 
                 episode += 1
             
-        if cfg.eval:
+        if self.cfg.eval:
             print('saving')
             save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x, total_reward, time_step.observation[:2], step]])
             
@@ -372,9 +374,9 @@ class Workspace:
 
             # try to evaluate
             if eval_every_step(self._global_step):
-                if cfg.eval:
+                if self.cfg.eval:
                     
-                    model_lst = glob.glob(str(cfg.path)+'/*400000.pth')
+                    model_lst = glob.glob(str(self.cfg.path)+'/*400000.pth')
                     if len(model_lst)>0:
                         print(model_lst[ix])
                         proto = torch.load(model_lst[ix])
@@ -384,7 +386,7 @@ class Workspace:
                     self.global_step +=1
                         
                 else:
-                    if self.global_step%1000==0:
+                    if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
                         self.eval_goal(proto)
                     else:
