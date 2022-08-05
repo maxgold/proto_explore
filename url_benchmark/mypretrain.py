@@ -177,7 +177,7 @@ class Workspace:
 
     @property
     def global_frame(self):
-        return self.global_step * self.cfg.action_repeat
+        return self._global_step * self.cfg.action_repeat
 
     @property
     def replay_iter(self):
@@ -228,12 +228,12 @@ class Workspace:
                         action = self.agent.act(time_step.observation,
                                             goal,
                                             meta,
-                                            self.global_step,
+                                            self._global_step,
                                             eval_mode=True)
                     else:
                         action = self.agent.act(time_step.observation,
                                             meta,
-                                            self.global_step,
+                                            self._global_step,
                                             eval_mode=True)
                 time_step = self.eval_env.step(action)
                 self.video_recorder.record(self.eval_env)
@@ -242,20 +242,86 @@ class Workspace:
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
-        if self.global_step % int(1e5) == 0:
+        if self._global_step % int(1e5) == 0:
             proto2d = visualize_prototypes(self.agent)
             plt.clf()
             fig, ax = plt.subplots()
             ax.scatter(proto2d[:,0], proto2d[:,1])
-            plt.savefig(f"./{self.global_step}_proto2d.png")
+            plt.savefig(f"./{self._global_step}_proto2d.png")
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
-            log('step', self.global_step)
+            log('step', self._global_step)
     
-#add eval_goal
+
+    def eval_goal(self, proto):
+        
+        #final evaluation over all final prototypes
+        #load final agent model to get them
+        if cfg.eval:
+            proto2d = visualize_prototypes(proto)
+            plt.clf()
+            fig, ax = plt.subplots()
+            ax.scatter(proto2d[:,0], proto2d[:,1])
+            plt.savefig(f"./final_proto2d.png")
+        else:
+            proto2d = visualize_prototypes(self.agent)
+            #current prototypes of the training agent
+            plt.clf()
+            fig, ax = plt.subplots()
+            ax.scatter(proto2d[:,0], proto2d[:,1])
+            plt.savefig(f"./{self._global_step}_proto2d.png")
+        
+        for ix, x in enumerate(proto2d):
+            
+            step, episode, total_reward = 0, 0, 0
+            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=x)
+            eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+            meta = self.agent.init_meta()
+            
+            while eval_until_episode(episode):
+                
+                time_step = self.eval_env.reset()
+                #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                #goal = np.random.sample((2,)) * .5 - .25
+                
+                while not time_step.last():
+                    
+                    with torch.no_grad(), utils.eval_mode(self.agent):
+                        
+                        if self.cfg.goal:
+                            action = self.agent.act(time_step.observation,
+                                                x,
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=True)
+                        else:
+                            action = self.agent.act(time_step.observation,
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=True)
+                   
+                    time_step = self.eval_env.step(action)
+                    self.video_recorder.record(self.eval_env)
+                    total_reward += time_step.reward
+                    step += 1
+
+                self.video_recorder.save(f'{self.global_frame}.mp4')
+
+                episode += 1
+            
+        if cfg.eval:
+            print('saving')
+            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x, total_reward, time_step.observation[:2], step]])
+            
+        else:
+            
+            print('saving')
+            print(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, self._global_step))
+            save(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, self._global_step), [[x, total_reward, time_step.observation[:2], step]])
+                
 
     def train(self):
         # predicates
@@ -274,7 +340,7 @@ class Workspace:
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
-        while train_until_step(self.global_step):
+        while train_until_step(self._global_step):
             if time_step.last():
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -291,7 +357,7 @@ class Workspace:
                         log('episode_length', episode_frame)
                         log('episode', self.global_episode)
                         log('buffer_size', len(self.replay_storage))
-                        log('step', self.global_step)
+                        log('step', self._global_step)
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -305,12 +371,28 @@ class Workspace:
                     episode_reward = 0
 
             # try to evaluate
-            if eval_every_step(self.global_step):
-                self.logger.log('eval_total_time', self.timer.total_time(),
-                                self.global_frame)
-                self.eval()
+            if eval_every_step(self._global_step):
+                if cfg.eval:
+                    
+                    model_lst = glob.glob(str(cfg.path)+'/*400000.pth')
+                    if len(model_lst)>0:
+                        print(model_lst[ix])
+                        proto = torch.load(model_lst[ix])
+                        self.eval_goal(proto)
+                    
+                    self.global_step = 500000
+                    self.global_step +=1
+                        
+                else:
+                    if self.global_step%1000==0:
+                        proto=self.agent
+                        self.eval_goal(proto)
+                    else:
+                        self.logger.log('eval_total_time', self.timer.total_time(),
+                                    self.global_frame)
+                        self.eval()
 
-            meta = self.agent.update_meta(meta, self.global_step, time_step)
+            meta = self.agent.update_meta(meta, self._global_step, time_step)
             if episode_step % resample_goal_every == 0:
                 goal = self.sample_goal_proto(time_step.observation)[:2]
             # sample action
@@ -319,18 +401,18 @@ class Workspace:
                     action = self.agent.act(time_step.observation,
                                             goal,
                                             meta,
-                                            self.global_step,
+                                            self._global_step,
                                             eval_mode=False)
                 else:
                     action = self.agent.act(time_step.observation,
                                             goal,
                                             meta,
-                                            self.global_step,
+                                            self._global_step,
                                             eval_mode=False)
 
             # try to update the agent
-            if not seed_until_step(self.global_step):
-                metrics = self.agent.update(self.replay_iter, self.global_step)
+            if not seed_until_step(self._global_step):
+                metrics = self.agent.update(self.replay_iter, self._global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
