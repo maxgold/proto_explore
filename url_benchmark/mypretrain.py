@@ -209,8 +209,9 @@ class Workspace:
     def sample_goal_proto(self, obs):
         current_protos = self.agent.protos.weight.data.clone()
         current_protos = F.normalize(current_protos, dim=1, p=2)
-        print('current_protos shape', current_protos.shape)
-        return np.random.choice(current_protos)
+        num = current_protos.shape[1]
+        idx = np.random.randint(0, num)
+        return current_protos[idx,:]
 
 
     def eval(self):
@@ -220,9 +221,17 @@ class Workspace:
         while eval_until_episode(episode):
             time_step = self.eval_env.reset()
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+            goal = np.random.sample((2,)) * .5 - .25
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
-                    action = self.agent.act(time_step.observation,
+                    if self.cfg.goal:
+                        action = self.agent.act(time_step.observation,
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
+                    else:
+                        action = self.agent.act(time_step.observation,
                                             meta,
                                             self.global_step,
                                             eval_mode=True)
@@ -246,6 +255,7 @@ class Workspace:
             log('episode', self.global_episode)
             log('step', self.global_step)
     
+#add eval_goal
 
     def train(self):
         # predicates
@@ -305,9 +315,10 @@ class Workspace:
                 goal = self.sample_goal_proto(time_step.observation)[:2]
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
-                if self.use_expert:
-                    action = self.expert.act(time_step.observation,
+                if self.cfg.goal:
+                    action = self.agent.act(time_step.observation,
                                             goal,
+                                            meta,
                                             self.global_step,
                                             eval_mode=False)
                 else:
@@ -332,7 +343,7 @@ class Workspace:
             
             #save agent
             if self._global_step%100000==0:
-                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(cfg.agent.name),global_step))
+                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name), self._global_step))
                 torch.save(self.agent, path)
     
     def save_snapshot(self):
