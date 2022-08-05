@@ -4,6 +4,7 @@ import random
 import traceback
 import copy
 from collections import defaultdict
+import tqdm
 
 import numpy as np
 import torch
@@ -11,13 +12,15 @@ import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 
+import deepdish
+
 
 def episode_len(episode):
     # subtract -1 because the dummy first transition
     return next(iter(episode.values())).shape[0] - 1
 
-
 def save_episode(episode, fn):
+#    deepdish.io.save(fn, episode)
     with io.BytesIO() as bs:
         np.savez_compressed(bs, **episode)
         bs.seek(0)
@@ -53,14 +56,13 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 10
+        r = 1
     else:
-        #upper = 0.015
-        #margin = 0.1
-        #scale = np.sqrt(-2 * np.log(0.1))
-        #x = (dist_to_target - upper) / margin
-        #r = np.exp(-0.5 * (x * scale) ** 2)
-        r=-1
+        upper = 0.015
+        margin = 0.1
+        scale = np.sqrt(-2 * np.log(0.1))
+        x = (dist_to_target - upper) / margin
+        r = np.exp(-0.5 * (x * scale) ** 2)
     return float(r * control_reward)
 
 class ReplayBufferStorage:
@@ -68,7 +70,9 @@ class ReplayBufferStorage:
         self._data_specs = data_specs
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
+        self._replay_dir2 = replay_dir.parent / "buffer2"
         replay_dir.mkdir(exist_ok=True)
+        (replay_dir.parent / "buffer2").mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
         self._preload()
 
@@ -119,9 +123,10 @@ class ReplayBufferStorage:
         eps_len = episode_len(episode)
         self._num_episodes += 1
         self._num_transitions += eps_len
-        ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+        ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
         save_episode(episode, self._replay_dir / eps_fn)
+        save_episode(episode, self._replay_dir2 / eps_fn)
 
 
 class ReplayBuffer(IterableDataset):
@@ -220,6 +225,154 @@ class ReplayBuffer(IterableDataset):
         while True:
             yield self._sample()
 
+class OfflineReplayBuffer(IterableDataset):
+    def __init__(
+        self,
+        env,
+        replay_dir,
+        max_size,
+        num_workers,
+        discount,
+        offset=100,
+        offset_schedule=None,
+        random_goal=False,
+        goal=False,
+        vae=False,
+    ):
+
+        self._env = env
+        self._replay_dir = replay_dir
+        self._size = 0
+        self._max_size = max_size
+        self._num_workers = max(1, num_workers)
+        self._episode_fns = []
+        self._episodes = dict()
+        self._discount = discount
+        self._loaded = False
+        self.offset = offset
+        self.offset_schedule = offset_schedule
+        self.goal = goal
+        self.vae = vae
+
+    def _load(self, relabel=True):
+        print("Labeling data...")
+        try:
+            worker_id = torch.utils.data.get_worker_info().id
+        except:
+            worker_id = 0
+        eps_fns = sorted(self._replay_dir.glob("*.npz"))
+        # for eps_fn in tqdm.tqdm(eps_fns):
+        for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
+            if self._size > self._max_size:
+                break
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+            if eps_idx % self._num_workers != worker_id:
+                continue
+            episode = load_episode(eps_fn)
+            if relabel:
+                episode = self._relabel_reward(episode)
+            self._episode_fns.append(eps_fn)
+            self._episodes[eps_fn] = episode
+            self._size += episode_len(episode)
+
+    def _sample_episode(self):
+        if not self._loaded:
+            self._load()
+            self._loaded = True
+        eps_fn = random.choice(self._episode_fns)
+        return self._episodes[eps_fn]
+
+    def _relabel_reward(self, episode):
+        return relabel_episode(self._env, episode)
+
+    def _sample(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
+        #        control_reward = rewards.tolerance(
+        #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
+        #        ).mean()
+        #        small_control = (control_reward + 4) / 5
+        #        near_target = rewards.tolerance(
+        #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
+        #            bounds=(0, .015),
+        #            margin=.015,
+        #        )
+        #        reward = near_target * small_control
+        return (obs, action, reward, discount, next_obs)
+
+    def _sample_goal(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+
+        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        goal = episode["observation"][idx + self.offset][:2]
+        rewards = []
+        cand_goals = np.random.uniform(-.2,.2, size=(50,2))
+        cand_goals = cand_goals[np.abs(cand_goals[:,0])>.05]
+        cand_goals = cand_goals[np.abs(cand_goals[:,1])>.05]
+        cand_goals = cand_goals[:4]
+        for goal in cand_goals:
+            rewards.append(my_reward(action, next_obs, goal))
+        #rewards.append(my_reward(action, next_obs, GOAL_ARRAY[0]))
+        discount = np.ones_like(episode["discount"][idx])
+        obs = np.tile(obs, (4, 1))
+        action = np.tile(action, (4, 1))
+        discount = np.tile(discount, (4, 1))
+        next_obs = np.tile(next_obs, (4, 1))
+        reward = np.array(rewards)
+
+        return (obs, action, reward, discount, next_obs, cand_goals)
+
+    def _sample_future(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+        obs = episode["observation"][idx - 1]
+        action = ["action"][idx]
+        next_obs = episode["observation"][idx + self.offset]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        return (obs, action, reward, discount, next_obs)
+
+    def __iter__(self):
+        while True:
+            if self.goal:
+                yield self._sample_goal()
+            elif self.vae:
+                yield self._sample_future()
+            else:
+                yield self._sample()
+
+    def parse_dataset(self, start_ind=0, end_ind=-1):
+        states = []
+        actions = []
+        futures = []
+        for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
+            episode = self._episodes[eps_fn]
+            offsets = [25, 50, 75, 100, 100]
+            ep_len = next(iter(episode.values())).shape[0] - 1
+            for idx in range(ep_len - 100):
+                ys = []
+                states.append(episode["observation"][idx - 1][None])
+                actions.append(episode["action"][idx][None])
+                for off in offsets:
+                    ys.append(episode["observation"][idx + off][:,None])
+                futures.append(np.concatenate(ys,1)[None])
+        return (
+            np.concatenate(states, 0),
+            np.concatenate(actions, 0),
+            np.concatenate(futures, 0),
+        )
 
 #GOAL_ARRAY = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
 
@@ -427,78 +580,6 @@ class OfflineReplayBuffer(IterableDataset):
         discount = episode["discount"][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
     
-#     def _sample_supervised_transitions(self):
-#         batch_size = 10
-#         episode = self._sample_episode()
-#         t_samples = np.random.randint(len(episode), size=batch_size)
-#         for i in range(len(t_samples)):
-#             #change data type of transitions
-#             self.transitions += episode[t_samples[i]]
-# #             transitions = {key: episode_batch[key][episode_idxs, t_samples].copy()
-# #                             for key in episode_batch.keys()}
-#             #if in range
-#             self.transitions['goal'] = episode[t_samples[i]+100]
-#         #what is her_indexes used for?
-#         her_indexes = (np.random.uniform() < future_p)
-#         #returns true or false. future_p is prob. of picking future goal?
-#         offset = np.random.uniform() * (len(episode)-t_sample)
-#         offset = future_offset.astype(int)
-#         future_t = t_samples + 1 + offset
-#         original_g = 
-#         if her_indexes:
-#             future_achieved_goal = episode[future_t]
-#         else: 
-            
-#         method_lst = method.split('_')
-        
-#         if 'gamma' in method_lst:
-#             weights = pow(gamma, offset)
-#         else:
-#             weights = np.ones(batch_size)
-#         if 'adv' in method_lst:
-#             ##fix. what is value?
-#             Q1, Q2 = agent.critic(self.transitions['obs'], self.transitions['goal'], policy.sample(clip=agent.stddev_clip))
-#             value = torch.min(Q1, Q2).reshape(-1)
-#             Q1, Q2 = self.critic(self.transitions['next_obs'], self.transitions['goal'], policy.sample(clip=self.stddev_clip))
-#             next_value = torch.min(Q1, Q2).reshape(-1)
-#             adv = self.my_reward(transitions['achieved_goal_next'], transitions['goal']) + discount * next_value - value
-            
-#             if 'baw' in method_lis:
-#                 advque.update(adv)
-#                 global global_threshold
-#                 global_threshold = min(global_threshold + baw_delta, baw_max)
-#                 threshold = advque.get(global_threshold)'
-                
-#             if 'exp' in method_lis:  # exp weights
-#                 if 'clip10' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 10)
-#                 elif 'clip5' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 5)
-#                 elif 'clip1' in method_lis:
-#                     weights *= np.clip(np.exp(adv), 0, 1)
-#                 else:
-#                     weights *= np.exp(adv) 
-                    
-                    
-#             if 'baw' in method_lis:
-#                 positive = adv.copy()
-#                 positive[adv >= threshold] = 1
-#                 positive[adv < threshold] = 0.05
-#                 weights *= positive
-                
-#         loss = train_policy(o=transitions['o'], g=transitions['g'], u=transitions['u'], weights=weights) 
-        
-#         keep_origin_rate = 0.2
-#         origin_index = (np.random.uniform(size=batch_size) < keep_origin_rate)
-#         transitions['g'][origin_index] = original_g[origin_index]
-#         transitions['r'] = _get_reward(transitions['ag_2'], transitions['g']) 
-#         ## make next_ob and ag_2 
-        
-#         return _sample_supervised_transitions, _sample_her_transitions
-                
-                
-                
-                
     def __iter__(self):
         while True:
             if self.goal:
@@ -514,6 +595,33 @@ def _worker_init_fn(worker_id):
     np.random.seed(seed)
     random.seed(seed)
 
+def make_replay_buffer(
+    env,
+    replay_dir,
+    max_size,
+    batch_size,
+    num_workers,
+    discount,
+    offset=100,
+    goal=False,
+    vae=False,
+    relabel=False
+):
+    max_size_per_worker = max_size // max(1, num_workers)
+
+    iterable = OfflineReplayBuffer(
+        env,
+        replay_dir,
+        max_size_per_worker,
+        num_workers,
+        discount,
+        offset,
+        goal=goal,
+        vae=vae,
+    )
+    iterable._load(relabel=relabel)
+
+    return iterable
 
 def make_replay_loader(
     env,

@@ -229,6 +229,12 @@ def main(cfg):
             with env.physics.reset_context():
                 env.physics.set_state(np.r_[coord[:2], np.zeros(2)])
             snapper.snapshot(env, f"j{j}_snapshot{ind}.jpg")
+    
+    # TODO: build a knn version of the vae
+    # TODO: to do this, process the whole data set
+    # and put the points in X and then put next_obs 5 - 100 by 5 into a y vector
+    # put the x points in a kd-tree and then query it to generate a sample
+    # can use the knn code from horse racing
 
 
 

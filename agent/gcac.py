@@ -16,6 +16,8 @@ class Actor(nn.Module):
         self.policy = nn.Sequential(nn.Linear(obs_dim+goal_dim, hidden_dim),
                                     nn.LayerNorm(hidden_dim), nn.Tanh(),
                                     nn.Linear(hidden_dim, hidden_dim),
+                                    nn.LayerNorm(hidden_dim), nn.Tanh(),
+                                    nn.Linear(hidden_dim, hidden_dim),
                                     nn.ReLU(inplace=True),
                                     nn.Linear(hidden_dim, action_dim))
 
@@ -38,10 +40,14 @@ class Critic(nn.Module):
             nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
+            nn.LayerNorm(hidden_dim), nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
 
         self.q2_net = nn.Sequential(
             nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim), nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, 1))
