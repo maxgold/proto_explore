@@ -1,6 +1,7 @@
 import csv
 import datetime
 from collections import defaultdict
+import os
 
 import numpy as np
 import torch
@@ -180,3 +181,25 @@ class LogAndDumpCtx:
 
     def __exit__(self, *args):
         self._logger.dump(self._step, self._ty)
+
+def check_dir(file_name):
+    directory = os.path.dirname(file_name)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+def save(file_name, records):
+        check_dir(file_name)
+        csv_file = open(file_name,'a')
+        csvWriter = csv.writer(csv_file,delimiter=',')
+        if os.stat(file_name).st_size ==0:
+            print('writing header')
+            csvWriter.writerow(['goal',"episode_reward", "final_obs", "episode_length"])
+            for record in records:
+                csvWriter.writerows([record])
+                print(record)
+                print("header and  record saved to ",file_name)
+        else:
+            for record in records:
+                csvWriter.writerows([record])
+                print(record)                        
+                print(" record saved to ",file_name)

@@ -20,7 +20,7 @@ from kdtree import KNN
 import dmc
 import torch.nn.functional as F
 import utils
-from logger import Logger
+from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
@@ -53,19 +53,20 @@ def visualize_prototypes(agent):
     grid = np.c_[grid, np.zeros_like(grid)]
     grid = torch.tensor(grid).cuda().float()
     grid_embeddings = get_state_embeddings(agent, grid)
-    protos = agent.protos.weight.data.clone()
+    protos = agent.protos.weight.data.detach().clone()
     protos = F.normalize(protos, dim=1, p=2)
     dist_mat = torch.cdist(protos, grid_embeddings)
     closest_points = dist_mat.argmin(-1)
     return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
+    cfg.goal = goal
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -128,6 +129,7 @@ class Workspace:
                                 self.train_env.action_spec(),
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
+                                cfg.goal,
                                 cfg.agent)
 
         # get meta specs
@@ -197,8 +199,7 @@ class Workspace:
             # each prototype is assigned a sampled vector from the batch
             # and this sampled vector is added to the queue
             scores = self.agent.protos(z).T
-
-        current_protos = self.agent.protos.weight.data.clone()
+            current_protos = self.agent.protos.weight.data.clone()
         current_protos = F.normalize(current_protos, dim=1, p=2)
         z_to_c = torch.norm(z[:, None, :] - current_protos[None, :, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_c, 3, dim=1, largest=True)
@@ -207,11 +208,14 @@ class Workspace:
 
     
     def sample_goal_proto(self, obs):
-        current_protos = self.agent.protos.weight.data.clone()
-        current_protos = F.normalize(current_protos, dim=1, p=2)
-        num = current_protos.shape[1]
+        #current_protos = self.agent.protos.weight.data.clone()
+        #current_protos = F.normalize(current_protos, dim=1, p=2)
+        proto2d = visualize_prototypes(self.agent)
+        num = proto2d.shape[0]
         idx = np.random.randint(0, num)
-        return current_protos[idx,:]
+        proto2d = proto2d[idx, :]
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        return proto2d[idx,:].cpu().numpy()
 
 
     def eval(self):
@@ -257,12 +261,16 @@ class Workspace:
             log('step', self._global_step)
     
 
-    def eval_goal(self, proto):
+    def eval_goal(self, proto, model):
         
         #final evaluation over all final prototypes
         #load final agent model to get them
         if self.cfg.eval:
             proto2d = visualize_prototypes(proto)
+            num = proto2d.shape[0]
+            print('proto2d', proto2d.shape)
+            idx = np.random.randint(0, num,size=(50,))
+            proto2d = proto2d[idx, :]
             plt.clf()
             fig, ax = plt.subplots()
             ax.scatter(proto2d[:,0], proto2d[:,1])
@@ -270,6 +278,10 @@ class Workspace:
         else:
             proto2d = visualize_prototypes(self.agent)
             #current prototypes of the training agent
+            print('proto2d', proto2d.shape)
+            num = proto2d.shape[0]
+            idx = np.random.randint(0, num,size=(50,))
+            proto2d = proto2d[idx, :]
             plt.clf()
             fig, ax = plt.subplots()
             ax.scatter(proto2d[:,0], proto2d[:,1])
@@ -314,15 +326,15 @@ class Workspace:
 
                 episode += 1
             
-        if self.cfg.eval:
-            print('saving')
-            save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x, total_reward, time_step.observation[:2], step]])
+                if self.cfg.eval:
+                    print('saving')
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
             
-        else:
+                else:
             
-            print('saving')
-            print(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, self._global_step))
-            save(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, self._global_step), [[x, total_reward, time_step.observation[:2], step]])
+                    print('saving')
+                    print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
                 
 
     def train(self):
@@ -337,9 +349,14 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
-        goal = self.sample_goal_proto(time_step.observation)[:2]
+        if self.global_step <100:
+            goal = np.random.sample((2,)) * .5 - .25
+            #figure out how to train two policies simultaneously, one maximizing intrinsic reward one maximizing extrinsic (goal conditioned)
+        else:
+            goal = self.sample_goal_proto(time_step.observation)[:2]
+        self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
         meta = self.agent.init_meta()
-        self.replay_storage.add(time_step, meta)
+        self.replay_storage.add(time_step, meta, goal)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self._global_step):
@@ -364,7 +381,7 @@ class Workspace:
                 # reset env
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
-                self.replay_storage.add(time_step, meta)
+                self.replay_storage.add_goal(time_step, meta, goal)
                 self.train_video_recorder.init(time_step.observation)
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
@@ -380,7 +397,7 @@ class Workspace:
                     if len(model_lst)>0:
                         print(model_lst[ix])
                         proto = torch.load(model_lst[ix])
-                        self.eval_goal(proto)
+                        self.eval_goal(proto, model_lst[ix])
                     
                     self.global_step = 500000
                     self.global_step +=1
@@ -388,7 +405,8 @@ class Workspace:
                 else:
                     if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
-                        self.eval_goal(proto)
+                        model = ''
+                        self.eval_goal(proto, model)
                     else:
                         self.logger.log('eval_total_time', self.timer.total_time(),
                                     self.global_frame)
@@ -397,6 +415,7 @@ class Workspace:
             meta = self.agent.update_meta(meta, self._global_step, time_step)
             if episode_step % resample_goal_every == 0:
                 goal = self.sample_goal_proto(time_step.observation)[:2]
+                self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.goal:
@@ -407,7 +426,6 @@ class Workspace:
                                             eval_mode=False)
                 else:
                     action = self.agent.act(time_step.observation,
-                                            goal,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
