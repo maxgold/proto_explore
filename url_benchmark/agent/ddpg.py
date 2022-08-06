@@ -219,6 +219,7 @@ class DDPGAgent:
                  feature_dim,
                  hidden_dim,
                  critic_target_tau,
+                 critic_goal_target_tau
                  num_expl_steps,
                  update_every_steps,
                  stddev_schedule,
@@ -238,6 +239,7 @@ class DDPGAgent:
         self.lr = lr
         self.device = device
         self.critic_target_tau = critic_target_tau
+        self.critic_goal_target_tau = critic_goal_target_tau
         self.update_every_steps = update_every_steps
         self.use_tb = use_tb
         self.use_wandb = use_wandb
@@ -425,7 +427,7 @@ class DDPGAgent:
         return metrics
     
 
-    def update_actor_goal(self, obs, goal, action, step):
+    def update_actor_goal(self, obs, goal, step):
         metrics = dict()
         stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor_goal(obs, goal, stddev)
@@ -510,7 +512,7 @@ class DDPGAgent:
             self.update_critic_goal(obs, goal, action, reward, discount, next_obs, step))
 
         # update actor_goal
-        metrics.update(self.update_actor_goal(obs.detach(), goal, action, step))
+        metrics.update(self.update_actor_goal(obs.detach(), goal, step))
 
         # update critic_goal target
         utils.soft_update_params(self.critic_goal, self.critic_goal_target,

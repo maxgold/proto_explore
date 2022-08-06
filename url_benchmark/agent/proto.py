@@ -250,19 +250,19 @@ class ProtoAgent(DDPGAgent):
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
 
-        if self.reward_free:
-            metrics.update(self.update_proto(obs, next_obs, step))
+#         if self.reward_free:
+        metrics.update(self.update_proto(obs, next_obs, step))
 
-            with torch.no_grad():
-                intr_reward = self.compute_intr_reward(next_obs, step)
+        with torch.no_grad():
+            intr_reward = self.compute_intr_reward(next_obs, step)
 
-            if self.use_tb or self.use_wandb:
-                metrics['intr_reward'] = intr_reward.mean().item()
-            reward = intr_reward
-        else:
-            reward = extr_reward
+            
+#             reward = intr_reward
+#         else:
+#             reward = extr_reward
 
         if self.use_tb or self.use_wandb:
+        metrics['intr_reward'] = intr_reward.mean().item()
             metrics['extr_reward'] = extr_reward.mean().item()
             metrics['batch_reward'] = reward.mean().item()
 
@@ -273,19 +273,30 @@ class ProtoAgent(DDPGAgent):
             obs = obs.detach()
             next_obs = next_obs.detach()
 
-        # update critic
+        # update critic_goal
         metrics.update(
-            self.update_critic(obs.detach(), goal, action, extr_reward, discount,
+            self.update_critic_goal(obs.detach(), goal, action, extr_reward, discount,
+                               next_obs.detach(), step))
+        
+         # update critic
+        metrics.update(
+            self.update_critic(obs.detach(), action, intr_reward, discount, 
                                next_obs.detach(), step))
 
+        # update actor_goal
+        metrics.update(self.update_actor_goal(obs.detach(), goal, step))
+        
         # update actor
-        metrics.update(self.update_actor(obs.detach(), goal, action, step))
+        metrics.update(self.update_actor(obs.detach(), step))
 
-        # update critic target
+        # update critic_goal_target
         utils.soft_update_params(self.encoder, self.encoder_target,
                                  self.encoder_target_tau)
         utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
+        utils.soft_update_params(self.critic_goal, self.critic_goal_target,
+                                 self.critic_goal_target_tau)
+        # update critic target
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
 
