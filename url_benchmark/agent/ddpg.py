@@ -31,7 +31,7 @@ class Encoder(nn.Module):
         return h
 
 
-class Actor(nn.Module):
+class Actor_goal(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
@@ -69,7 +69,7 @@ class Actor(nn.Module):
         return dist
 
 
-class Critic(nn.Module):
+class Critic_goal(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
@@ -116,6 +116,94 @@ class Critic(nn.Module):
         q2 = self.Q2(h)
 
         return q1, q2
+    
+
+class Actor(nn.Module):
+    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
+        super().__init__()
+
+        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+
+        self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
+
+        policy_layers = []
+        policy_layers += [
+            nn.Linear(feature_dim, hidden_dim),
+            nn.ReLU(inplace=True)
+        ]
+        # add additional hidden layer for pixels
+        if obs_type == 'pixels':
+            policy_layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
+        policy_layers += [nn.Linear(hidden_dim, action_dim)]
+
+        self.policy = nn.Sequential(*policy_layers)
+
+        self.apply(utils.weight_init)
+
+    def forward(self, obs, std):
+        h = self.trunk(obs)
+
+        mu = self.policy(h)
+        mu = torch.tanh(mu)
+        std = torch.ones_like(mu) * std
+
+        dist = utils.TruncatedNormal(mu, std)
+        return dist
+    
+    
+    
+class Critic(nn.Module):
+    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
+        super().__init__()
+
+        self.obs_type = obs_type
+
+        if obs_type == 'pixels':
+            # for pixels actions will be added after trunk
+            self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
+                                       nn.LayerNorm(feature_dim), nn.Tanh())
+            trunk_dim = feature_dim + action_dim
+        else:
+            # for states actions come in the beginning
+            self.trunk = nn.Sequential(
+                nn.Linear(obs_dim + action_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim), nn.Tanh())
+            trunk_dim = hidden_dim
+
+        def make_q():
+            q_layers = []
+            q_layers += [
+                nn.Linear(trunk_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
+            if obs_type == 'pixels':
+                q_layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(inplace=True)
+                ]
+            q_layers += [nn.Linear(hidden_dim, 1)]
+            return nn.Sequential(*q_layers)
+
+        self.Q1 = make_q()
+        self.Q2 = make_q()
+
+        self.apply(utils.weight_init)
+
+    def forward(self, obs, action):
+        inpt = obs if self.obs_type == 'pixels' else torch.cat([obs, action],
+                                                               dim=-1)
+        h = self.trunk(inpt)
+        h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
+
+        q1 = self.Q1(h)
+        q2 = self.Q2(h)
+
+        return q1, q2
+    
 
 
 class DDPGAgent:
@@ -170,12 +258,22 @@ class DDPGAgent:
             self.encoder = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
 
-        self.actor = Actor(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
+        self.actor_goal = Actor_goal(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
                            feature_dim, hidden_dim).to(device)
 
-        self.critic = Critic(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
+        self.critic_goal = Critic_goal(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic_target = Critic(obs_type, self.obs_dim, goal_shape[0], self.action_dim,
+        self.critic_goal_target = Critic_goal(obs_type, self.obs_dim, goal_shape[0], self.action_dim,
+                                    feature_dim, hidden_dim).to(device)
+        self.critic_goal_target.load_state_dict(self.critic_goal.state_dict())
+        
+        
+        self.actor = Actor(obs_type, self.obs_dim, self.action_dim,
+                           feature_dim, hidden_dim).to(device)
+
+        self.critic = Critic(obs_type, self.obs_dim, self.action_dim,
+                             feature_dim, hidden_dim).to(device)
+        self.critic_target = Critic(obs_type, self.obs_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
@@ -186,23 +284,31 @@ class DDPGAgent:
                                                 lr=lr)
         else:
             self.encoder_opt = None
+        self.actor_goal_opt = torch.optim.Adam(self.actor_goal.parameters(), lr=lr)
+        self.critic_goal_opt = torch.optim.Adam(self.critic_goal.parameters(), lr=lr)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-
+        
+      
         self.train()
+        self.critic_goal_target.train()
         self.critic_target.train()
 
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
+        self.actor_goal.train(training)
+        self.critic_goal.train(training)
         self.actor.train(training)
         self.critic.train(training)
 
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
+        utils.hard_update_params(other.actor_goal, self.actor_goal)
         utils.hard_update_params(other.actor, self.actor)
         if self.init_critic:
+            utils.hard_update_params(other.critic_goal.trunk, self.critic_goal.trunk)
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
 
     def get_meta_specs(self):
@@ -214,7 +320,7 @@ class DDPGAgent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
-    def act(self, obs, goal, meta, step, eval_mode):
+    def act_goal(self, obs, goal, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
         goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         h = self.encoder(obs)
@@ -227,7 +333,7 @@ class DDPGAgent:
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule, step)
-        dist = self.actor(inpt, inputs2, stddev)
+        dist = self.actor_goal(inpt, inputs2, stddev)
         if eval_mode:
             action = dist.mean
         else:
@@ -235,19 +341,71 @@ class DDPGAgent:
             if step < self.num_expl_steps:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
+    
+    
+    def act(self, obs, meta, step, eval_mode):
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        h = self.encoder(obs)
+        inputs = [h]
+        for value in meta.values():
+            value = torch.as_tensor(value, device=self.device).unsqueeze(0)
+            inputs.append(value)
+        inpt = torch.cat(inputs, dim=-1)
+        #assert obs.shape[-1] == self.obs_shape[-1]
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(inpt, stddev)
+        if eval_mode:
+            action = dist.mean
+        else:
+            action = dist.sample(clip=None)
+            if step < self.num_expl_steps:
+                action.uniform_(-1.0, 1.0)
+        return action.cpu().numpy()[0]
+    
 
-    def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
+    def update_critic_goal(self, obs, goal, action, reward, discount, next_obs, step):
         metrics = dict()
 
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor(next_obs, goal, stddev)
+            dist = self.actor_goal(next_obs, goal, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
+            target_Q1, target_Q2 = self.critic_goal_target(next_obs, goal, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
 
-        Q1, Q2 = self.critic(obs, goal, action)
+        Q1, Q2 = self.critic_goal(obs, goal, action)
+        critic_goal_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+
+        if self.use_tb or self.use_wandb:
+            metrics['critic_goal_target_q'] = target_Q.mean().item()
+            metrics['critic_goal_q1'] = Q1.mean().item()
+            metrics['critic_goal_q2'] = Q2.mean().item()
+            metrics['critic_goal_loss'] = critic_goal_loss.item()
+
+        # optimize critic_goal
+        if self.encoder_opt is not None:
+            self.encoder_opt.zero_grad(set_to_none=True)
+        self.critic_goal_opt.zero_grad(set_to_none=True)
+        critic_goal_loss.backward()
+        self.critic_goal_opt.step()
+        if self.encoder_opt is not None:
+            self.encoder_opt.step()
+        return metrics
+    
+    
+    def update_critic(self, obs, action, reward, discount, next_obs, step):
+        metrics = dict()
+
+        with torch.no_grad():
+            stddev = utils.schedule(self.stddev_schedule, step)
+            dist = self.actor(next_obs, stddev)
+            next_action = dist.sample(clip=self.stddev_clip)
+            target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
+            target_V = torch.min(target_Q1, target_Q2)
+            target_Q = reward + (discount * target_V)
+
+        Q1, Q2 = self.critic(obs, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         if self.use_tb or self.use_wandb:
@@ -265,14 +423,40 @@ class DDPGAgent:
         if self.encoder_opt is not None:
             self.encoder_opt.step()
         return metrics
+    
 
-    def update_actor(self, obs, goal, action, step):
+    def update_actor_goal(self, obs, goal, action, step):
         metrics = dict()
         stddev = utils.schedule(self.stddev_schedule, step)
-        dist = self.actor(obs, goal, stddev)
+        dist = self.actor_goal(obs, goal, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
-        Q1, Q2 = self.critic(obs, goal, action,)
+        Q1, Q2 = self.critic_goal(obs, goal, action)
+        Q = torch.min(Q1, Q2)
+
+        actor_goal_loss = -Q.mean()
+
+        # optimize actor_goal
+        self.actor_goal_opt.zero_grad(set_to_none=True)
+        actor_goal_loss.backward()
+        self.actor_goal_opt.step()
+
+        if self.use_tb or self.use_wandb:
+            metrics['actor_goal_loss'] = actor_goal_loss.item()
+            metrics['actor_goal_logprob'] = log_prob.mean().item()
+            metrics['actor__goal_ent'] = dist.entropy().sum(dim=-1).mean().item()
+
+        return metrics
+    
+    
+    def update_actor(self, obs, step):
+        metrics = dict()
+
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        action = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
+        Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
@@ -288,6 +472,8 @@ class DDPGAgent:
             metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
 
         return metrics
+    
+    
 
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
@@ -319,12 +505,23 @@ class DDPGAgent:
         if self.use_tb or self.use_wandb:
             metrics['batch_reward'] = reward.mean().item()
 
+        # update critic_goal
+        metrics.update(
+            self.update_critic_goal(obs, goal, action, reward, discount, next_obs, step))
+
+        # update actor_goal
+        metrics.update(self.update_actor_goal(obs.detach(), goal, action, step))
+
+        # update critic_goal target
+        utils.soft_update_params(self.critic_goal, self.critic_goal_target,
+                                 self.critic_goal_target_tau)
+        
         # update critic
         metrics.update(
-            self.update_critic(obs, goal, action, reward, discount, next_obs, step))
+            self.update_critic(obs, action, reward, discount, next_obs, step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), goal, action, step))
+        metrics.update(self.update_actor(obs.detach(), step))
 
         # update critic target
         utils.soft_update_params(self.critic, self.critic_target,
