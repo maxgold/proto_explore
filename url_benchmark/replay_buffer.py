@@ -104,6 +104,7 @@ class ReplayBufferStorage:
             episode['goal'] = np.array(value, np.float64)
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
+            print('storing episode')
 
     def add_q(self, time_step, meta, q, task):
         for key, value in meta.items():
@@ -241,12 +242,13 @@ class ReplayBuffer(IterableDataset):
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
+        goal = episode["goal"][idx]
         discount = np.ones_like(episode["discount"][idx])
         for i in range(self._nstep):
             step_reward = episode["reward"][idx + i]
             reward += discount * step_reward
             discount *= episode["discount"][idx + i] * self._discount
-        return (obs, action, reward, discount, next_obs, *meta)
+        return (obs, action, reward, discount, next_obs, goal, *meta)
 
     def __iter__(self):
         while True:

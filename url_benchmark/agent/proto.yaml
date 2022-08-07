@@ -9,6 +9,7 @@ goal_shape: ???
 device: ${device}
 lr: 1e-4
 critic_target_tau: 0.01
+critic2_target_tau: 0.01
 update_every_steps: 20
 goal: false
 use_tb: ${use_tb}

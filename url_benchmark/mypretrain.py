@@ -120,6 +120,7 @@ class Workspace:
             task = self.cfg.domain
         self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
+        print('making train_env')
         self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed)
 
@@ -168,6 +169,7 @@ class Workspace:
         self.expert = make_expert()
         #self.knn = make_generator(self.eval_env, cfg)
         self.use_expert = False
+        self.unreachable = []
 
     @property
     def global_step(self):
@@ -188,8 +190,10 @@ class Workspace:
         return self._replay_iter
 
     def sample_goal(self, obs):
-        cands = self.knn.query_k(np.array(obs[:2])[None], 10)
-        cands = torch.tensor(cands[0, :, :, 1]).cuda()
+        #randomly sample 1k from current replay loader
+        #cands = self.knn.query_k(np.array(obs[:2])[None], 10)
+        #cands = torch.tensor(cands[0, :, :, 1]).cuda()
+        
         with torch.no_grad():
             z = self.agent.encoder(cands)
             z = self.agent.predictor(z)
@@ -210,12 +214,15 @@ class Workspace:
     def sample_goal_proto(self, obs):
         #current_protos = self.agent.protos.weight.data.clone()
         #current_protos = F.normalize(current_protos, dim=1, p=2)
-        proto2d = visualize_prototypes(self.agent)
-        num = proto2d.shape[0]
-        idx = np.random.randint(0, num)
-        proto2d = proto2d[idx, :]
-        #import IPython as ipy; ipy.embed(colors='neutral')
-        return proto2d[idx,:].cpu().numpy()
+        if len(self.unreachable) > 0:
+            print('list of unreachables', self.unreachable)
+            return self.unreachable.pop(0)
+        else:
+            proto2d = visualize_prototypes(self.agent)
+            num = proto2d.shape[0]
+            idx = np.random.randint(0, num)
+            return proto2d[idx,:].cpu().numpy()
+        
 
 
     def eval(self):
@@ -265,6 +272,7 @@ class Workspace:
         
         #final evaluation over all final prototypes
         #load final agent model to get them
+        #store goals that can't be reached 
         if self.cfg.eval:
             proto2d = visualize_prototypes(proto)
             num = proto2d.shape[0]
@@ -298,8 +306,6 @@ class Workspace:
             while eval_until_episode(episode):
                 
                 time_step = self.eval_env.reset()
-                #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-                #goal = np.random.sample((2,)) * .5 - .25
                 
                 while not time_step.last():
                     
@@ -335,11 +341,14 @@ class Workspace:
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
-                
+            
+            if total_reward < 500*self.cfg.num_eval_episodes:
+                self.unreachable.append(x)
 
     def train(self):
         # predicates
-        resample_goal_every = 50
+        resample_goal_every = 1000
+        #to get full episode to store in replay loader
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
@@ -349,14 +358,10 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
-        if self.global_step <100:
-            goal = np.random.sample((2,)) * .5 - .25
-            #figure out how to train two policies simultaneously, one maximizing intrinsic reward one maximizing extrinsic (goal conditioned)
-        else:
-            goal = self.sample_goal_proto(time_step.observation)[:2]
+        goal = np.random.sample((2,)) * .5 - .25
         self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
         meta = self.agent.init_meta()
-        self.replay_storage.add(time_step, meta, goal)
+        #self.replay_storage.add_goal(time_step, meta, goal)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self._global_step):
@@ -388,9 +393,11 @@ class Workspace:
                     self.save_snapshot()
                     episode_step = 0
                     episode_reward = 0
-
+            
+    
             # try to evaluate
             if eval_every_step(self._global_step):
+                print('evaluating')
                 if self.cfg.eval:
                     
                     model_lst = glob.glob(str(self.cfg.path)+'/*400000.pth')
@@ -414,8 +421,12 @@ class Workspace:
 
             meta = self.agent.update_meta(meta, self._global_step, time_step)
             if episode_step % resample_goal_every == 0:
-                goal = self.sample_goal_proto(time_step.observation)[:2]
+                if seed_until_step(self._global_step):
+                    goal = np.random.sample((2,)) * .5 - .25
+                else:
+                    goal = self.sample_goal_proto(time_step.observation)[:2]
                 self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
+                #print('resample goal make env', self.train_env)
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.goal:
@@ -436,9 +447,10 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
+            #import IPython as ipy; ipy.embed(colors='neutral')
             time_step = self.train_env.step(action)
             episode_reward += time_step.reward
-            self.replay_storage.add(time_step, meta)
+            self.replay_storage.add_goal(time_step, meta, goal)
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1
             self._global_step += 1
