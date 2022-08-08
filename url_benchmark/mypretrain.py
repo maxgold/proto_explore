@@ -172,12 +172,18 @@ class Workspace:
                                                   self.work_dir / 'buffer')
 
         # create replay buffer
-        self.replay_loader, self.replay_buffer = make_replay_loader(self.replay_storage,
+        self.replay_loader1  = make_replay_loader(self.replay_storage,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount)
-        self._replay_iter = None
+                                                False, cfg.nstep, cfg.discount, True)
+        self.replay_loader2  = make_replay_loader(self.replay_storage,
+                                                cfg.replay_buffer_size,
+                                                cfg.batch_size,
+                                                cfg.replay_buffer_num_workers,
+                                                False, cfg.nstep, cfg.discount, False)
+        self._replay_iter1 = None
+        self._replay_iter2 = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
@@ -196,6 +202,8 @@ class Workspace:
         #self.knn = make_generator(self.eval_env, cfg)
         self.use_expert = False
         self.unreachable = []
+        self.actor1 = False #goal conditioned
+        self.actor2 = False #maximize intrinsic 
 
     @property
     def global_step(self):
@@ -210,10 +218,16 @@ class Workspace:
         return self._global_step * self.cfg.action_repeat
 
     @property
-    def replay_iter(self):
-        if self._replay_iter is None:
-            self._replay_iter = iter(self.replay_loader)
-        return self._replay_iter
+    def replay_iter1(self):
+        if self._replay_iter1 is None:
+            self._replay_iter1 = iter(self.replay_loader1)
+        return self._replay_iter1
+
+    @property
+    def replay_iter2(self):
+        if self._replay_iter2 is None:
+            self._replay_iter2 = iter(self.replay_loader2)
+        return self._replay_iter2
 
     def sample_goal(self, obs):
         #randomly sample 1k from current replay loader
@@ -457,31 +471,68 @@ class Workspace:
                     goal = self.sample_goal_proto(time_step.observation)
                 self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
                 #print('resample goal make env', self.train_env)
-            # sample action
-            with torch.no_grad(), utils.eval_mode(self.agent):
-                if self.cfg.goal:
-                    action = self.agent.act(time_step.observation,
+            
+                # sample action 
+                if self.actor1 == False:
+                    self.actor1 = True
+                    self.actor2 = False
+                else:
+                    self.actor1 = False
+                    self.actor2 = True
+
+            
+            if self.actor1 and self.actor2==False:
+                with torch.no_grad(), utils.eval_mode(self.agent):
+                    if self.cfg.goal:
+                        action = self.agent.act(time_step.observation,
                                             goal,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
-                else:
-                    action = self.agent.act(time_step.observation,
+                    else:
+                        action = self.agent.act(time_step.observation,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
                 # take env step
-            time_step = self.train_env.step(action)
-            episode_reward += time_step.reward
-            self.replay_storage.add_goal(time_step, meta, goal)
-            self.train_video_recorder.record(time_step.observation)
-            episode_step += 1
+                time_step = self.train_env.step(action)
+                episode_reward += time_step.reward
+                self.replay_storage.add_goal(time_step, meta, goal)
+                self.train_video_recorder.record(time_step.observation)
+                episode_step += 1
 
-            # try to update the agent
-            if not seed_until_step(self._global_step):
-                metrics = self.agent.update(self.replay_iter, self._global_step)
-                self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                
+                # try to update the agent
+                if not seed_until_step(self._global_step):
+                    metrics = self.agent.update(self.replay_iter1, self._global_step, actor1=True)
+                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
+            
+            elif self.actor2 and self.actor1==False:
+                with torch.no_grad(), utils.eval_mode(self.agent):
+                    if self.cfg.goal:
+                        action = self.agent.act2(time_step.observation,
+                                                 meta,
+                                                 self._global_step,
+                                                 eval_mode=False)
+                    else:
+                        action = self.agent.act(time_step.observation,
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=False)
+                # take env step
+                time_step = self.train_env.step(action)
+                episode_reward += time_step.reward
+                self.replay_storage.add(time_step, meta)
+                self.train_video_recorder.record(time_step.observation)
+                episode_step += 1
+
+                # try to update the agent
+                if not seed_until_step(self._global_step):
+                    metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
+                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
+
+
+
+
             self._global_step += 1
             
             #save agent
