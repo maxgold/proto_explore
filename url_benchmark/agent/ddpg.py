@@ -60,7 +60,6 @@ class Actor(nn.Module):
     def forward(self, obs, goal, std):
         obs_goal = torch.cat([obs, goal], dim=-1)
         h = self.trunk(obs_goal)
-
         mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
@@ -438,7 +437,7 @@ class DDPGAgent:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()
             metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
-
+            metrics['actor_stddev'] = stddev
         return metrics
 
     def update_actor2(self, obs, step):
@@ -462,7 +461,7 @@ class DDPGAgent:
             metrics['actor2_loss'] = actor2_loss.item()
             metrics['actor2_logprob'] = log_prob.mean().item()
             metrics['actor2_ent'] = dist.entropy().sum(dim=-1).mean().item()
-
+            metrics['actor2_stddev'] = stddev
         return metrics
 
 

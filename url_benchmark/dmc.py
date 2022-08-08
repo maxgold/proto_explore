@@ -98,8 +98,18 @@ class ActionRepeatWrapper(dm_env.Environment):
     def step(self, action):
         reward = 0.0
         discount = 1.0
+        count = 0
+        #import IPython as ipy; ipy.embed(colors='neutral')
         for i in range(self._num_repeats):
             time_step = self._env.step(action)
+            if time_step.reward == None:
+                print('first step', self._env.step(action).step_type)
+                count += 1
+                continue
+            
+            if count >1:
+                print('sth went wrong')
+                import IPython as ipy; ipy.embed(colors='neutral')
             reward += time_step.reward * discount
             discount *= time_step.discount
             if time_step.last():
@@ -187,6 +197,7 @@ class ActionDTypeWrapper(dm_env.Environment):
                                                'action')
 
     def step(self, action):
+        #import IPython as ipy; ipy.embed(colors='neutral')
         action = action.astype(self._env.action_spec().dtype)
         return self._env.step(action)
 

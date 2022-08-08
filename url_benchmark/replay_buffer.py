@@ -80,6 +80,27 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
+    def add(self, time_step, meta):
+        for key, value in meta.items():
+            self._current_episode[key].append(value)
+        for spec in self._data_specs:
+            value = time_step[spec.name]
+            if np.isscalar(value):
+                value = np.full(spec.shape, value, spec.dtype)
+            assert spec.shape == value.shape and spec.dtype == value.dtype
+            self._current_episode[spec.name].append(value)
+        if time_step.last():
+            episode = dict()
+            for spec in self._data_specs:
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            for spec in self._meta_specs:
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            self._current_episode = defaultdict(list)
+            self._store_episode(episode)
+            print('storing episode, no goal')
+
     def add_goal(self, time_step, meta, goal):
         for key, value in meta.items():
             self._current_episode[key].append(value)
@@ -104,7 +125,7 @@ class ReplayBufferStorage:
             episode['goal'] = np.array(value, np.float64)
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
-            print('storing episode')
+            print('storing episode, w/ goal')
 
     def add_q(self, time_step, meta, q, task):
         for key, value in meta.items():
@@ -250,6 +271,18 @@ class ReplayBuffer(IterableDataset):
             discount *= episode["discount"][idx + i] * self._discount
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
+    def _append(self):
+        final = []
+        for i in self._episode_fns:
+            final.append(self._episodes[eps_fn]['observation'])
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        if len(final)>0:
+            final = torch.cat(final)
+            return final
+        else:
+            print('nothing in buffer yet')
+            return ''
+
     def __iter__(self):
         while True:
             yield self._sample()
@@ -386,23 +419,22 @@ class OfflineReplayBuffer(IterableDataset):
     def parse_dataset(self, start_ind=0, end_ind=-1):
         states = []
         actions = []
-        futures = []
+        #futures = []
         for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
             episode = self._episodes[eps_fn]
-            offsets = [25, 50, 75, 100, 100]
+            #offsets = [25, 50, 75, 100, 100]
             ep_len = next(iter(episode.values())).shape[0] - 1
-            for idx in range(ep_len - 100):
-                ys = []
+            for idx in range(ep_len):
+                #ys = []
                 states.append(episode["observation"][idx - 1][None])
                 actions.append(episode["action"][idx][None])
-                for off in offsets:
-                    ys.append(episode["observation"][idx + off][:,None])
-                futures.append(np.concatenate(ys,1)[None])
+                #for off in offsets:
+                #    ys.append(episode["observation"][idx + off][:,None])
+                #futures.append(np.concatenate(ys,1)[None])
         return (
             np.concatenate(states, 0),
             np.concatenate(actions, 0),
-            np.concatenate(futures, 0),
-        )
+                )
 
 #GOAL_ARRAY = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
 
@@ -418,12 +450,6 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        #gamma,
-        #agent,
-        #method,
-        #baw_delta,
-        #baw_max,
-        #num_replay_goals
     ):
 
         self._env = env
@@ -442,15 +468,11 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        #self.gamma = gamma
-        #self.method = method
-        #self.baw_delta = baw_delta
-        #self.baw_max = baw_max
-        #self.num_replay_goals = num_replay_goals
         
-        
-        #future_p = 1 - (1. / (1 + self.num_replay_goals))
-        
+    
+    # add self._replay_dir2 
+    # add that to eps_fns
+    #add two update functions to proto
     def _load(self, relabel=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
@@ -625,24 +647,19 @@ class OfflineReplayBuffer(IterableDataset):
     def parse_dataset(self, start_ind=0, end_ind=-1):
         states = []
         actions = []
-        futures = []
-        for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
-            episode = self._episodes[eps_fn]
-            offsets = [25, 50, 75, 100, 100]
-            ep_len = next(iter(episode.values())).shape[0] - 1
-            for idx in range(ep_len - 100):
-                ys = []
-                states.append(episode["observation"][idx - 1][None])
-                actions.append(episode["action"][idx][None])
-                for off in offsets:
-                    ys.append(episode["observation"][idx + off][:,None])
-                futures.append(np.concatenate(ys,1)[None])
-            return (
+        if len(self._episode_fns)>0:
+            for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
+                episode = self._episodes[eps_fn]
+                ep_len = next(iter(episode.values())).shape[0] - 1
+                for idx in range(ep_len):
+                    states.append(episode["observation"][idx - 1][None])
+                    actions.append(episode["action"][idx][None])
+                return (
                     np.concatenate(states, 0),
                     np.concatenate(actions, 0),
-                    np.concatenate(futures, 0),
                     )
-
+        else:
+            return ('', '')
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
@@ -735,7 +752,7 @@ def make_replay_loader(
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )
-    return loader
+    return loader, iterable
 
 
 def ndim_grid(ndims, space):
