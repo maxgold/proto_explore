@@ -156,7 +156,8 @@ class Workspace:
                                 self.train_env.action_spec(),
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent, cfg.goal)
+                                cfg.goal,
+                                cfg.agent)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -180,7 +181,7 @@ class Workspace:
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount, cfg.goal)
+                                                False, cfg.nstep, cfg.discount, False)
         self._replay_iter1 = None
         self._replay_iter2 = None
 

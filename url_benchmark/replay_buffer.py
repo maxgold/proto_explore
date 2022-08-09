@@ -81,7 +81,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta, goal):
+    def add(self, time_step, meta):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -196,7 +196,6 @@ class ReplayBuffer(IterableDataset):
         goal,
         fetch_every,
         save_snapshot,
-        goal
         ):
         self._storage = storage
         self._size = 0
@@ -216,7 +215,7 @@ class ReplayBuffer(IterableDataset):
     def _sample_episode(self):
         if self.goal==False:
             #print('sample eps self._episode_fns2', self._episode_fns2)
-            eps_fn = random.choice(self._episode_fns2)
+            eps_fn = random.choice(self._episode_fns2+self._episode_fns1)
             return self._episodes[eps_fn]
         else:
             #print('sample eps self._episode_fns1', len(self._episode_fns1))
@@ -283,7 +282,7 @@ class ReplayBuffer(IterableDataset):
         if self.goal:
             eps_fns = eps_fns1 
         else:
-            eps_fns = eps_fns2
+            eps_fns = eps_fns2 + eps_fns1
         #print('chosen',eps_fns) 
         fetched_size = 0
         for eps_fn in eps_fns:
@@ -369,10 +368,10 @@ class ReplayBuffer(IterableDataset):
     
     def __iter__(self):
         while True:
-            if self._goal:
-                yield self._sample_goal()
-            else:
-                yield self._sample()
+            #if self._goal:
+            #    yield self._sample_goal()
+            #else:
+            yield self._sample()
 
 
 class OfflineReplayBuffer(IterableDataset):
@@ -641,7 +640,6 @@ def make_replay_loader(
         goal,
         fetch_every=1000,
         save_snapshot=save_snapshot,
-        goal=goal
     )
 
     loader = torch.utils.data.DataLoader(
