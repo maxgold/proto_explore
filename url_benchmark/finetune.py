@@ -23,11 +23,12 @@ from video import TrainVideoRecorder, VideoRecorder
 torch.backends.cudnn.benchmark = True
 
 
-def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
+    cfg.goal_shape = goal_shape
     return hydra.utils.instantiate(cfg)
 
 
@@ -55,6 +56,7 @@ class Workspace:
         self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
+                                goal_shape=(2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent)
 
@@ -111,7 +113,7 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
-    def eval(self):
+    def eval_goal(self, goal):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
@@ -120,7 +122,14 @@ class Workspace:
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
-                    action = self.agent.act(time_step.observation,
+                    if cfg.goal:
+                        action = self.agent.act(time_step.observation,
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
+                    else:
+                        action = self.agent.act(time_step.observation,
                                             meta,
                                             self.global_step,
                                             eval_mode=True)
@@ -200,11 +209,17 @@ class Workspace:
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
-                action = self.agent.act(time_step.observation,
+                if cfg.goal:
+                    action = self.agent.act(time_step.observation,
+                                        goal,
                                         meta,
                                         self.global_step,
                                         eval_mode=False)
-
+                else:
+                    action = self.agent.act(time_step.observation,
+                                        meta,
+                                        self.global_step,
+                                        eval_mode=False)
             # try to update the agent
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter, self.global_step)

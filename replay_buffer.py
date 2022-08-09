@@ -263,7 +263,8 @@ class OfflineReplayBuffer(IterableDataset):
         vae=False,
         distill=False,
         expert_dict=None,
-        goal_dict=None
+        goal_dict=None,
+        relabel = False
         #gamma,
         #agent,
         #method,
@@ -289,8 +290,11 @@ class OfflineReplayBuffer(IterableDataset):
         self._goal_array = False
         self.obs = []
         self.distill = distill
-
-    def _load(self, relabel=True):
+        self.relabel = relabel
+        
+    def _load(self):
+        relabel=self.relabel
+        #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
         try:
             worker_id = torch.utils.data.get_worker_info().id
@@ -303,6 +307,7 @@ class OfflineReplayBuffer(IterableDataset):
        # print(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
         #random.shuffle(eps_fns)
+        #for eps_fn in eps_fns:
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
             if self._size > self._max_size:
                 break
@@ -330,7 +335,7 @@ class OfflineReplayBuffer(IterableDataset):
             #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
         else:
             if not self._loaded:
-                self._load(relable=False)
+                self._load()
                 self._loaded = True
 
             #obs_dim = env.observation_spec()['position'].shape[0]
@@ -341,9 +346,10 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _sample_episode(self):
         if not self._loaded:
-            self._load(relable=False)
+            self._load()
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
+        
         return self._episodes[eps_fn]
 
     def _relabel_reward(self, episode):
@@ -357,6 +363,7 @@ class OfflineReplayBuffer(IterableDataset):
         action = episode["action"][idx]
         next_obs = episode["observation"][idx]
         reward = episode["reward"][idx]
+        #print('reward', reward)
         discount = episode["discount"][idx] * self._discount
         #reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
         #        control_reward = rewards.tolerance(
@@ -461,9 +468,8 @@ class OfflineReplayBuffer(IterableDataset):
         #cand_goals = cand_goals[np.abs(cand_goals[:,0])>.05]
         #cand_goals = cand_goals[np.abs(cand_goals[:,1])>.05]
         #cand_goals = cand_goals[:4]
-        for goal in cand_goals:
-            rewards.append(my_reward(action, next_obs, goal))
-        #rewards.append(my_reward(action, next_obs, GOAL_ARRAY[0]))
+        #for goal in cand_goals:
+        #    rewards.append(my_reward(action, next_obs, goal))
         discount = np.ones_like(episode["discount"][idx])
         obs = np.tile(obs, (len(goal_array), 1))
         action = np.tile(action, (len(goal_array), 1))
@@ -472,7 +478,6 @@ class OfflineReplayBuffer(IterableDataset):
         reward = np.array(rewards)
         goal_array = np.array(goal_array)
         return (obs, action, reward, discount, next_obs, goal_array)
-
 
     def _sample_future(self):
         episode = self._sample_episode()
@@ -565,6 +570,7 @@ def make_replay_loader(
     goal=False,
     vae=False,
     distill=False,
+    relabel=False
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -578,8 +584,9 @@ def make_replay_loader(
         goal=goal,
         vae=vae,
         distill=distill,
+        relabel=relabel
     )
-    iterable._load(relable=False)
+    iterable._load()
 
     loader = torch.utils.data.DataLoader(
         iterable,

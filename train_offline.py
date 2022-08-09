@@ -53,9 +53,11 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
     if cfg.goal:
         goal = np.random.sample((2,)) * .5 - .25
         env = dmc.make(cfg.task, seed=cfg.seed, goal=goal)
+    print('evaluating random goal', cfg.goal)
     while eval_until_episode(episode):
         time_step = env.reset()
-        video_recorder.init(env, enabled=(episode == 0))
+        if cfg.eval==False:
+            video_recorder.init(env, enabled=(episode == 0))
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
@@ -64,12 +66,14 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
             time_step = env.step(action)
-            video_recorder.record(env)
+            if cfg.eval==False:
+                video_recorder.record(env)
             total_reward += time_step.reward
             step += 1
 
         episode += 1
-        video_recorder.save(f"{global_step}.mp4")
+        if cfg.eval==False:
+            video_recorder.save(f"{global_step}.mp4")
 
     with logger.log_and_dump_ctx(global_step, ty="eval") as log:
         log("episode_reward", total_reward / episode)
@@ -93,6 +97,7 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
         while not time_step.last():
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
+                    #import IPython as ipy; ipy.embed(colors='neutral')
                     action = agent.act(time_step.observation, x, global_step, eval_mode=True)
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
@@ -116,6 +121,7 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
         else:
             
             print('saving')
+            print(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step))
             save(str(work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step), [[x, total_reward, time_step.observation[:2], step]])
     
     episode += 1
@@ -159,43 +165,7 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=global_goal)
-    print('global goal create env', global_goal)
-
-
-    expert_lst = {}
-    expert_paths = sorted(glob.glob(str(cfg.path_expert) + '/*.pth'))
-    print(expert_paths)
-    num = 0
-
-    goal_lst = {}
-    goal_arr = ndim_grid(2,4)
-    for num in range(len(expert_paths)):
-        key = num 
-        goal = expert_paths[num]
-        one = goal.split('_')[-2]
-        two = goal.split('_')[-3]
-        if two == 'goal':
-            goal_num = int(one)
-            goal_lst[key] = goal_arr[goal_num]
-        else:
-            two = two.split('/')[-1]
-            if two == 'bottom':
-                if one =='left':
-                    goal_lst[key] = [-.15, -.15]
-                elif one == 'right':
-                    goal_lst[key] = [.15, -.15]
-                else:
-                    import IPython as ipy; ipy.embed(colors="neutral")
-            elif two == 'top':
-                if one =='left':
-                    goal_lst[key] = [-.15, .15]
-                elif one == 'right':
-                    goal_lst[key] = [.15, .15]
-                else:
-                    import IPython as ipy; ipy.embed(colors="neutral")
-        value = torch.load(expert_paths[num])
-        expert_lst[key] = value
-
+    print('making env', global_goal)
     # create agent
     if cfg.eval:
         print('evulating')
@@ -248,7 +218,8 @@ def main(cfg):
         cfg.discount,
         goal=cfg.goal,
         distill=cfg.distill,
-        )
+        relabel=cfg.relabel
+    )
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs
     
@@ -272,21 +243,28 @@ def main(cfg):
             print(model_lst)
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
-                    print(ix)
+                    print(model_lst[ix])
                     agent = torch.load(model_lst[ix])
                      #logger.log("eval_total_time", timer.total_time(), global_step)
-                    #if cfg.goal:
-                    #import IPython as ipy; ipy.embed(colors="neutral")
-                    goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
-                    
-                        #import IPython as ipy; ipy.embed(colors="neutral")
-                    eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
-                                
-                    step +=1
-                    print(step)
-                        
-                    step=0
-                    print(step)
+                    ##if cfg.goal:
+                    ##import IPython as ipy; ipy.embed(colors="neutral")
+                    #goal_array = ndim_grid(2, 40)
+                    ##goal = np.array([np.random.sample() * -.25, np.random.sample() * -.25])
+                    #while step <3000:
+                    #    for goal in goal_array:
+                    #        print('evaluating', goal, 'model', model_lst[ix])
+                    #    #import IPython as ipy; ipy.embed(colors="neutral")
+                    #        eval_goal(global_step, agent, env, logger, video_recorder, cfg,goal, model_lst[ix], work_dir)
+                    #            
+                    #        step +=1
+                    #        print(step)
+                    #    
+                    #step=0
+                    #print(step)
+                    goal = np.random.sample((2,)) * .5 - .25
+                    logger.log("eval_total_time", timer.total_time(), global_step)
+                    for i in range(1):
+                        eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model_lst[ix], work_dir)
             global_step = 500000
             global_step +=1
         else:
@@ -311,7 +289,7 @@ def main(cfg):
                     log("step", global_step)
         
             if global_step%10000==0:
-                path = os.path.join(work_dir, 'optimizer_expert_{}_{}.pth'.format(len(expert_paths), global_step))
+                path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(global_index,global_step))
                 torch.save(agent,path)
 
             global_step += 1

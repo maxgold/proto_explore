@@ -6,7 +6,7 @@ defaults:
 expl_agent: proto
 tag: 
 # task settings
-task: walker_walk
+task: point_mass_maze_reach_custom_goal
 discount: 0.99
 # train settings
 num_grad_steps: 500000
@@ -17,7 +17,7 @@ num_eval_episodes: 10
 # dataset
 replay_buffer_dir: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/datasets # make sure to update this if you change hydra run dir
 replay_buffer_size: 1000000
-replay_buffer_num_workers: 4
+replay_buffer_num_workers: 16
 batch_size: ${agent.batch_size}
 # misc
 seed: 1
@@ -28,22 +28,17 @@ use_wandb: false
 goal: false
 eval: false
 distill: false
+relabel: false
+
 experiment: exp
-path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/16_goals/final
-path_expert: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/models/16_goals/final 
+path: /home/ubuntu/proto_explore/output/2022.08.02/130412_bc16_goal
+path_expert: /home/ubuntu/buffer/proto_explore/models/16_goals/final
+
 
 hydra:
   run:
-    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}${tag}      
-  sweep:
-    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
-    subdir: ${hydra.job.num}
+    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}${tag}    
 
-#  launcher:
-#    timeout_min: 4300
-#    cpus_per_task: 10
-#    gpus_per_node: 1
-#    tasks_per_node: 1
-#    mem_gb: 160
-#    nodes: 1
-#    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+  sweep:
+    dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}_${experiment}
+    subdir: ${hydra.job.num} 

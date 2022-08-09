@@ -6,6 +6,7 @@ defaults:
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
+task: point_mass_maze_reach_custom_goal
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 1 # set to 2 for pixels
@@ -33,6 +34,7 @@ save_video: true
 save_train_video: false
 use_tb: false
 use_wandb: false
+goal: false
 # experiment
 experiment: exp
 

@@ -138,6 +138,11 @@ def main(cfg):
     print(expert_paths)
     num = 0
 
+    for num in range(len(expert_paths)):
+        key = num
+        value = torch.load(expert_paths[num])
+        expert_lst[key] = value
+    
     #calculate goals
     goal_lst = {}
     goal_arr = ndim_grid(2,4)
@@ -223,9 +228,7 @@ def main(cfg):
         cfg.discount,
         goal=cfg.goal,
         distill=cfg.distill,
-        expert_dict=expert_lst,
-        goal_dict=goal_lst)
-    
+        )
 
     replay_iter = iter(replay_loader)
     # next(replay_iter) will give obs, action, reward, discount, next_obs

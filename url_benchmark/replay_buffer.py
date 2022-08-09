@@ -35,7 +35,7 @@ def load_episode(fn):
         return episode
 
 
-def relable_episode(env, episode):
+def relabel_episode(env, episode):
     rewards = []
     reward_spec = env.reward_spec()
     states = episode["physics"]
@@ -79,7 +79,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta, q, task):
+    def add_goal(self, time_step, meta, goal):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -88,9 +88,35 @@ class ReplayBufferStorage:
                 value = np.full(spec.shape, value, spec.dtype)
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
-        for i in range(length(q)):
+            
+        self._current_episode['goal'].append(goal.cpu().numpy())
+        
+        if time_step.last():
+            episode = dict()
+            for spec in self._data_specs:
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            for spec in self._meta_specs:
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            value = self._current_episode['goal']
+            episode['goal'] = np.array(value, np.float64)
+            self._current_episode = defaultdict(list)
+            self._store_episode(episode)
+
+    def add_q(self, time_step, meta, q, task):
+        for key, value in meta.items():
+            self._current_episode[key].append(value)
+        for spec in self._data_specs:
+            value = time_step[spec.name]
+            if np.isscalar(value):
+                value = np.full(spec.shape, value, spec.dtype)
+            assert spec.shape == value.shape and spec.dtype == value.dtype
+            self._current_episode[spec.name].append(value)
+        for i in range(len(q)):
             self._current_episode['q_value'].append(q[i])
-        for i in range(length(task)):
+        for i in range(len(task)):
             self._current_episode['task'].append(task)
         if time_step.last():
             episode = dict()
@@ -139,7 +165,8 @@ class ReplayBuffer(IterableDataset):
         discount,
         fetch_every,
         save_snapshot,
-    ):
+        goal
+        ):
         self._storage = storage
         self._size = 0
         self._max_size = max_size
@@ -151,6 +178,7 @@ class ReplayBuffer(IterableDataset):
         self._fetch_every = fetch_every
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
+        self._goal = goal
 
     def _sample_episode(self):
         eps_fn = random.choice(self._episode_fns)
@@ -221,9 +249,37 @@ class ReplayBuffer(IterableDataset):
             discount *= episode["discount"][idx + i] * self._discount
         return (obs, action, reward, discount, next_obs, *meta)
 
+    def _sample_goal(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        goal = episode["goal"][idx]
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        for i in range(self._nstep):
+            step_reward = episode["reward"][idx + i]
+            reward += discount * step_reward
+            discount *= episode["discount"][idx + i] * self._discount
+        return (obs, action, reward, discount, next_obs, goal, *meta)
+
+    
     def __iter__(self):
         while True:
-            yield self._sample()
+            if self._goal:
+                yield self._sample_goal()
+            else:
+                yield self._sample()
 
 class OfflineReplayBuffer(IterableDataset):
     def __init__(
@@ -286,6 +342,7 @@ class OfflineReplayBuffer(IterableDataset):
         return relabel_episode(self._env, episode)
 
     def _sample(self):
+        print('sampling from offline buffer')
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode)) + 1
@@ -421,7 +478,7 @@ class OfflineReplayBuffer(IterableDataset):
         
         #future_p = 1 - (1. / (1 + self.num_replay_goals))
         
-    def _load(self, relable=True):
+    def _load(self, relabel=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
         try:
@@ -438,8 +495,8 @@ class OfflineReplayBuffer(IterableDataset):
             if eps_idx % self._num_workers != worker_id:
                 continue
             episode = load_episode(eps_fn)
-            if relable:
-                episode = self._relable_reward(episode)
+            if relabel:
+                episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
@@ -473,8 +530,8 @@ class OfflineReplayBuffer(IterableDataset):
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
 
-    def _relable_reward(self, episode):
-        return relable_episode(self._env, episode)
+    def _relabel_reward(self, episode):
+        return relabel_episode(self._env, episode)
 
     def _sample(self):
         episode = self._sample_episode()
@@ -590,6 +647,28 @@ class OfflineReplayBuffer(IterableDataset):
                 yield self._sample()
 
 
+    def parse_dataset(self, start_ind=0, end_ind=-1):
+        states = []
+        actions = []
+        futures = []
+        for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
+            episode = self._episodes[eps_fn]
+            offsets = [25, 50, 75, 100, 100]
+            ep_len = next(iter(episode.values())).shape[0] - 1
+            for idx in range(ep_len - 100):
+                ys = []
+                states.append(episode["observation"][idx - 1][None])
+                actions.append(episode["action"][idx][None])
+                for off in offsets:
+                    ys.append(episode["observation"][idx + off][:,None])
+                futures.append(np.concatenate(ys,1)[None])
+            return (
+                    np.concatenate(states, 0),
+                    np.concatenate(actions, 0),
+                    np.concatenate(futures, 0),
+                    )
+
+
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
@@ -623,7 +702,7 @@ def make_replay_buffer(
 
     return iterable
 
-def make_replay_loader(
+def make_replay_buffer(
     env,
     replay_dir,
     max_size,
@@ -633,7 +712,8 @@ def make_replay_loader(
     offset=100,
     goal=False,
     vae=False,
-):
+    relabel=False
+    ):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -646,20 +726,20 @@ def make_replay_loader(
         goal=goal,
         vae=vae,
     )
-    iterable._load(relable=False)
+    iterable._load(relabel=relabel)
 
-    loader = torch.utils.data.DataLoader(
-        iterable,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=True,
-        worker_init_fn=_worker_init_fn,
-    )
-    return loader
+    #loader = torch.utils.data.DataLoader(
+    #    iterable,
+    #    batch_size=batch_size,
+    #    num_workers=num_workers,
+    #    pin_memory=True,
+    #    worker_init_fn=_worker_init_fn,
+    #)
+    return iterable
 
 
-def make_replay_loader_online(
-    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount
+def make_replay_loader(
+    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -671,6 +751,7 @@ def make_replay_loader_online(
         discount,
         fetch_every=1000,
         save_snapshot=save_snapshot,
+        goal=goal
     )
 
     loader = torch.utils.data.DataLoader(

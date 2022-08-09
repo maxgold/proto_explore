@@ -10,7 +10,6 @@ from torch import jit
 import utils
 from agent.ddpg import DDPGAgent
 
-
 @jit.script
 def sinkhorn_knopp(Q):
     Q -= Q.max()
@@ -154,6 +153,55 @@ class ProtoAgent(DDPGAgent):
 
         return metrics
 
+    def get_state_embeddings(self, states):
+        with torch.no_grad():
+            s = self.encoder(states)
+            s = self.predictor(s)
+            s = self.projector(s)
+            s = F.normalize(s, dim=1, p=2)
+        return s
+
+    def visualize_prototypes(self):
+        grid = np.meshgrid(np.arange(-.3,.3,.01),np.arange(-.3,.3,.01))
+        grid = np.concatenate((grid[0][:,:,None],grid[1][:,:,None]), -1)
+        grid = grid.reshape(-1, 2)
+        grid = np.c_[grid, np.zeros_like(grid)]
+        grid = torch.tensor(grid).cuda().float()
+        grid_embeddings = self.get_state_embeddings(grid)
+        protos = self.protos.weight.data.clone().detach()
+        protos = F.normalize(protos, dim=1, p=2)
+        dist_mat = torch.cdist(protos, grid_embeddings)
+        closest_points = dist_mat.argmin(-1)
+        return grid[closest_points, :2].cpu()
+    
+    def my_reward(self, action, next_obs, goal):
+        tmp = 1 - action**2
+        one = np.ones_like(tmp[:,0].cpu())
+        zero = np.zeros_like(tmp[:,0].cpu())
+        one = torch.as_tensor(one, device=self.device)
+        zero = torch.as_tensor(zero, device=self.device)
+        control_reward = torch.max(torch.min(tmp[:,0], one), zero)/2
+        one_ = np.ones_like(tmp[:,1].cpu())
+        zero_ = np.zeros_like(tmp[:,1].cpu())
+        one_ = torch.as_tensor(one_, device=self.device)
+        zero_ = torch.as_tensor(zero_, device=self.device)
+        control_reward += torch.max(torch.min(tmp[:,1], one_), zero_) / 2
+        pdist = torch.nn.PairwiseDistance(p=2)
+        dist_to_target = pdist(goal, next_obs[:,:2])
+        reward = torch.empty((dist_to_target.shape[0],1),device=self.device)
+        
+        upper = 0.015
+        margin = 0.1
+        scale = np.sqrt(-2 * np.log(0.1))
+        x = (dist_to_target - upper) / margin
+        r = np.exp(-0.5 * (x.cpu() * scale) ** 2)[:,None]
+        r = torch.as_tensor(r, device=self.device)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        reward = r
+        reward[dist_to_target < .015] = torch.ones_like(reward[dist_to_target < .015])
+        final = torch.mul(reward, control_reward[:, None]).float()
+        return final
+
     def update(self, replay_iter, step):
         metrics = dict()
 
@@ -163,6 +211,21 @@ class ProtoAgent(DDPGAgent):
         batch = next(replay_iter)
         obs, action, extr_reward, discount, next_obs = utils.to_torch(
             batch, self.device)
+        #add if state: 
+        goal = self.visualize_prototypes()
+        goal = goal.clone().detach()
+        goal = goal.repeat(2,1).cuda()
+        #else: (pixel)
+        #...
+
+        #recalculate reward 
+        #if state:
+            #use myreward from replay buffer
+    
+        reward = self.my_reward(action, next_obs, goal)
+        reward = reward.reshape(-1,1).float()
+        #else: (pixel)
+        #use similarity or MSE
 
         # augment and encode
         with torch.no_grad():
@@ -194,11 +257,11 @@ class ProtoAgent(DDPGAgent):
 
         # update critic
         metrics.update(
-            self.update_critic(obs.detach(), action, reward, discount,
+            self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), step))
+        metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
 
         # update critic target
         utils.soft_update_params(self.encoder, self.encoder_target,
