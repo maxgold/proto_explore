@@ -243,26 +243,25 @@ class Workspace:
             # and this sampled vector is added to the queue
             scores = self.agent.protos(z).T
             current_protos = self.agent.protos.weight.data.clone()
+        
         current_protos = F.normalize(current_protos, dim=1, p=2)
         z_to_c = torch.norm(z[:, None, :] - current_protos[None, :, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_c, 3, dim=1, largest=True)
         ind = all_dists.mean(-1).argmax().item()
         return cands[ind].cpu().numpy()
-
     
     def sample_goal_proto(self, obs):
         #current_protos = self.agent.protos.weight.data.clone()
         #current_protos = F.normalize(current_protos, dim=1, p=2)
-        #len(self.unreachable) > 0:
-        print('list of unreachables', len(self.unreachable))
-        #return self.unreachable.pop(0)
+        #if len(self.unreachable) > 0:
+        #print('list of unreachables', self.unreachable)
+            #return self.unreachable.pop(0)
         
         proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
         num = proto2d.shape[0]
         idx = np.random.randint(0, num)
         return proto2d[idx,:].cpu().numpy()
         
-
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -401,7 +400,7 @@ class Workspace:
         goal = np.random.sample((2,)) * .5 - .25
         self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
         meta = self.agent.init_meta()
-        #self.replay_storage.add_goal(time_step, meta, goal)
+        self.replay_storage.add_goal(time_step, meta, goal)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self._global_step):

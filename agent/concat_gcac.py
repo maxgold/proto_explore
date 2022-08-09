@@ -15,7 +15,7 @@ class Actor(nn.Module):
         super().__init__()
         
         self.fc1 = nn.Linear(obs_dim+goal_dim, hidden_dim)
-        self.ln = nn.LayerNorm(hidden_dim+goal_dim)
+        self.ln = nn.LayerNorm(hidden_dim)
         self.tanh = nn.Tanh()
         self.fc2 = nn.Linear(hidden_dim+goal_dim, hidden_dim)
         self.relu = nn.ReLU(inplace=True)
@@ -24,14 +24,11 @@ class Actor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
-        
+         
         obs_goal = torch.cat([obs, goal], dim=-1)
-        x = self.ln1(self.fc1(obs_goal))
+        x = self.ln(self.fc1(obs_goal))
         x = self.tanh(x)
-        print('goal shape', goal.shape)
-        print('output of tanh layer shape', x.shape)
         x = torch.cat([x, goal], dim=-1)
-        #check if hidden dim & goals are compatible 
         x = self.fc2(x)
         x = self.relu(x)
         x = torch.cat([x, goal], dim=-1)
@@ -45,27 +42,57 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, obs_dim, goal_dim, action_dim, hidden_dim):
-        super().__init__()
+        super(Critic, self).__init__()
+        
+
+        
+        #self.fc1 = nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim)
+        #self.ln = nn.LayerNorm(hidden_dim)
+        #self.tanh = nn.Tanh()
+        #self.fc2 = nn.Linear(hidden_dim + goal_dim, hidden_dim)
+        #self.relu = nn.ReLU(inplace=True)
+        #self.fc3 = nn.Linear(hidden_dim + goal_dim , 1))
+
+        #self.fc1_ = nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim)
+        #self.ln_ = nn.LayerNorm(hidden_dim)
+        #self.tanh_ = nn.Tanh()
+        #self.fc2_ = nn.Linear(hidden_dim + goal_dim, hidden_dim)
+        #self.relu_ = nn.ReLU(inplace=True)
+        #self.fc3_ = nn.Linear(hidden_dim + goal_dim, 1)
 
         self.q1_net = nn.Sequential(
-            nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim + goal_dim), nn.Tanh(),
-            nn.Linear(hidden_dim + goal_dim, hidden_dim), nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, 1))
+                nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim), nn.Tanh(),
+                nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
+                nn.Linear(hidden_dim, 1))
 
         self.q2_net = nn.Sequential(
-            nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim + goal_dim), nn.Tanh(),
-            nn.Linear(hidden_dim + goal_dim, hidden_dim), nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim + goal_dim, 1))
+                nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim), nn.Tanh(),
+                nn.Linear(hidden_dim, hidden_dim), nn.ReLU(inplace=True),
+                nn.Linear(hidden_dim, 1))
 
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, action):
+
         obs_action = torch.cat([obs, goal, action], dim=-1)
+        #q1 = self.fc1(obs_action)
+        #q1 = self.tanh(q1)
+        #q1 = torch.cat([q1, goal], dim=-1)
+        #q1 = self.relu(self.fc2(q1))
+        #q1 = torch.cat([q1, goal], dim=-1)
+        #q1 = self.fc3(q1)
+
+        #q2 = self.fc1_(obs_action)
+        #q2 = self.tanh_(q2)
+        #q2 = torch.cat([q2, goal], dim=-1)
+        #q2 = self.relu(self.fc2_(q2))
+        #q2 = torch.cat([q2, goal], dim=-1)
+        #q2 = self.fc3_(q2)
         q1 = self.q1_net(obs_action)
         q2 = self.q2_net(obs_action)
-
+        
         return q1, q2
 
 
@@ -190,7 +217,6 @@ class CONCAT_GCACAgent:
         reward = reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
         reward = reward.float()
-
         if self.use_tb:
             metrics['batch_reward'] = reward.mean().item()
 

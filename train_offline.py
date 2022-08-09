@@ -112,7 +112,8 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, model,
     
         #if cfg.eval==False:
         #    video_recorder.save("goal{}_{}.mp4".format(x, global_step))
-            
+        print('work_dir+...', str(work_dir))
+        print('model', model.split('.')[-2].split('/')[-1])
         if cfg.eval:
             print('saving')
             save(str(work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x, total_reward, time_step.observation[:2], step]])
@@ -175,8 +176,9 @@ def main(cfg):
                                         obs_shape=(4,),
                                         action_shape=(2,),
                                         goal_shape=(2,), 
-                                        distill=cfg.distill
-                                        )
+                                        distill=cfg.distill,
+                                        expert_dict=expert_lst,
+                                        goal_dict=goal_lst)
     elif cfg.goal:
         agent = hydra.utils.instantiate(
             cfg.agent,
@@ -205,7 +207,7 @@ def main(cfg):
     #if cfg.distill==False:
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
     #else:
-    #replay_dir = datasets_dir.resolve()
+        #replay_dir = datasets_dir.resolve()
     print(f"replay dir: {replay_dir}")
 
     replay_loader = make_replay_loader(
@@ -238,7 +240,8 @@ def main(cfg):
 
     while train_until_step(global_step):
         if cfg.eval:
-            model_lst = glob.glob(str(cfg.path)+'/*400000.pth')
+            model_lst = sorted(glob.glob(str(cfg.path)+'/*50000.pth'))
+            print(model_lst)
             if len(model_lst)>0:
                 for ix in range(len(model_lst)):
                     print(model_lst[ix])
@@ -295,15 +298,12 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-
-    goal_array = ndim_grid(2,4)
-    goal_array = [goal_array[10], goal_array[13]]
-    #model_path = sorted(glob.glob('/home/ubuntu/buffer/proto_explore/models/16_goals/goal*'))
-    for iz,z in enumerate(goal_array):
-        global_index = iz
-        global_goal = z
-        #global_model_path = model_path[iz]
-        print('global_index', global_index)
-        print('global_goal', global_goal)
-        #print('global_model', global_model_path)
-        main() 
+#    goal_array = ndim_grid(2,4)
+#
+#    for iz,z in enumerate(goal_array):
+#        global_index = iz
+#        global_goal = z
+#        print('global_goal', global_goal)
+    global_goal = np.random.sample((2,)) * .5 - .25
+    global_index=0
+    main() 

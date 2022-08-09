@@ -58,6 +58,8 @@ class Actor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
+        #print(obs.shape)
+        #print('goal',goal.shape)
         obs_goal = torch.cat([obs, goal], dim=-1)
         h = self.trunk(obs_goal)
         mu = self.policy(h)
@@ -142,7 +144,9 @@ class Critic(nn.Module):
     def forward(self, obs, goal, action):
         inpt = torch.cat([obs, goal], dim=-1) if self.obs_type == 'pixels' else torch.cat([obs, goal, action],
                                                                dim=-1)
+        
         h = self.trunk(inpt)
+        #print('h', h.shape)
         h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
 
         q1 = self.Q1(h)

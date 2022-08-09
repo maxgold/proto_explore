@@ -49,8 +49,9 @@ class ProtoAgent(DDPGAgent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
-        self.previous_goal = None
         self.goal = goal
+
+
         # models
         self.encoder_target = deepcopy(self.encoder)
 
@@ -240,12 +241,6 @@ class ProtoAgent(DDPGAgent):
         #else:
         #    goal = self.previous_goal
 
-        #reward = self.my_reward(action, next_obs, goal)
-        #reward = reward.reshape(-1,1).float()
-        ##else: (pixel)
-        ##use similarity or MSE
-
-        ## augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
