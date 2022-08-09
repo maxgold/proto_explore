@@ -42,13 +42,15 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, topk, update_encoder, goal, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
+        self.goal = goal
+
 
         # models
         self.encoder_target = deepcopy(self.encoder)
@@ -207,26 +209,42 @@ class ProtoAgent(DDPGAgent):
 
         if step % self.update_every_steps != 0:
             return metrics
+        
+        if self.goal:
+            batch = next(replay_iter)
+            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+                                batch, self.device)
 
-        batch = next(replay_iter)
-        obs, action, extr_reward, discount, next_obs = utils.to_torch(
+        else:
+
+            batch = next(replay_iter)
+            obs, action, extr_reward, discount, next_obs = utils.to_torch(
             batch, self.device)
-        #add if state: 
-        goal = self.visualize_prototypes()
-        goal = goal.clone().detach()
-        goal = goal.repeat(2,1).cuda()
-        #else: (pixel)
-        #...
+        
+        obs = obs.reshape(-1, 4).float()
+        next_obs = next_obs.reshape(-1, 4).float()
+        goal = goal.reshape(-1, 2).float()
+        action = action.reshape(-1, 2).float()
+        extr_reward = extr_reward.reshape(-1, 1).float()
+        discount = discount.reshape(-1, 1).float()
 
-        #recalculate reward 
-        #if state:
-            #use myreward from replay buffer
-    
-        reward = self.my_reward(action, next_obs, goal)
-        reward = reward.reshape(-1,1).float()
-        #else: (pixel)
-        #use similarity or MSE
-
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        ##add if state: 
+        #goal = self.visualize_prototypes()
+        #goal = goal.clone().detach()
+        #goal = goal.repeat(2,1).cuda()
+        ##else: (pixel)
+        ##...
+        #
+        ##recalculate reward 
+        ##if state:
+        #    #use myreward from replay buffer
+        #
+        #reward = self.my_reward(action, next_obs, goal)
+        #reward = reward.reshape(-1,1).float()
+        ##else: (pixel)
+        ##use similarity or MSE
+        #
         # augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
@@ -257,11 +275,11 @@ class ProtoAgent(DDPGAgent):
 
         # update critic
         metrics.update(
-            self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
+            self.update_critic(obs.detach(), goal, action, extr_reward, discount,
                                next_obs.detach(), step))
 
         # update actor
-        metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
+        metrics.update(self.update_actor(obs.detach(), goal, action, step))
 
         # update critic target
         utils.soft_update_params(self.encoder, self.encoder_target,
