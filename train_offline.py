@@ -165,6 +165,7 @@ def main(cfg):
 
     # create envs
     env = dmc.make(cfg.task, seed=cfg.seed, goal=global_goal)
+    
     print('making env', global_goal)
     # create agent
     if cfg.eval:
@@ -279,6 +280,7 @@ def main(cfg):
                     eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal, goal, work_dir)
                 else:
                     eval(global_step, agent, env, logger, cfg.num_eval_episodes, video_recorder, cfg)
+            import IPython as ipy; ipy.embed(colors='neutral')
             metrics = agent.update(replay_iter, global_step)
             logger.log_metrics(metrics, global_step, ty="train")
             if log_every_step(global_step):

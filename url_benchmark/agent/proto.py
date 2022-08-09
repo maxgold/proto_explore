@@ -120,6 +120,7 @@ class ProtoAgent(DDPGAgent):
         z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
+        #import IPython as ipy; ipy.embed(colors='neutral')
         reward = dist
         return reward
 
@@ -204,48 +205,42 @@ class ProtoAgent(DDPGAgent):
         final = torch.mul(reward, control_reward[:, None]).float()
         return final
 
-    def update(self, replay_iter, step):
+    def update(self, replay_iter, step, actor1=False):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
             return metrics
         
-        if self.goal:
-            batch = next(replay_iter)
+        batch = next(replay_iter)
+        
+        if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
-                                batch, self.device)
-
-        else:
-
-            batch = next(replay_iter)
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
             batch, self.device)
+            goal = goal.reshape(-1, 2).float()
+        else:
+            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+                                batch, self.device)
         
         obs = obs.reshape(-1, 4).float()
         next_obs = next_obs.reshape(-1, 4).float()
-        goal = goal.reshape(-1, 2).float()
         action = action.reshape(-1, 2).float()
         extr_reward = extr_reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
+        #if step % self.update_goal_every_steps == 0:
+        #    #add if state: 
+        #    goal = self.visualize_prototypes()
+        #    goal = goal.clone().detach()
+        #    goal = goal.repeat(2,1).cuda()
+        #    self.previous_goal = goal.clone().detach()
+        #    #else: (pixel)
+        #    #...
+        #
+        #    #recalculate reward 
+        #    #if state:
+        #        #use myreward from replay buffer
+        #else:
+        #    goal = self.previous_goal
 
-        #import IPython as ipy; ipy.embed(colors='neutral')
-        ##add if state: 
-        #goal = self.visualize_prototypes()
-        #goal = goal.clone().detach()
-        #goal = goal.repeat(2,1).cuda()
-        ##else: (pixel)
-        ##...
-        #
-        ##recalculate reward 
-        ##if state:
-        #    #use myreward from replay buffer
-        #
-        #reward = self.my_reward(action, next_obs, goal)
-        #reward = reward.reshape(-1,1).float()
-        ##else: (pixel)
-        ##use similarity or MSE
-        #
-        # augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
@@ -258,13 +253,9 @@ class ProtoAgent(DDPGAgent):
 
             if self.use_tb or self.use_wandb:
                 metrics['intr_reward'] = intr_reward.mean().item()
-            reward = intr_reward
-        else:
-            reward = extr_reward
-
+        
         if self.use_tb or self.use_wandb:
             metrics['extr_reward'] = extr_reward.mean().item()
-            metrics['batch_reward'] = reward.mean().item()
 
         obs = self.encoder(obs)
         next_obs = self.encoder(next_obs)
@@ -273,20 +264,39 @@ class ProtoAgent(DDPGAgent):
             obs = obs.detach()
             next_obs = next_obs.detach()
 
-        # update critic
-        metrics.update(
-            self.update_critic(obs.detach(), goal, action, extr_reward, discount,
+        if actor1:
+
+            # update critic_goal
+            metrics.update(
+                self.update_critic(obs.detach(), goal, action, extr_reward, discount,
                                next_obs.detach(), step))
-
-        # update actor
-        metrics.update(self.update_actor(obs.detach(), goal, action, step))
-
-        # update critic target
-        utils.soft_update_params(self.encoder, self.encoder_target,
+        
+            # update actor_goal
+            metrics.update(self.update_actor(obs.detach(), goal, step))
+        
+            # update critic_goal_target
+            utils.soft_update_params(self.encoder, self.encoder_target,
                                  self.encoder_target_tau)
-        utils.soft_update_params(self.predictor, self.predictor_target,
+            utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
-        utils.soft_update_params(self.critic, self.critic_target,
+            utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
+
+        else:
+
+            # update critic
+            metrics.update(
+                self.update_critic2(obs.detach(), action, intr_reward, discount,
+                               next_obs.detach(), step))
+            # update actor
+            metrics.update(self.update_actor2(obs.detach(), step))
+    
+            utils.soft_update_params(self.encoder, self.encoder_target,
+                                 self.encoder_target_tau)
+            utils.soft_update_params(self.predictor, self.predictor_target,
+                                 self.encoder_target_tau)
+            # update critic target
+            utils.soft_update_params(self.critic2, self.critic2_target,
+                                 self.critic2_target_tau)
 
         return metrics
