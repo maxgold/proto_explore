@@ -328,9 +328,9 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, *meta)
 
     def _append(self):
-        #add all, goal or no goal trajectories, used for sampling goals
+        #add all, no goal trajectories, used for sampling goals
         final = []
-        episode_fns = self._episode_fns1 + self._episode_fns2
+        episode_fns = self._episode_fns2
         for eps_fn in episode_fns:
             final.append(self._episodes[eps_fn]['observation'])
         #import IPython as ipy; ipy.embed(colors='neutral')
@@ -358,7 +358,7 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-    ):
+        ):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -582,7 +582,7 @@ def make_replay_buffer(
     offset=100,
     goal=False,
     vae=False,
-    relabel=False
+    relabel=False,
 ):
     max_size_per_worker = max_size // max(1, num_workers)
 

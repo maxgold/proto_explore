@@ -60,7 +60,6 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 def visualize_prototypes_visited(agent, work_dir, cfg, env):
-    #import IPython as ipy; ipy.embed(colors='neutral')
     replay_dir = work_dir / 'buffer2'
     replay_buffer = make_replay_buffer(env,
                                     replay_dir,
@@ -71,7 +70,6 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
                                     goal=True,
                                     relabel=False,
                                     )
-    #import IPython as ipy; ipy.embed(colors='neutral')
     states, actions = replay_buffer.parse_dataset()
     if states == '':
         print('nothing in buffer yet')
@@ -84,6 +82,7 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         protos = F.normalize(protos, dim=1, p=2)
         dist_mat = torch.cdist(protos, grid_embeddings)
         closest_points = dist_mat.argmin(-1)
+        import IPython as ipy; ipy.embed(colors='neutral')
         return grid[closest_points, :2].cpu()
 
 
@@ -254,14 +253,14 @@ class Workspace:
     def sample_goal_proto(self, obs):
         #current_protos = self.agent.protos.weight.data.clone()
         #current_protos = F.normalize(current_protos, dim=1, p=2)
-        if len(self.unreachable) > 0:
-            print('list of unreachables', self.unreachable)
-            return self.unreachable.pop(0)
-        else:
-            proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
-            num = proto2d.shape[0]
-            idx = np.random.randint(0, num)
-            return proto2d[idx,:].cpu().numpy()
+        #len(self.unreachable) > 0:
+        print('list of unreachables', len(self.unreachable))
+        #return self.unreachable.pop(0)
+        
+        proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
+        num = proto2d.shape[0]
+        idx = np.random.randint(0, num)
+        return proto2d[idx,:].cpu().numpy()
         
 
 
@@ -470,6 +469,7 @@ class Workspace:
                 else:
                     goal = self.sample_goal_proto(time_step.observation)
                 self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
+                print(goal)
                 #print('resample goal make env', self.train_env)
             
                 # sample action 
