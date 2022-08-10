@@ -38,7 +38,8 @@ goal: false
 # experiment
 experiment: exp
 
-path: /misc/vlgscratch4/FergusGroup/mortensen/exorl/models/pmm_top_right/
+path: /home/ubuntu/buffer/proto_explore/url_benchmark/pretrain 
+replay_path: /home/ubuntu/buffer/proto_explore/url_benchmark/pretrain/buffer2
 
 hydra:
   run:

@@ -586,7 +586,7 @@ class OfflineReplayBuffer(IterableDataset):
                 for idx in range(ep_len):
                     states.append(episode["observation"][idx - 1][None])
                     actions.append(episode["action"][idx][None])
-                return (
+            return (
                     np.concatenate(states, 0),
                     np.concatenate(actions, 0),
                     )

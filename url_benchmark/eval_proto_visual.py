@@ -24,7 +24,7 @@ from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
-
+import glob
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
@@ -60,8 +60,9 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 def visualize_prototypes_visited(agent, replay_dir, cfg, env):
+    print('replay dir', replay_dir)
     replay_buffer = make_replay_buffer(env,
-                                    replay_dir,
+                                    Path(cfg.replay_path),
                                     cfg.replay_buffer_size,
                                     cfg.batch_size,
                                     0,
@@ -81,7 +82,7 @@ def visualize_prototypes_visited(agent, replay_dir, cfg, env):
         protos = F.normalize(protos, dim=1, p=2)
         dist_mat = torch.cdist(protos, grid_embeddings)
         closest_points = dist_mat.argmin(-1)
-        import IPython as ipy; ipy.embed(colors='neutral')
+        #import IPython as ipy; ipy.embed(colors="neutral")
         return grid[closest_points, :2].cpu()
 
 
@@ -119,7 +120,7 @@ def make_expert():
 
 
 class Workspace:
-    def __init__(self, cfg):
+    def __init__(self, cfg, global_index):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
 
@@ -149,7 +150,8 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        self.agent = torch.load(cfg.path)
+        lst = glob.glob(str(cfg.path)+'/*pth')
+        self.agent = torch.load(lst[global_index])
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -164,12 +166,6 @@ class Workspace:
                                                   self.work_dir / 'buffer')
 
         # create replay buffer
-        self.replay_loader = make_replay_loader(self.replay_storage,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount)
-        self._replay_iter = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
@@ -237,12 +233,16 @@ class Workspace:
         return proto2d[idx,:].cpu().numpy()
 
 
-    def eval(self, path):
-        proto2d = visualize_prototypes_visited(self.agent, path, self.cfg, self.train_env)
+    def eval(self, idx):
+        proto2d = visualize_prototypes_visited(self.agent, self.cfg.replay_path, self.cfg, self.train_env)
         plt.clf()
         fig, ax = plt.subplots()
         ax.scatter(proto2d[:,0], proto2d[:,1])
-        plt.savefig(f"./{self._global_step}_proto2d.png")
+        agents = glob.glob(str(self.cfg.path)+'/*pth')
+        agent = agents[idx]
+        model = agent.split('_')[-1]
+        model_ = model.split('.')[-2]
+        plt.savefig(f"./{model_}_proto2d.png")
     
 
     def eval_goal(self, proto, model):
@@ -444,15 +444,14 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from mypretrain import Workspace as W
-    root_dir = Path.cwd()
-    agents = glob.glob(str(cfg.path)+'/*pth')
-    print(agents)
-    
+    agents = glob.glob(str(cfg.path)+('/*.pth'))
     for ix, x in enumerate(agents):
-        workspace = W(cfg)
-        workspace.eval(x)
-        print(ix)
+        from eval_proto_visual import Workspace as W
+        root_dir = Path.cwd()
+        global_index=ix
+        workspace = W(cfg, global_index)
+        workspace.eval(ix)
+        print('GLOBAL index', global_index)
 
 if __name__ == '__main__':
     main()
