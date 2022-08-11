@@ -68,8 +68,7 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
                                     0,
                                     cfg.discount,
                                     goal=True,
-                                    relabel=False,
-                                    )
+                                    relabel=False)
     states, actions = replay_buffer.parse_dataset()
     if states == '':
         print('nothing in buffer yet')
@@ -82,7 +81,7 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         protos = F.normalize(protos, dim=1, p=2)
         dist_mat = torch.cdist(protos, grid_embeddings)
         closest_points = dist_mat.argmin(-1)
-        import IPython as ipy; ipy.embed(colors='neutral')
+        #import IPython as ipy; ipy.embed(colors='neutral')
         return grid[closest_points, :2].cpu()
 
 
@@ -260,6 +259,8 @@ class Workspace:
         proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
         num = proto2d.shape[0]
         idx = np.random.randint(0, num)
+        print('idx', idx)
+        print(proto2d[idx-2:idx+2,:].cpu().numpy())
         return proto2d[idx,:].cpu().numpy()
         
 
@@ -467,9 +468,8 @@ class Workspace:
                     goal = np.array(goal)
                 else:
                     goal = self.sample_goal_proto(time_step.observation)
+                    print('sampled proto goal', goal)
                 self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
-                print(goal)
-                #print('resample goal make env', self.train_env)
             
                 # sample action 
                 if self.actor1 == False:
