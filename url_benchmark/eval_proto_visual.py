@@ -6,7 +6,7 @@ import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
-
+import glob
 from pathlib import Path
 
 import hydra
@@ -120,11 +120,12 @@ def make_expert():
 
 
 class Workspace:
-    def __init__(self, cfg):
+    def __init__(self, cfg, agent):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
 
         self.cfg = cfg
+        self.agent_path = agent
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
 
@@ -150,7 +151,7 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        self.agent = torch.load(cfg.path)
+        self.agent = torch.load(self.agent_path)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -160,17 +161,6 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-        # create data storage
-        self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
-
-        # create replay buffer
-        self.replay_loader = make_replay_loader(self.replay_storage,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount)
-        self._replay_iter = None
 
         # create video recorders
         self.video_recorder = VideoRecorder(
@@ -235,7 +225,7 @@ class Workspace:
         plt.savefig(f"./{model_step}_proto2d.png")
     
 
-    def eval_goal(self, model_step):
+    def eval_goal(self, path, model_step, replay_dir2):
         #if cfg.eval, then eval over goals
         #final evaluation over all final prototypes
         #load final agent model to get them
@@ -434,21 +424,23 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from mypretrain import Workspace as W
+    from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
     agents = glob.glob(str(cfg.path)+'/*pth')
     print(agents)
     
     for ix, x in enumerate(agents):
-        workspace = W(cfg)
-        model = str(x).split('_')[-2]
+        workspace = W(cfg, x)
+        model = str(x).split('_')[-1]
+        model = str(model).split('.')[-2]
+        replay_dir = Path(cfg.replay_dir)
         if cfg.replay_dir2:
             replay_dir2 = Path(cfg.replay_dir2)
         else:
             replay_dir2 = False
         print('model_step', model)
-        workspace.eval(x, model, replay_dir2)
-        workspace.eval_goal(model)
+        workspace.eval(replay_dir, model, replay_dir2)
+        workspace.eval_goal(replay_dir, model, replay_dir2)
         print(ix)
 
 if __name__ == '__main__':
