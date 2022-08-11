@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
-
+import re
 import deepdish
 
 
@@ -328,9 +328,9 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, *meta)
 
     def _append(self):
-        #add all, goal or no goal trajectories, used for sampling goals
+        #add all, no goal trajectories, used for sampling goals
         final = []
-        episode_fns = self._episode_fns1 + self._episode_fns2
+        episode_fns = self._episode_fns2
         for eps_fn in episode_fns:
             final.append(self._episodes[eps_fn]['observation'])
         #import IPython as ipy; ipy.embed(colors='neutral')
@@ -386,7 +386,8 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-    ):
+        replay_dir2=False,
+        model_step=False):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -404,6 +405,8 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
+        self.model_step = int(model_step)/1000
+        self.replay_dir2=replay_dir2
         
     
     def _load(self, relabel=True):
@@ -413,7 +416,15 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        eps_fns = sorted(self._replay_dir.glob("*.npz"))
+        if self.replay_dir2:
+            tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
+        else:
+            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
+        if self.model_step:
+            eps_fns = [x for x in tmp_fns if (int(re.findall('\d+', x)[-2]) < self.model_step)]
+        else:
+            eps_fns = tmp_fns
+        print('model step', self.model_step)
         # for eps_fn in tqdm.tqdm(eps_fns):
         obs_tmp = []
         for eps_fn in eps_fns:
@@ -607,8 +618,10 @@ def make_replay_buffer(
     offset=100,
     goal=False,
     vae=False,
-    relabel=False
-):
+    relabel=False,
+    model_step=False,
+    replay_dir2=False
+    ):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -620,7 +633,9 @@ def make_replay_buffer(
         offset,
         goal=goal,
         vae=vae,
-    )
+        model_step=model_step,
+        replay_dir2=replay_dir2
+        )
     iterable._load(relabel=relabel)
 
     return iterable
