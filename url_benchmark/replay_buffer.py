@@ -430,7 +430,6 @@ class OfflineReplayBuffer(IterableDataset):
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
 
-
     
     def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
@@ -586,7 +585,7 @@ class OfflineReplayBuffer(IterableDataset):
                 for idx in range(ep_len):
                     states.append(episode["observation"][idx - 1][None])
                     actions.append(episode["action"][idx][None])
-                return (
+            return (
                     np.concatenate(states, 0),
                     np.concatenate(actions, 0),
                     )
