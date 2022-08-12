@@ -215,7 +215,7 @@ class ReplayBuffer(IterableDataset):
     def _sample_episode(self):
         if self.goal==False:
             #print('sample eps self._episode_fns2', self._episode_fns2)
-            eps_fn = random.choice(self._episode_fns2+self._episode_fns1)
+            eps_fn = random.choice(self._episode_fns2)
             return self._episodes[eps_fn]
         else:
             #print('sample eps self._episode_fns1', len(self._episode_fns1))
@@ -282,7 +282,7 @@ class ReplayBuffer(IterableDataset):
         if self.goal:
             eps_fns = eps_fns1 
         else:
-            eps_fns = eps_fns2 + eps_fns1
+            eps_fns = eps_fns2
         #print('chosen',eps_fns) 
         fetched_size = 0
         for eps_fn in eps_fns:
@@ -419,7 +419,7 @@ class OfflineReplayBuffer(IterableDataset):
         if self.replay_dir2:
             tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
         else:
-            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
+            tmp_fns = sorted(self._replay_dir.glob("*_.npz"))
         if self.model_step:
             eps_fns = [x for x in tmp_fns if (int(re.findall('\d+', x)[-2]) < self.model_step)]
         else:

@@ -119,7 +119,7 @@ def make_expert():
 
 
 class Workspace:
-    def __init__(self, cfg):
+    def __init__(self, cfg, agent_path):
         self.work_dir = Path.cwd()
         print(f'workspace: {self.work_dir}')
 
@@ -149,7 +149,10 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        self.agent = make_agent(cfg.obs_type,
+        if agent_path:
+            self.agent = torch.load(agent_path)
+        else:
+            self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
                                 (2,),
@@ -461,15 +464,6 @@ class Workspace:
 
             meta = self.agent.update_meta(meta, self._global_step, time_step)
             if episode_step % resample_goal_every == 0:
-                if seed_until_step(self._global_step):
-                    goal = []
-                    goal.append(np.random.uniform(-0.29, -0.15))
-                    goal.append(np.random.uniform(0.15, 0.29))
-                    goal = np.array(goal)
-                else:
-                    goal = self.sample_goal_proto(time_step.observation)
-                    print('sampled proto goal', goal)
-                self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
             
                 # sample action 
                 if self.actor1 == False:
@@ -478,7 +472,18 @@ class Workspace:
                 else:
                     self.actor1 = False
                     self.actor2 = True
-
+                
+                if self.actor1 and self.actor2==False:
+                    if seed_until_step(self._global_step):
+                        goal = []
+                        goal.append(np.random.uniform(-0.29, -0.15))
+                        goal.append(np.random.uniform(0.15, 0.29))
+                        goal = np.array(goal)
+                    else:
+                        goal = self.sample_goal_proto(time_step.observation)
+                        print('sampled proto goal', goal)
+                    self.train_env = dmc.make(self.cfg.task, seed=None, goal=goal)
+                
             
             if self.actor1 and self.actor2==False:
                 with torch.no_grad(), utils.eval_mode(self.agent):
@@ -553,12 +558,15 @@ class Workspace:
 def main(cfg):
     from mypretrain import Workspace as W
     root_dir = Path.cwd()
-    workspace = W(cfg)
-    snapshot = root_dir / 'snapshot.pt'
-    if snapshot.exists():
-        print(f'resuming: {snapshot}')
-        workspace.load_snapshot()
-    print("training")
+    agent_path=False
+    #agent_path = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore_max/url_benchmark/exp_local/2022.08.11/103203_proto/optimizer_proto_1900000.pth' 
+    workspace = W(cfg, agent_path)
+    #snapshot = root_dir / 'snapshot.pt'
+    #if snapshot.exists():
+    #    print(f'resuming: {snapshot}')
+    #    workspace.load_snapshot()
+    #print("training")
+
     workspace.train()
 
 
