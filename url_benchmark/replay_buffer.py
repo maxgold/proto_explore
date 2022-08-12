@@ -5,7 +5,7 @@ import traceback
 import copy
 from collections import defaultdict
 import tqdm
-import re
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -176,7 +176,7 @@ class ReplayBufferStorage:
         self._num_transitions += eps_len
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        eps_fn = f"{ts}_{eps_idx}_{eps_len}_.npz"
+        eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
         save_episode(episode, self._replay_dir / eps_fn)
         save_episode(episode, self._replay_dir2 / eps_fn)
 
@@ -199,8 +199,7 @@ class ReplayBuffer(IterableDataset):
         self._size = 0
         self._max_size = max_size
         self._num_workers = max(1, num_workers)
-        self._episode_fns1 = []
-        self._episode_fns2 = []
+        self._episode_fns = []
         self._episodes = dict()
         self._nstep = nstep
         self._discount = discount
@@ -211,15 +210,8 @@ class ReplayBuffer(IterableDataset):
 
 
     def _sample_episode(self):
-        if self.goal==False:
-            #print('sample eps self._episode_fns2', self._episode_fns2)
-            eps_fn = random.choice(self._episode_fns2)
-            return self._episodes[eps_fn]
-        else:
-            #print('sample eps self._episode_fns1', len(self._episode_fns1))
-            eps_fn = random.choice(self._episode_fns1)
-            
-            return self._episodes[eps_fn]
+        eps_fn = random.choice(self._episode_fns)
+        return self._episodes[eps_fn]
 
     def _store_episode(self, eps_fn):
         try:
@@ -256,11 +248,12 @@ class ReplayBuffer(IterableDataset):
             eps_fns = chain(sorted(self._storage._replay_dir.glob("*.npz"), reverse=True),
                     sorted(self._storage2._replay_dir.glob("*.npz"), reverse=True))
         else:
-            eps_fns = eps_fns2
-        #print('chosen',eps_fns) 
+            
+            eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+
         fetched_size = 0
         for eps_fn in eps_fns:
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:-1]]
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:
                 continue
             if eps_fn in self._episodes.keys():
@@ -331,8 +324,7 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        replay_dir2=False,
-        model_step=False):
+        replay_dir2=False):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -351,7 +343,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._goal_array = False
         self.obs = []
         self._replay_dir2 = replay_dir2
-        self.model_step=int(int(model_step)/1000)
+        
     
     def _load(self, relabel=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
@@ -361,25 +353,16 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         if self._replay_dir2:
-            tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
+            eps_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
         else:
-            tmp_fns = sorted(self._replay_dir.glob("*_.npz"))
-        tmp_fns_=[]
-        tmp_fns2 = []
-        for x in tmp_fns:
-            tmp_fns_.append(str(x))
-            tmp_fns2.append(x)
-        if self.model_step:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-        else:
-            eps_fns = tmp_fns
-        print('model step', self.model_step)
+            eps_fns = sorted(self._replay_dir.glob("*.npz"))
+        # for eps_fn in tqdm.tqdm(eps_fns):
         obs_tmp = []
         for eps_fn in eps_fns:
             if self._size > self._max_size:
                 break
             
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:-1]]
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:
                 continue
             episode = load_episode(eps_fn)
@@ -570,8 +553,7 @@ def make_replay_buffer(
     goal=False,
     vae=False,
     relabel=False,
-    replay_dir2=False,
-    model_step=False
+    replay_dir2=False
     ):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -584,9 +566,8 @@ def make_replay_buffer(
         offset,
         goal=goal,
         vae=vae,
-        replay_dir2=replay_dir2,
-        model_step=model_step,
-        )
+        replay_dir2=replay_dir2
+    )
     iterable._load(relabel=relabel)
 
     return iterable
