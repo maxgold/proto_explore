@@ -42,7 +42,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, goal, **kwargs):
+                 encoder_target_tau, topk, update_encoder, goal, concurrent,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -51,6 +51,7 @@ class ProtoAgent(DDPGAgent):
         self.update_encoder = update_encoder
         self.previous_goal = None
         self.goal = goal
+        self.concurrent = concurrent
         # models
         self.encoder_target = deepcopy(self.encoder)
 
@@ -250,16 +251,19 @@ class ProtoAgent(DDPGAgent):
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
 
-        obs = self.encoder(obs)
-        next_obs = self.encoder(next_obs)
-
-        if not self.update_encoder:
-            obs = obs.detach()
-            next_obs = next_obs.detach()
-
         if actor1:
+            if self.concurrent==False and self.reward_free:
+                metrics.update(self.update_proto(obs, next_obs, step))
+
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()
+            
+            obs = self.encoder(obs)
+            next_obs = self.encoder(next_obs)
+
+            if not self.update_encoder:
+                obs = obs.detach()
+                next_obs = next_obs.detach()
             # update critic_goal
             metrics.update(
                 self.update_critic(obs.detach(), goal, action, extr_reward, discount,
@@ -269,11 +273,15 @@ class ProtoAgent(DDPGAgent):
             metrics.update(self.update_actor(obs.detach(), goal, step))
         
             # update critic_goal_target
-            utils.soft_update_params(self.encoder, self.encoder_target,
+            if self.concurrent:
+                utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
+            else:
+                utils.soft_update_params(self.encoder, self.encoder_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.predictor, self.predictor_target,
+                utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.critic, self.critic_target,
+                utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
 
         else:
@@ -283,6 +291,15 @@ class ProtoAgent(DDPGAgent):
                     intr_reward = self.compute_intr_reward(next_obs, step)
                     if self.use_tb or self.use_wandb:
                         metrics['intr_reward'] = intr_reward.mean().item()
+            
+            obs = self.encoder(obs)
+            next_obs = self.encoder(next_obs)
+
+            if not self.update_encoder:
+                obs = obs.detach()
+                next_obs = next_obs.detach()
+
+
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, intr_reward, discount,

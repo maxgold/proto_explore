@@ -380,10 +380,6 @@ class DDPGAgent:
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
-            metrics['critic2_target_q'] = np.nan
-            metrics['critic2_q1'] = np.nan
-            metrics['critic2_q2'] = np.nan
-            metrics['critic2_loss'] = np.nan
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
@@ -413,10 +409,6 @@ class DDPGAgent:
             metrics['critic2_q1'] = Q1.mean().item()
             metrics['critic2_q2'] = Q2.mean().item()
             metrics['critic2_loss'] = critic2_loss.item()
-            metrics['critic_target_q'] = np.nan
-            metrics['critic_q1'] = np.nan
-            metrics['critic_q2'] = np.nan
-            metrics['critic_loss'] = np.nan
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
@@ -448,10 +440,6 @@ class DDPGAgent:
             metrics['actor_logprob'] = log_prob.mean().item()
             metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
             metrics['actor_stddev'] = stddev
-            metrics['actor2_loss'] = np.nan
-            metrics['actor2_logprob'] = np.nan
-            metrics['actor2_ent'] = np.nan
-            metrics['actor2_stddev'] = np.nan
         return metrics
 
     def update_actor2(self, obs, step):
@@ -476,10 +464,6 @@ class DDPGAgent:
             metrics['actor2_logprob'] = log_prob.mean().item()
             metrics['actor2_ent'] = dist.entropy().sum(dim=-1).mean().item()
             metrics['actor2_stddev'] = stddev
-            metrics['actor_loss'] = np.nan
-            metrics['actor_logprob'] = np.nan
-            metrics['actor_ent'] = np.nan
-            metrics['actor_stddev'] = np.nan
         return metrics
 
 

@@ -40,8 +40,8 @@ concurrent: false
 experiment: exp
 
 path: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/concurrent_1
-replay_dir: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/concurrent_1/buffer1/buffer_copy
-replay_dir2: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/concurrent_1/buffer2/buffer_copy
+replay_dir: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/concurrent_1/buffer2/buffer_copy
+replay_dir2: false
 
 hydra:
   run:

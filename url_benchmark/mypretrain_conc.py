@@ -88,13 +88,14 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, concurrent):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
+    cfg.concurrent = concurrent
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -160,7 +161,8 @@ class Workspace:
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
-                                cfg.agent)
+                                cfg.agent,
+                                cfg.concurrent)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -272,34 +274,34 @@ class Workspace:
 
 
     def eval(self):
-        step, episode, total_reward = 0, 0, 0
-        goal = np.random.sample((2,)) * .5 - .25
-        self.eval_env = dmc.make(self.cfg.task, seed=None, goal=goal)
-        eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
-        meta = self.agent.init_meta()
-        while eval_until_episode(episode):
-            time_step = self.eval_env.reset()
-            #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-            while not time_step.last():
-                with torch.no_grad(), utils.eval_mode(self.agent):
-                    if self.cfg.goal:
-                        action = self.agent.act(time_step.observation,
-                                            goal,
-                                            meta,
-                                            self._global_step,
-                                            eval_mode=True)
-                    else:
-                        action = self.agent.act(time_step.observation,
-                                            meta,
-                                            self._global_step,
-                                            eval_mode=True)
-                time_step = self.eval_env.step(action)
-                #self.video_recorder.record(self.eval_env)
-                total_reward += time_step.reward
-                step += 1
-
-            episode += 1
-            #self.video_recorder.save(f'{self.global_frame}.mp4')
+        #step, episode, total_reward = 0, 0, 0
+        #goal = np.random.sample((2,)) * .5 - .25
+        #self.eval_env = dmc.make(self.cfg.task, seed=None, goal=goal)
+        #eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+        #meta = self.agent.init_meta()
+        #while eval_until_episode(episode):
+        #    time_step = self.eval_env.reset()
+        #    #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+        #    while not time_step.last():
+        #        with torch.no_grad(), utils.eval_mode(self.agent):
+        #            if self.cfg.goal:
+        #                action = self.agent.act(time_step.observation,
+        #                                    goal,
+        #                                    meta,
+        #                                    self._global_step,
+        #                                    eval_mode=True)
+        #            else:
+        #                action = self.agent.act(time_step.observation,
+        #                                    meta,
+        #                                    self._global_step,
+        #                                    eval_mode=True)
+        #        time_step = self.eval_env.step(action)
+        #        #self.video_recorder.record(self.eval_env)
+        #        total_reward += time_step.reward
+        #        step += 1
+        #
+        #    episode += 1
+        #    #self.video_recorder.save(f'{self.global_frame}.mp4')
         if self._global_step % int(1e4) == 0:
             proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
             plt.clf()
@@ -307,11 +309,11 @@ class Workspace:
             ax.scatter(proto2d[:,0], proto2d[:,1])
             plt.savefig(f"./{self._global_step}_proto2d_eval.png")
 
-        with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
-            log('episode_reward', total_reward / episode)
-            log('episode_length', step * self.cfg.action_repeat / episode)
-            log('episode', self.global_episode)
-            log('step', self._global_step)
+        #with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
+        #    log('episode_reward', total_reward / episode)
+        #    log('episode_length', step * self.cfg.action_repeat / episode)
+        #    log('episode', self.global_episode)
+        #    log('step', self._global_step)
     
         
 
@@ -481,10 +483,10 @@ class Workspace:
                         proto=self.agent
                         model = ''
                         self.eval_goal(proto, model)
-                    #else:
+                    else:
                         #self.logger.log('eval_total_time', self.timer.total_time(),
                         #            self.global_frame)
-                        #self.eval()
+                        self.eval()
 
             meta = self.agent.update_meta(meta, self._global_step, time_step1)
             if episode_step % resample_goal_every == 0:
@@ -504,6 +506,7 @@ class Workspace:
                 else:
                     goal = self.sample_goal_proto(time_step1.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
+                self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 
                 print('sampled goal', goal)
                 #print('resample goal make env', self.train_env)

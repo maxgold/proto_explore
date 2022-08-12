@@ -5,7 +5,7 @@ import traceback
 import copy
 from collections import defaultdict
 import tqdm
-
+import re
 import numpy as np
 import torch
 import torch.nn as nn
@@ -324,6 +324,7 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
+        model_step=False,
         replay_dir2=False):
 
         self._env = env
@@ -342,6 +343,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
+        self.model_step = int(int(model_step)/1000)
         self._replay_dir2 = replay_dir2
         
     
@@ -352,11 +354,27 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+        
         if self._replay_dir2:
-            eps_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
+            tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
         else:
-            eps_fns = sorted(self._replay_dir.glob("*.npz"))
+            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
+        
         # for eps_fn in tqdm.tqdm(eps_fns):
+        tmp_fns_=[]
+        tmp_fns2 = []
+        
+        for x in tmp_fns:
+            tmp_fns_.append(str(x))
+            tmp_fns2.append(x)
+        
+        if self.model_step:
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
+        else:
+            eps_fns = tmp_fns
+        
+        print('model step', self.model_step)
+
         obs_tmp = []
         for eps_fn in eps_fns:
             if self._size > self._max_size:
@@ -553,6 +571,7 @@ def make_replay_buffer(
     goal=False,
     vae=False,
     relabel=False,
+    model_step=False,
     replay_dir2=False
     ):
     max_size_per_worker = max_size // max(1, num_workers)
@@ -566,6 +585,7 @@ def make_replay_buffer(
         offset,
         goal=goal,
         vae=vae,
+        model_step=model_step,
         replay_dir2=replay_dir2
     )
     iterable._load(relabel=relabel)
