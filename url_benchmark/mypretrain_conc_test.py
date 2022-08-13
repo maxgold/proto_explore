@@ -148,7 +148,7 @@ class Workspace:
         except:
             task = self.cfg.domain
         self.train_env1 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
+                                   cfg.action_repeat, cfg.seed)
         self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                                   cfg.action_repeat, cfg.seed)
         self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
@@ -156,8 +156,8 @@ class Workspace:
 
         # create agent
         self.agent = make_agent(cfg.obs_type,
-                                self.train_env1.observation_spec(),
-                                self.train_env1.action_spec(),
+                                self.train_env2.observation_spec(),
+                                self.train_env2.action_spec(),
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
@@ -167,25 +167,23 @@ class Workspace:
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (self.train_env1.observation_spec(),
-                      self.train_env1.action_spec(),
+        data_specs = (self.train_env2.observation_spec(),
+                      self.train_env2.action_spec(),
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer1')
+                                                   self.work_dir / 'buffer1')
         self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
                                                                   self.work_dir / 'buffer2')
         # create replay buffer
         self.replay_loader1  = make_replay_loader(self.replay_storage1,
-                                                False,
-                                                cfg.replay_buffer_size,
-                                                cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount, True)
+                                                  cfg.replay_buffer_size,
+                                                  cfg.batch_size,
+                                                  cfg.replay_buffer_num_workers,
+                                                  False, cfg.nstep, cfg.discount, True)
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
-                                                self.replay_storage1,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
@@ -362,15 +360,15 @@ class Workspace:
                         
                         if self.cfg.goal:
                             action = self.agent.act(time_step.observation,
-                                                x,
-                                                meta,
-                                                self._global_step,
-                                                eval_mode=True)
+                                                    x,
+                                                    meta,
+                                                    self._global_step,
+                                                    eval_mode=True)
                         else:
                             action = self.agent.act(time_step.observation,
-                                                meta,
-                                                self._global_step,
-                                                eval_mode=True)
+                                                    meta,
+                                                    self._global_step,
+                                                    eval_mode=True)
                    
                     time_step = self.eval_env.step(action)
                     #self.video_recorder.record(self.eval_env)
@@ -413,11 +411,11 @@ class Workspace:
         self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
         meta = self.agent.init_meta()
         self.replay_storage1.add_goal(time_step1, meta, goal)
-        self.replay_storage2.add(time_step2, meta)
+        self.replay_storage2.add(time_step2, meta)      
         #self.train_video_recorder.init(time_step1.observation)
         metrics = None
         while train_until_step(self._global_step):
-            if time_step1.last():
+            if time_step2.last():
                 self._global_episode += 1
                 #self.train_video_recorder.save(f'{self.global_frame}.mp4')
                 # wait until all the metrics schema is populated
@@ -437,26 +435,14 @@ class Workspace:
                         log('step', self._global_step)
 
                 # reset env
-                if self.cfg.concurrent:
-                    time_step1 = self.train_env1.reset()
-                    time_step2 = self.train_env2.reset()
-                    meta = self.agent.init_meta()
-                    self.replay_storage1.add_goal(time_step1, meta, goal)
-                    self.replay_storage2.add(time_step2, meta)
-                    #self.train_video_recorder.init(time_step1.observation)
-                else:
-                    if self.actor1 and self.actor2==False: 
-                        time_step1 = self.train_env1.reset()
-                        meta = self.agent.init_meta()
-                        self.replay_storage1.add_goal(time_step1, meta, goal)
-                        #self.train_video_recorder.init(time_step1.observation)
-                    elif self.actor2 and self.actor1==False:
-                        time_step2 = self.train_env2.reset()
-                        meta = self.agent.init_meta()
-                        self.replay_storage2.add(time_step2, meta)
-                        #self.train_video_recorder.init(time_step2.observation)
-                    else:
-                        import IPython as ipy; ipy.embed(colors="neutral")
+
+                time_step1 = self.train_env1.reset()
+                time_step2 = self.train_env2.reset()
+                meta = self.agent.init_meta()
+                self.replay_storage1.add_goal(time_step1, meta, goal)
+                self.replay_storage2.add(time_step2, meta)
+                #self.train_video_recorder.init(time_step1.observation)
+
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
                     self.save_snapshot()
@@ -482,29 +468,23 @@ class Workspace:
                     if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
+                        #self.eval()
                         self.eval_goal(proto, model)
                     else:
                         #self.logger.log('eval_total_time', self.timer.total_time(),
                         #            self.global_frame)
                         self.eval()
-
-            meta = self.agent.update_meta(meta, self._global_step, time_step1)
+#             meta = self.agent.update_meta(meta, self._global_step, time_step1)
+            meta = self.agent.update_meta(meta, self._global_step, time_step2)
             if episode_step % resample_goal_every == 0:
                 
-                if self.actor1 == False: 
-                    self.actor1 = True
-                    self.actor2 = False
-                else:
-                    self.actor1 = False
-                    self.actor2 = True
-
                 if seed_until_step(self._global_step):
                     goal = []
                     goal.append(np.random.uniform(-0.29, -0.15))
                     goal.append(np.random.uniform(0.15, 0.29))
                     goal = np.array(goal)
                 else:
-                    goal = self.sample_goal_proto(time_step1.observation)
+                    goal = self.sample_goal_proto(time_step2.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 
@@ -513,71 +493,38 @@ class Workspace:
             
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.goal:
-                    if self.cfg.concurrent:
-                        action1 = self.agent.act(time_step1.observation,
-                                                goal,
-                                                meta,
-                                                self._global_step,
-                                                eval_mode=False)
-                        action2 = self.agent.act2(time_step2.observation,
-                                                meta,
-                                                self._global_step,
-                                                eval_mode=False)
-                    else:
-                        if self.actor1 and self.actor2==False:
-                            action1 = self.agent.act(time_step1.observation,
+
+                    action1 = self.agent.act(time_step1.observation,
                                             goal,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
-                        elif self.actor2 and self.actor1==False:
-                            action2 = self.agent.act2(time_step2.observation,
+                    action2 = self.agent.act2(time_step2.observation,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
-                        else:      
-                            import IPython as ipy; ipy.embed(colors="neutral")
+
                 else:
                     action = self.agent.act(time_step.observation,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
             # take env step
-            if self.cfg.concurrent:
-                time_step1 = self.train_env1.step(action1)
-                time_step2 = self.train_env2.step(action2)
-                episode_reward += time_step1.reward
-                self.replay_storage1.add_goal(time_step1, meta, goal)
-                self.replay_storage2.add(time_step2, meta)
-                #self.train_video_recorder.record(time_step1.observation)
-                episode_step += 1
-            else:
-                if self.actor1 and self.actor2==False:
-                    time_step1 = self.train_env1.step(action1)
-                    episode_reward += time_step1.reward
-                    self.replay_storage1.add_goal(time_step1, meta, goal)
-                    #self.train_video_recorder.record(time_step1.observation)
-                elif self.actor2 and self.actor1==False:
-                    time_step2 = self.train_env2.step(action2)
-                    episode_reward += time_step1.reward
-                    self.replay_storage2.add(time_step2, meta)
-                    #self.train_video_recorder.record(time_step2.observation)
-                else:
-                    import IPython as ipy; ipy.embed(colors="neutral")
-                episode_step += 1
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            time_step1 = self.train_env1.step(action1)
+            time_step2 = self.train_env2.step(action2)
+            episode_reward += time_step2.reward
+            self.replay_storage1.add_goal(time_step1, meta, goal)
+            self.replay_storage2.add(time_step2, meta)
+            #self.train_video_recorder.record(time_step1.observation)
+            episode_step += 1
+
             # try to update the agent
             if not seed_until_step(self._global_step):
-                if self.cfg.concurrent:
-                    metrics = self.agent.update(self.replay_iter1, self._global_step, actor1=True)
-                    metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                else:
-                    if self.actor1 and self.actor2==False:
-                        metrics = self.agent.update(self.replay_iter1, self._global_step, actor1=True)
-                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                    elif self.actor2 and self.actor1==False:
-                        metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
-                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+
+                metrics = self.agent.update(self.replay_iter1, self._global_step, actor1=True)
+                metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
+                self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             self._global_step += 1
             
@@ -598,7 +545,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from mypretrain_conc import Workspace as W
+    from mypretrain_conc_test import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

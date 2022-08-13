@@ -306,11 +306,12 @@ class ProtoAgent(DDPGAgent):
                                next_obs.detach(), step))
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))
-    
-            utils.soft_update_params(self.encoder, self.encoder_target,
-                                 self.encoder_target_tau)
-            utils.soft_update_params(self.predictor, self.predictor_target,
-                                 self.encoder_target_tau)
+            #delete. testing purpose 
+            #utils.soft_update_params(self.encoder, self.encoder_target,
+            #                     self.encoder_target_tau)
+            #utils.soft_update_params(self.predictor, self.predictor_target,
+            #                     self.encoder_target_tau)
+            #######################################################################
             # update critic target
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)

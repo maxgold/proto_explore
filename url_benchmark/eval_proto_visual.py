@@ -59,14 +59,9 @@ def visualize_prototypes(agent):
     closest_points = dist_mat.argmin(-1)
     return grid[closest_points, :2].cpu()
 
-<<<<<<< HEAD
-def visualize_prototypes_visited(agent, replay_dir, cfg, env):
-    print('replay dir', replay_dir)
-=======
 def visualize_prototypes_visited(agent, replay_dir, cfg, env, model_step, replay_dir2):
->>>>>>> tmp
     replay_buffer = make_replay_buffer(env,
-                                    Path(cfg.replay_path),
+                                    Path(cfg.replay_dir),
                                     cfg.replay_buffer_size,
                                     cfg.batch_size,
                                     0,
@@ -87,11 +82,7 @@ def visualize_prototypes_visited(agent, replay_dir, cfg, env, model_step, replay
         protos = F.normalize(protos, dim=1, p=2)
         dist_mat = torch.cdist(protos, grid_embeddings)
         closest_points = dist_mat.argmin(-1)
-<<<<<<< HEAD
-        #import IPython as ipy; ipy.embed(colors="neutral")
-=======
         #import IPython as ipy; ipy.embed(colors='neutral')
->>>>>>> tmp
         return grid[closest_points, :2].cpu()
 
 
@@ -243,7 +234,7 @@ class Workspace:
         plt.savefig(f"./{model_step}_proto2d.png")
     
 
-    def eval_goal(self, path, model_step, replay_dir2):
+    def eval_goal_proto(self, path, model_step, replay_dir2):
         #if cfg.eval, then eval over goals
         #final evaluation over all final prototypes
         #load final agent model to get them
@@ -251,8 +242,8 @@ class Workspace:
             proto2d = visualize_prototypes(self.agent)
             num = proto2d.shape[0]
             print('proto2d', proto2d.shape)
-            #idx = np.random.randint(0, num,size=(50,))
-            #proto2d = proto2d[idx, :]
+            idx = np.random.randint(0, num,size=(50,))
+            proto2d = proto2d[idx, :]
             plt.clf()
             fig, ax = plt.subplots()
             ax.scatter(proto2d[:,0], proto2d[:,1])
@@ -310,7 +301,7 @@ class Workspace:
             
                 if self.cfg.eval:
                     print('saving')
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                    save(str(self.work_dir)+'/eval_goal_proto_{}.csv'.format(model_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
             
                 else:
             
@@ -458,7 +449,7 @@ def main(cfg):
             replay_dir2 = False
         print('model_step', model)
         workspace.eval(replay_dir, model, replay_dir2)
-        workspace.eval_goal(replay_dir, model, replay_dir2)
+        workspace.eval_goal_proto(replay_dir, model, replay_dir2)
         print(ix)
 
 if __name__ == '__main__':

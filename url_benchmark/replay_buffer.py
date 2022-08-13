@@ -185,7 +185,6 @@ class ReplayBuffer(IterableDataset):
     def __init__(
         self,
         storage,
-        storage2,
         max_size,
         num_workers,
         nstep,
@@ -195,7 +194,6 @@ class ReplayBuffer(IterableDataset):
         save_snapshot,
         ):
         self._storage = storage
-        self._storage2 = storage2
         self._size = 0
         self._max_size = max_size
         self._num_workers = max(1, num_workers)
@@ -244,12 +242,7 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        if self._storage2:
-            eps_fns = chain(sorted(self._storage._replay_dir.glob("*.npz"), reverse=True),
-                    sorted(self._storage2._replay_dir.glob("*.npz"), reverse=True))
-        else:
-            
-            eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+        eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
 
         fetched_size = 0
         for eps_fn in eps_fns:
@@ -593,12 +586,11 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage, storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal):
+    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
         storage,
-        storage2,
         max_size_per_worker,
         num_workers,
         nstep,
