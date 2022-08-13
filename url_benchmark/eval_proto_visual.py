@@ -448,7 +448,7 @@ def main(cfg):
         else:
             replay_dir2 = False
         print('model_step', model)
-        workspace.eval(replay_dir, model, replay_dir2)
+        #workspace.eval(replay_dir, model, replay_dir2)
         workspace.eval_goal_proto(replay_dir, model, replay_dir2)
         print(ix)
 

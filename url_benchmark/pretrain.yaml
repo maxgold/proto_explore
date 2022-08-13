@@ -39,8 +39,8 @@ concurrent: false
 # experiment
 experiment: exp
 
-path: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/sep_buffer_model/
-replay_dir: /home/ubuntu/buffer/proto_explore/url_benchmark/training_results/sep_buffer_model/buffer2/
+path: /home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.12/234602_proto/
+replay_dir: /home/ubuntu/buffer/proto_explore/url_benchmark/exp_local/2022.08.12/234602_proto/buffer2/buffer_copy/
 replay_dir2: false
 
 hydra:
