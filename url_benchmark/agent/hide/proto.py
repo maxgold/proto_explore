@@ -10,7 +10,6 @@ from torch import jit
 import utils
 from agent.ddpg import DDPGAgent
 
-
 @jit.script
 def sinkhorn_knopp(Q):
     Q -= Q.max()
@@ -43,14 +42,16 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, topk, update_encoder, goal, concurrent,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
-
+        self.previous_goal = None
+        self.goal = goal
+        self.concurrent = concurrent
         # models
         self.encoder_target = deepcopy(self.encoder)
 
@@ -102,6 +103,10 @@ class ProtoAgent(DDPGAgent):
             z = self.encoder(obs)
             z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
+            # this score is P x B and measures how close 
+            # each prototype is to the elements in the batch
+            # each prototype is assigned a sampled vector from the batch
+            # and this sampled vector is added to the queue
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
@@ -115,6 +120,7 @@ class ProtoAgent(DDPGAgent):
         z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
+        #import IPython as ipy; ipy.embed(colors='neutral')
         reward = dist
         return reward
 
@@ -150,98 +156,164 @@ class ProtoAgent(DDPGAgent):
 
         return metrics
 
+    def get_state_embeddings(self, states):
+        with torch.no_grad():
+            s = self.encoder(states)
+            s = self.predictor(s)
+            s = self.projector(s)
+            s = F.normalize(s, dim=1, p=2)
+        return s
+
+    def visualize_prototypes(self):
+        grid = np.meshgrid(np.arange(-.3,.3,.01),np.arange(-.3,.3,.01))
+        grid = np.concatenate((grid[0][:,:,None],grid[1][:,:,None]), -1)
+        grid = grid.reshape(-1, 2)
+        grid = np.c_[grid, np.zeros_like(grid)]
+        grid = torch.tensor(grid).cuda().float()
+        grid_embeddings = self.get_state_embeddings(grid)
+        protos = self.protos.weight.data.clone().detach()
+        protos = F.normalize(protos, dim=1, p=2)
+        dist_mat = torch.cdist(protos, grid_embeddings)
+        closest_points = dist_mat.argmin(-1)
+        return grid[closest_points, :2].cpu()
+    
+    def my_reward(self, action, next_obs, goal):
+        tmp = 1 - action**2
+        one = np.ones_like(tmp[:,0].cpu())
+        zero = np.zeros_like(tmp[:,0].cpu())
+        one = torch.as_tensor(one, device=self.device)
+        zero = torch.as_tensor(zero, device=self.device)
+        control_reward = torch.max(torch.min(tmp[:,0], one), zero)/2
+        one_ = np.ones_like(tmp[:,1].cpu())
+        zero_ = np.zeros_like(tmp[:,1].cpu())
+        one_ = torch.as_tensor(one_, device=self.device)
+        zero_ = torch.as_tensor(zero_, device=self.device)
+        control_reward += torch.max(torch.min(tmp[:,1], one_), zero_) / 2
+        pdist = torch.nn.PairwiseDistance(p=2)
+        dist_to_target = pdist(goal, next_obs[:,:2])
+        reward = torch.empty((dist_to_target.shape[0],1),device=self.device)
+        
+        upper = 0.015
+        margin = 0.1
+        scale = np.sqrt(-2 * np.log(0.1))
+        x = (dist_to_target - upper) / margin
+        r = np.exp(-0.5 * (x.cpu() * scale) ** 2)[:,None]
+        r = torch.as_tensor(r, device=self.device)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        reward = r
+        reward[dist_to_target < .015] = torch.ones_like(reward[dist_to_target < .015])
+        final = torch.mul(reward, control_reward[:, None]).float()
+        return final
+
     def update(self, replay_iter, step, actor1=False):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
             return metrics
-
+        
         batch = next(replay_iter)
+        
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             goal = goal.reshape(-1, 2).float()
         else:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
-                    batch, self.device)
+                                batch, self.device)
         
         obs = obs.reshape(-1, 4).float()
         next_obs = next_obs.reshape(-1, 4).float()
         action = action.reshape(-1, 2).float()
         extr_reward = extr_reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
+        #if step % self.update_goal_every_steps == 0:
+        #    #add if state: 
+        #    goal = self.visualize_prototypes()
+        #    goal = goal.clone().detach()
+        #    goal = goal.repeat(2,1).cuda()
+        #    self.previous_goal = goal.clone().detach()
+        #    #else: (pixel)
+        #    #...
+        #
+        #    #recalculate reward 
+        #    #if state:
+        #        #use myreward from replay buffer
+        #else:
+        #    goal = self.previous_goal
 
-        # augment and encode
+        #reward = self.my_reward(action, next_obs, goal)
+        #reward = reward.reshape(-1,1).float()
+        ##else: (pixel)
+        ##use similarity or MSE
+
+        ## augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-        
-        if actor1==False:
 
-
-            if self.reward_free:
+        if actor1:
+            if self.concurrent==False and self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
 
-                with torch.no_grad():
-                    intr_reward = self.compute_intr_reward(next_obs, step)
-
-                if self.use_tb or self.use_wandb:
-                    metrics['intr_reward'] = intr_reward.mean().item()
-                reward = intr_reward
-            else:
-                reward = extr_reward
-
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()
-                metrics['batch_reward'] = reward.mean().item()
-
+            
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-
-            # update critic
+            # update critic_goal
             metrics.update(
-                self.update_critic2(obs.detach(), action, reward, discount,
+                self.update_critic(obs.detach(), goal, action, extr_reward, discount,
                                next_obs.detach(), step))
-
-            # update actor
-            metrics.update(self.update_actor2(obs.detach(), step))
-
-            # update critic target
-            utils.soft_update_params(self.encoder, self.encoder_target,
+        
+            # update actor_goal
+            metrics.update(self.update_actor(obs.detach(), goal, step))
+        
+            # update critic_goal_target
+            if self.concurrent:
+                utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
+            else:
+                utils.soft_update_params(self.encoder, self.encoder_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.predictor, self.predictor_target,
+                utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.critic2, self.critic2_target,
-                                 self.critic2_target_tau)
+                utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
 
         else:
-
-            reward = extr_reward
-            if self.use_tb or self.use_wandb:
-                metrics['extr_reward'] = extr_reward.mean().item()
-                metrics['batch_reward'] = reward.mean().item()
-
+            if self.reward_free:
+                metrics.update(self.update_proto(obs, next_obs, step))
+                with torch.no_grad():
+                    intr_reward = self.compute_intr_reward(next_obs, step)
+                    if self.use_tb or self.use_wandb:
+                        metrics['intr_reward'] = intr_reward.mean().item()
+            
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+
+
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal, action, reward, discount,
+                self.update_critic2(obs.detach(), action, intr_reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal, step))
-
+            metrics.update(self.update_actor2(obs.detach(), step))
+            #delete. testing purpose 
+            #utils.soft_update_params(self.encoder, self.encoder_target,
+            #                     self.encoder_target_tau)
+            #utils.soft_update_params(self.predictor, self.predictor_target,
+            #                     self.encoder_target_tau)
+            #######################################################################
             # update critic target
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-
-
 
         return metrics

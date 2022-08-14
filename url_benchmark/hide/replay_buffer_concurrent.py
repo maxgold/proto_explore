@@ -5,7 +5,7 @@ import traceback
 import copy
 from collections import defaultdict
 import tqdm
-import re
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -176,7 +176,7 @@ class ReplayBufferStorage:
         self._num_transitions += eps_len
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
+        eps_fn = f"{ts}_{eps_idx}_{eps_len}_.npz"
         save_episode(episode, self._replay_dir / eps_fn)
         save_episode(episode, self._replay_dir2 / eps_fn)
 
@@ -185,6 +185,7 @@ class ReplayBuffer(IterableDataset):
     def __init__(
         self,
         storage,
+        storage2,
         max_size,
         num_workers,
         nstep,
@@ -194,6 +195,7 @@ class ReplayBuffer(IterableDataset):
         save_snapshot,
         ):
         self._storage = storage
+        self._storage2 = storage2
         self._size = 0
         self._max_size = max_size
         self._num_workers = max(1, num_workers)
@@ -242,11 +244,16 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+        if self._storage2:
+            eps_fns = chain(sorted(self._storage._replay_dir.glob("*.npz"), reverse=True),
+                    sorted(self._storage2._replay_dir.glob("*.npz"), reverse=True))
+        else:
+            
+            eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
 
         fetched_size = 0
         for eps_fn in eps_fns:
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:-1]]
             if eps_idx % self._num_workers != worker_id:
                 continue
             if eps_fn in self._episodes.keys():
@@ -317,7 +324,6 @@ class OfflineReplayBuffer(IterableDataset):
         random_goal=False,
         goal=False,
         vae=False,
-        model_step=False,
         replay_dir2=False):
 
         self._env = env
@@ -336,7 +342,6 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        self.model_step = int(int(model_step)/1000)
         self._replay_dir2 = replay_dir2
         
     
@@ -347,32 +352,17 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        
         if self._replay_dir2:
-            tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
+            eps_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
         else:
-            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
-        #print(tmp_fns)
+            eps_fns = sorted(self._replay_dir.glob("*.npz"))
         # for eps_fn in tqdm.tqdm(eps_fns):
-        tmp_fns_=[]
-        tmp_fns2 = []
-        
-        for x in tmp_fns:
-            tmp_fns_.append(str(x))
-            tmp_fns2.append(x)
-        if self.model_step:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-        else:
-            eps_fns = tmp_fns
-        
-        print('model step', self.model_step)
-
         obs_tmp = []
         for eps_fn in eps_fns:
             if self._size > self._max_size:
                 break
             
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:-1]]
             if eps_idx % self._num_workers != worker_id:
                 continue
             episode = load_episode(eps_fn)
@@ -563,7 +553,6 @@ def make_replay_buffer(
     goal=False,
     vae=False,
     relabel=False,
-    model_step=False,
     replay_dir2=False
     ):
     max_size_per_worker = max_size // max(1, num_workers)
@@ -577,7 +566,6 @@ def make_replay_buffer(
         offset,
         goal=goal,
         vae=vae,
-        model_step=model_step,
         replay_dir2=replay_dir2
     )
     iterable._load(relabel=relabel)
@@ -585,11 +573,12 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal):
+    storage, storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
         storage,
+        storage2,
         max_size_per_worker,
         num_workers,
         nstep,

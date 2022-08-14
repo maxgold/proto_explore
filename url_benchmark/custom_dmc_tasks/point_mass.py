@@ -37,13 +37,8 @@ _DEFAULT_TIME_LIMIT = 20
 SUITE = containers.TaggedTasks()
 
 
-TASKS = [
-        ("reach_hs", np.array([0.15, -0.15, 0.01])),
-    ("reach_top_left", np.array([-0.15, 0.15, 0.01])),
-    ("reach_top_right", np.array([0.15, 0.15, 0.01])),
-    ("reach_bottom_left", np.array([-0.15, -0.15, 0.01])),
-    ("reach_bottom_right", np.array([0.15, -0.15, 0.01])),
-]
+TASKS = [("reach_hs", np.array([0.15, -0.15, 0.01])),
+        ("reach_ud_hs", np.array([0.15, -0.15, 0.01])),]
 
 
 def make(task, task_kwargs=None, environment_kwargs=None, visualize_reward=False):
@@ -62,61 +57,10 @@ def get_model_and_assets(task):
     """Returns a tuple containing the model XML string and a dict of assets."""
     root_dir = os.path.dirname(os.path.dirname(__file__))
     xml = resources.GetResource(
-        os.path.join(root_dir, "custom_dmc_tasks", f"point_mass_maze_{task}.xml")
+        os.path.join(root_dir, "custom_dmc_tasks", f"point_mass_{task}.xml")
     )
     return xml, common.ASSETS
 
-
-@SUITE.add("benchmarking")
-def reach_top_left(
-    time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None
-):
-    """Returns the Run task."""
-    physics = Physics.from_xml_string(*get_model_and_assets("reach_top_left"))
-    task = MultiTaskPointMassMaze(target_id=4, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
-
-
-@SUITE.add("benchmarking")
-def reach_top_right(
-    time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None
-):
-    """Returns the Run task."""
-    physics = Physics.from_xml_string(*get_model_and_assets("reach_top_right"))
-    task = MultiTaskPointMassMaze(target_id=1, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
-
-
-@SUITE.add("benchmarking")
-def reach_bottom_left(
-    time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None
-):
-    """Returns the Run task."""
-    physics = Physics.from_xml_string(*get_model_and_assets("reach_bottom_left"))
-    task = MultiTaskPointMassMaze(target_id=2, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
-
-
-@SUITE.add("benchmarking")
-def reach_bottom_right(
-    time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None
-):
-    """Returns the Run task."""
-    physics = Physics.from_xml_string(*get_model_and_assets("reach_bottom_right"))
-    task = MultiTaskPointMassMaze(target_id=3, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
 
 @SUITE.add('benchmarking')
 def reach_hs(time_limit=_DEFAULT_TIME_LIMIT,
@@ -134,43 +78,14 @@ def reach_hs(time_limit=_DEFAULT_TIME_LIMIT,
                                **environment_kwargs)
 
 @SUITE.add('benchmarking')
-def env2(time_limit=_DEFAULT_TIME_LIMIT,
+def reach_ud_hs(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
     """Returns the Run task."""
     global task_name
-    task_name = 'env2'
-    physics = Physics.from_xml_string(*get_model_and_assets('env2'))
-    task = MultiTaskPointMassMaze(target_id=5, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(physics,
-                               task,
-                               time_limit=time_limit,
-                               **environment_kwargs)
-@SUITE.add('benchmarking')
-def env3(time_limit=_DEFAULT_TIME_LIMIT,
-              random=None,
-              environment_kwargs=None):
-    """Returns the Run task."""
-    global task_name
-    task_name = 'env3'
-    physics = Physics.from_xml_string(*get_model_and_assets('env3'))
-    task = MultiTaskPointMassMaze(target_id=6, random=random)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(physics,
-                               task,
-                               time_limit=time_limit,
-                               **environment_kwargs)
-
-@SUITE.add('benchmarking')
-def env16(time_limit=_DEFAULT_TIME_LIMIT,
-              random=None,
-              environment_kwargs=None):
-    """Returns the Run task."""
-    global task_name
-    task_name = 'env16'
-    physics = Physics.from_xml_string(*get_model_and_assets('env16'))
-    task = MultiTaskPointMassMaze(target_id=7, random=random)
+    task_name = 'reach_ud_hs'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_ud_hs'))
+    task = MultiTaskPointMassMaze(target_id=1, random=random)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -202,7 +117,7 @@ def reach_custom_goal(
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
-    xml = get_model_and_assets("reach_bottom_right")
+    xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
     new_targ_str = make_target_str(goal)

@@ -4,6 +4,7 @@ from custom_dmc_tasks import hopper
 from custom_dmc_tasks import quadruped
 from custom_dmc_tasks import jaco
 from custom_dmc_tasks import point_mass_maze
+from custom_dmc_tasks import point_mass
 
 
 def make(domain, task,
@@ -36,6 +37,11 @@ def make(domain, task,
                            task_kwargs=task_kwargs,
                            environment_kwargs=environment_kwargs,
                            visualize_reward=visualize_reward)
+    elif domain == 'point_mass':
+        return point_mass.make(task,
+                        task_kwargs=task_kwargs,
+                        environment_kwargs=environment_kwargs,
+                        visualize_reward=visualize_reward)
     else:
         raise f'{task} not found'
 

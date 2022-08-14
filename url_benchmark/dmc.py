@@ -354,6 +354,9 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
         _, _, _, task = name.split('_', 3)
+    elif name.startswith('point_mass'):
+        domain = 'point_mass'
+        _, _, task = name.split('_', 2)
     else:
         domain, task = name.split('_', 1)
     domain = dict(cup='ball_in_cup').get(domain, domain)
