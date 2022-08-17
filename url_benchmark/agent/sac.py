@@ -33,7 +33,7 @@ class Encoder(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
+    def __init__(self, repr_dim, feature_dim, hidden_dim):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
@@ -69,39 +69,6 @@ class Actor(nn.Module):
         dist = utils.TruncatedNormal(mu, std)
         return dist
 
-class Actor2(nn.Module):
-    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
-        super().__init__()
-
-        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-
-        self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
-                                   nn.LayerNorm(feature_dim), nn.Tanh())
-
-        policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
-        ]
-        # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-        policy_layers += [nn.Linear(hidden_dim, action_dim)]
-
-        self.policy = nn.Sequential(*policy_layers)
-
-        self.apply(utils.weight_init)
-
-    def forward(self, obs, std):
-        h = self.trunk(obs)
-        mu = self.policy(h)
-        mu = torch.tanh(mu)
-        std = torch.ones_like(mu) * std
-        dist = utils.TruncatedNormal(mu, std)
-        return dist
 
 
 class Critic(nn.Module):

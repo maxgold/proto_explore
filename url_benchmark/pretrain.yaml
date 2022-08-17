@@ -1,12 +1,12 @@
 defaults:
   - agent: ddpg
-  - override hydra/launcher: submitit_local
+  - override hydra/launcher: joblib
 
 # mode
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
-task: point_mass_maze_reach_custom_goal
+task: point_mass_maze_reach_hs
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 1 # set to 2 for pixels
@@ -35,12 +35,12 @@ save_train_video: false
 use_tb: false
 use_wandb: false
 goal: false
-concurrent: false
+update_every_steps: 2
 # experiment
 experiment: exp
 
-path: /home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.13/003941_proto/
-replay_dir: /home/ubuntu/buffer/proto_explore/url_benchmark/exp_local/2022.08.13/003941_proto/buffer2/buffer_copy/
+path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/urlb_pixel_hs
+replay_dir: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/urlb_pixel_hs/buffer2/buffer_copy
 replay_dir2: false
 
 hydra:
@@ -49,11 +49,11 @@ hydra:
   sweep:
     dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}
-  launcher:
-    timeout_min: 4300
-    cpus_per_task: 10
-    gpus_per_node: 1
-    tasks_per_node: 1
-    mem_gb: 160
-    nodes: 1
-    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+  #launcher:
+  #    #  timeout_min: 4300
+  #    #cpus_per_task: 10
+  #  gpus_per_node: 1
+  #  tasks_per_node: 1
+  #  mem_gb: 160
+  #  nodes: 1
+  #  submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm

@@ -67,9 +67,8 @@ def my_reward(action, next_obs, goal):
     return float(r * control_reward)
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir):
+    def __init__(self, data_specs,replay_dir):
         self._data_specs = data_specs
-        self._meta_specs = meta_specs
         self._replay_dir = replay_dir
         last = str(replay_dir).split('/')[-1]
         #self._replay_dir1 = replay_dir.parent / "buffer1"
@@ -83,9 +82,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta,pixels=False):
-        for key, value in meta.items():
-            self._current_episode[key].append(value)
+    def add(self, time_step,pixels=False):
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
                 value = time_step[spec.name]    
@@ -110,9 +107,9 @@ class ReplayBufferStorage:
                     value = self._current_episode[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
             
-            for spec in self._meta_specs:
-                value = self._current_episode[spec.name]
-                episode[spec.name] = np.array(value, spec.dtype)
+            #for spec in self._meta_specs:
+            #    value = self._current_episode[spec.name]
+            #    episode[spec.name] = np.array(value, spec.dtype)
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
             print('storing episode, no goal')
@@ -285,9 +282,9 @@ class ReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
+        #meta = []
+        #for spec in self._storage._meta_specs:
+        #    meta.append(episode[spec.name][idx - 1])
         
         obs = episode["observation"][idx - 1]
 
@@ -302,9 +299,9 @@ class ReplayBuffer(IterableDataset):
         
         if self.goal:
             goal = episode["goal"][idx]
-            return (obs, action, reward, discount, next_obs, goal, *meta)
+            return (obs, action, reward, discount, next_obs, goal)
         else:
-            return (obs, action, reward, discount, next_obs, *meta)
+            return (obs, action, reward, discount, next_obs)
 
     def _append(self):
         #add all, goal or no goal trajectories, used for sampling goals
@@ -357,14 +354,14 @@ class OfflineReplayBuffer(IterableDataset):
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        self.model_step = int(int(model_step)/500)
+        self.model_step = int(int(model_step)/1000)
         self._replay_dir2 = replay_dir2
         if obs_type == 'pixels':
             self.pixels = True      
         else:
             self.pixels = False
 
-    def _load(self, relabel=False):
+    def _load(self, relabel=True):
         #space: e.g. .2 apart for uniform observation from -1 to 1
         print("Labeling data...")
         try:
@@ -438,35 +435,27 @@ class OfflineReplayBuffer(IterableDataset):
     def _relabel_reward(self, episode):
         return relabel_episode(self._env, episode)
 
-    def _sample(self, eval_pixel=False):
-        if eval_pixel:
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            state = episode["state"][idx - 1]
-            action = episode["action"][idx]
-            return (obs, state, action)
-        else:
-            episode = self._sample_episode()
-            # add +1 for the first dummy transition
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            action = episode["action"][idx]
-            next_obs = episode["observation"][idx]
-            reward = episode["reward"][idx]
-            discount = episode["discount"][idx] * self._discount
-            reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
-            #        control_reward = rewards.tolerance(
-            #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-            #        ).mean()
-            #        small_control = (control_reward + 4) / 5
-            #        near_target = rewards.tolerance(
-            #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
-            #            bounds=(0, .015),
-            #            margin=.015,
-            #        )
-            #        reward = near_target * small_control
-            return (obs, action, reward, discount, next_obs)
+    def _sample(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
+        #        control_reward = rewards.tolerance(
+        #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
+        #        ).mean()
+        #        small_control = (control_reward + 4) / 5
+        #        near_target = rewards.tolerance(
+        #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
+        #            bounds=(0, .015),
+        #            margin=.015,
+        #        )
+        #        reward = near_target * small_control
+        return (obs, action, reward, discount, next_obs)
     
     def _sample_sequence(self, offset=10):
         
@@ -570,21 +559,15 @@ class OfflineReplayBuffer(IterableDataset):
             for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
                 episode = self._episodes[eps_fn]
                 ep_len = next(iter(episode.values())).shape[0] - 1
-                indx = np.random.randint(ep_len, size=(int(self.model_step/4)))
                 for idx in range(ep_len):
                     pix.append(episode["observation"][idx - 1][None])
-                    if self.pixels:
-                        states.append(episode["state"][idx - 1][None])
+                    states.append(episode["state"][idx - 1][None])
                     actions.append(episode["action"][idx][None])
-            if self.pixels:
-                return (np.concatenate(pix,0),
-                        np.concatenate(states, 0),
-                        np.concatenate(actions, 0),
-                        )
-            else:
-                return (np.concatenate(pix,0),
-                        np.concatenate(actions, 0),
-                        )
+            
+            return (np.concatenate(pix,0),
+                    np.concatenate(states, 0),
+                    np.concatenate(actions, 0),
+                    )
         else:
             return ('', '')
 

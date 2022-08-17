@@ -8,7 +8,7 @@ os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
 from pathlib import Path
-
+import random
 import hydra
 import numpy as np
 import torch
@@ -21,7 +21,8 @@ import dmc
 import torch.nn.functional as F
 import utils
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
+
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 
@@ -270,7 +271,11 @@ class Workspace:
             idx = np.random.randint(0, num)
             return proto2d[idx,:].cpu().numpy()
         
-
+    def sample_goal_uniform(self,obs):
+        goal_array = ndim_grid(2, 20)
+        goal = np.array(random.sample(np.ndarray.tolist(goal_array), 1)).T
+        goal = goal.reshape(2,)
+        return goal
 
     def eval(self):
         #step, episode, total_reward = 0, 0, 0
@@ -343,11 +348,14 @@ class Workspace:
             ax.scatter(proto2d[:,0], proto2d[:,1])
             plt.savefig(f"./{self._global_step}_proto2d.png")
         
-        for ix, x in enumerate(proto2d):
+        goal_array = ndim_grid(2, 40)
+        idx = np.random.randint(0, num,size=(50,))
+        goal_array = random.sample(np.ndarray.tolist(goal_array),50)
+        for ix, x in enumerate(goal_array):
             print('goal', x)   
             print(ix)
             step, episode, total_reward = 0, 0, 0
-            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=x.cpu().detach().numpy())
+            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=np.array(x))
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
             
@@ -382,16 +390,16 @@ class Workspace:
             
                 if self.cfg.eval:
                     print('saving')
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[np.array(x), total_reward, time_step.observation[:2], step]])
             
                 else:
             
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[np.array(x), total_reward, time_step.observation[:2], step]])
             
             if total_reward < 500*self.cfg.num_eval_episodes:
-                self.unreachable.append(x.cpu().numpy())
+                self.unreachable.append(np.array(x))
 
     def train(self):
         # predicates
@@ -485,7 +493,7 @@ class Workspace:
                     goal.append(np.random.uniform(0.15, 0.29))
                     goal = np.array(goal)
                 else:
-                    goal = self.sample_goal_proto(time_step2.observation)
+                    goal = self.sample_goal_uniform(time_step2.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 
@@ -577,7 +585,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from mypretrain_twin import Workspace as W
+    from mypretrain_twin_uniform_goal import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
