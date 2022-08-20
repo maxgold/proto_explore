@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, protos_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -51,6 +51,7 @@ class ProtoAgent(DDPGAgent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
+
 
         # models
         self.encoder_target = deepcopy(self.encoder)
@@ -67,7 +68,7 @@ class ProtoAgent(DDPGAgent):
                                 bias=False).to(self.device)
         self.protos.apply(utils.weight_init)
         #self.protos_target = deepcopy(self.protos)
-
+        
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
@@ -108,6 +109,8 @@ class ProtoAgent(DDPGAgent):
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
 
+        #if step>300000:
+        #    import IPython as ipy; ipy.embed(colors='neutral')
         # enqueue candidates
         ptr = self.queue_ptr
         self.queue[ptr:ptr + self.num_protos] = z[candidates]
@@ -132,6 +135,7 @@ class ProtoAgent(DDPGAgent):
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
+        #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
 
         # target network
@@ -139,7 +143,7 @@ class ProtoAgent(DDPGAgent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            scores_t = self.protos(t)
+            scores_t = self.protos_target(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
 
         # loss
@@ -184,6 +188,7 @@ class ProtoAgent(DDPGAgent):
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()
+                
                 reward = intr_reward
             else:
                 reward = extr_reward
@@ -207,10 +212,12 @@ class ProtoAgent(DDPGAgent):
             metrics.update(self.update_actor2(obs.detach(), step))
 
             # update critic target
-            utils.soft_update_params(self.encoder, self.encoder_target,
-                                 self.encoder_target_tau)
+            #if step <300000:
+
             utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
+            utils.soft_update_params(self.encoder, self.encoder_target,
+                                                    self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
 
@@ -247,7 +254,6 @@ class ProtoAgent(DDPGAgent):
         return metrics
 
     def get_q_value(self, obs,action):
-
         Q1, Q2 = self.critic2(torch.tensor(obs).cuda(), torch.tensor(action).cuda())
         Q = torch.min(Q1, Q2)
         return Q

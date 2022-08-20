@@ -87,16 +87,38 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         closest_points = dist_mat.argmin(-1)
         return grid[closest_points, :2].cpu()
 
+def intr_reward_grid(agent, work_dir, cfg, env):
+    replay_dir = work_dir / 'buffer2' / 'buffer_copy'
+    replay_buffer = make_replay_buffer(env,
+                                        replay_dir,
+                                        500000,
+                                        cfg.batch_size,
+                                        0,
+                                        cfg.discount,
+                                        goal=False,
+                                        relabel=False,
+                                        replay_dir2=False,
+                                        obs_type=False)
+    states, actions = replay_buffer.parse_dataset()
+    if states == '':
+        print('nothing in buffer yet')
+    else:
+        states = states.astype(np.float64)
+        grid = states.reshape(-1,4)
+        idx = np.random.randint(grid.shape[0], size=(5000,))
+        grid = grid[idx, :]
+        grid = torch.tensor(grid).cuda().float()
+        return grid
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, concurrent, work_dir):
+
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, update_every_steps, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
-    cfg.concurrent = concurrent
-    cfg.work_dir = work_dir
+    cfg.update_every_steps = update_every_steps
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -163,10 +185,9 @@ class Workspace:
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
+                                cfg.update_every_steps,
                                 cfg.agent,
-                                cfg.concurrent,
-                                self.work_dir)
-
+                                )
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -185,12 +206,12 @@ class Workspace:
                                                   cfg.replay_buffer_size,
                                                   cfg.batch_size,
                                                   cfg.replay_buffer_num_workers,
-                                                  False, cfg.nstep, cfg.discount, True)
+                                                  False, cfg.nstep, cfg.discount, True, obs_type=False)
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount, False)
+                                                False, cfg.nstep, cfg.discount, False, obs_type=False)
         self._replay_iter1 = None
         self._replay_iter2 = None
 
@@ -271,7 +292,20 @@ class Workspace:
             num = proto2d.shape[0]
             idx = np.random.randint(0, num)
             return proto2d[idx,:].cpu().numpy()
+    
+
+    def eval_intr_reward(self):
+        obs = intr_reward_grid(self.agent, self.work_dir, self.cfg, self.eval_env)
+        meta = self.agent.init_meta()
         
+        with torch.no_grad():
+            reward = self.agent.compute_intr_reward(obs, self._global_step)
+            action = self.agent.act2(obs, meta, self._global_step, eval_mode=True)
+            q = self.agent.get_q_value(obs, action)
+        for x in range(len(reward)):
+            print('saving')
+            print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
+            save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
 
 
     def eval(self):
@@ -302,8 +336,8 @@ class Workspace:
         #        step += 1
        # 
         #    episode += 1
-        #    self.video_recorder.save(f'{self.global_frame}.mp4')
-        if self._global_step % int(1e4) == 0:
+        #    sself.video_recorder.save(f'{self.global_frame}.mp4')
+        if self._global_step % int(1e5) == 0:
             proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
             plt.clf()
             fig, ax = plt.subplots()
@@ -410,9 +444,9 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         #time_step1 = self.train_env1.reset()
         time_step2 = self.train_env2.reset()
-        goal = np.random.sample((2,)) * .5 - .25
+        #goal = np.random.sample((2,)) * .5 - .25
         #self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-        self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
+        self.train_env2 = dmc.make(self.cfg.task, seed=None)
         meta = self.agent.init_meta()
         #self.replay_storage1.add_goal(time_step1, meta, goal)
         self.replay_storage2.add(time_step2, meta)      
@@ -470,29 +504,27 @@ class Workspace:
                         
                 else:
                     if self.global_step%100000==0 and self.global_step!=0:
-                        proto=self.agent
                         model = ''
                         self.eval()
-                        #self.eval_goal(proto, model)
+                        self.eval_intr_reward()
                     else:
-                        #self.logger.log('eval_total_time', self.timer.total_time(),
-                        #            self.global_frame)
+                        print('not evaluating')
                         self.eval()
 #             meta = self.agent.update_meta(meta, self._global_step, time_step1)
             meta = self.agent.update_meta(meta, self._global_step, time_step2)
-            if episode_step % resample_goal_every == 0:
+            #if episode_step % resample_goal_every == 0:
                 
-                if seed_until_step(self._global_step):
-                    goal = []
-                    goal.append(np.random.uniform(-0.29, -0.15))
-                    goal.append(np.random.uniform(0.15, 0.29))
-                    goal = np.array(goal)
-                else:
-                    goal = self.sample_goal_proto(time_step2.observation)
+                #if seed_until_step(self._global_step):
+                    #goal = []
+                    #goal.append(np.random.uniform(-0.29, -0.15))
+                    #goal.append(np.random.uniform(0.15, 0.29))
+                    #goal = np.array(goal)
+                #else:
+                    #goal = self.sample_goal_proto(time_step2.observation)
                 #self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-                self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
+               # self.train_env2 = dmc.make(self.cfg.task, seed=None)
                 
-                print('sampled goal', goal)
+                #print('sampled goal', goal)
                 #print('resample goal make env', self.train_env)
             
             #if episode_step % update_buffer_every == 0:
@@ -540,7 +572,7 @@ class Workspace:
                                             eval_mode=False)
 
                 else:
-                    action = self.agent.act(time_step.observation,
+                    action2 = self.agent.act2(time_step2.observation,
                                             meta,
                                             self._global_step,
                                             eval_mode=False)

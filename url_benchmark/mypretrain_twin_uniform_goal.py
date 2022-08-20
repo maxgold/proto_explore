@@ -8,7 +8,7 @@ os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
 from pathlib import Path
-
+import random
 import hydra
 import numpy as np
 import torch
@@ -60,7 +60,6 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 def visualize_prototypes_visited(agent, work_dir, cfg, env):
-    #import IPython as ipy; ipy.embed(colors='neutral')
     replay_dir = work_dir / 'buffer2' / 'buffer_copy'
     replay_buffer = make_replay_buffer(env,
                                     replay_dir,
@@ -72,7 +71,6 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
                                     relabel=False,
                                     replay_dir2 = False
                                     )
-    #import IPython as ipy; ipy.embed(colors='neutral')
     states, actions = replay_buffer.parse_dataset()
     if states == '':
         print('nothing in buffer yet')
@@ -301,7 +299,6 @@ class Workspace:
         goal = np.array([goal_array[idx][0][0], goal_array[idx][0][1]])
         return goal
 
-
     def eval(self):
         #step, episode, total_reward = 0, 0, 0
         #goal = np.random.sample((2,)) * .5 - .25
@@ -385,11 +382,14 @@ class Workspace:
             ax.scatter(proto2d[:,0], proto2d[:,1])
             plt.savefig(f"./{self._global_step}_proto2d.png")
         
-        for ix, x in enumerate(proto2d):
+        goal_array = ndim_grid(2, 40)
+        idx = np.random.randint(0, num,size=(50,))
+        goal_array = random.sample(np.ndarray.tolist(goal_array),50)
+        for ix, x in enumerate(goal_array):
             print('goal', x)   
             print(ix)
             step, episode, total_reward = 0, 0, 0
-            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=x.cpu().detach().numpy())
+            self.eval_env = dmc.make(self.cfg.task, seed=None, goal=np.array(x))
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
             
@@ -424,16 +424,16 @@ class Workspace:
             
                 if self.cfg.eval:
                     print('saving')
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[np.array(x), total_reward, time_step.observation[:2], step]])
             
                 else:
             
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[np.array(x), total_reward, time_step.observation[:2], step]])
             
             if total_reward < 500*self.cfg.num_eval_episodes:
-                self.unreachable.append(x.cpu().numpy())
+                self.unreachable.append(np.array(x))
 
     def train(self):
         # predicates
