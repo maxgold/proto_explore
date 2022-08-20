@@ -40,4 +40,4 @@ PRIMAL_TASKS = {
     'jaco': 'jaco_reach_top_left',
     'quadruped': 'quadruped_walk',
     'point_mass': 'point_mass_reach_ud_hs',
-    'point_mass_maze': 'point_mass_maze_reach_top_left'}
+    'point_mass_maze': 'point_mass_maze_reach_hs'}

@@ -47,6 +47,7 @@ class ProtoAgent(DDPGAgent):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
+        #self.protos_target_tau = protos_target_tau
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
@@ -65,6 +66,7 @@ class ProtoAgent(DDPGAgent):
         self.protos = nn.Linear(pred_dim, num_protos,
                                 bias=False).to(self.device)
         self.protos.apply(utils.weight_init)
+        #self.protos_target = deepcopy(self.protos)
 
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
@@ -160,28 +162,23 @@ class ProtoAgent(DDPGAgent):
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
-            goal = goal.reshape(-1, 2).float()
         else:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
         
-        obs = obs.reshape(-1, 4).float()
-        next_obs = next_obs.reshape(-1, 4).float()
-        action = action.reshape(-1, 2).float()
-        extr_reward = extr_reward.reshape(-1, 1).float()
-        discount = discount.reshape(-1, 1).float()
 
         # augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-        
+            if actor1:
+                goal = self.aug(goal)
+           
         if actor1==False:
-
 
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
-
+                #utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -201,7 +198,6 @@ class ProtoAgent(DDPGAgent):
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -227,16 +223,20 @@ class ProtoAgent(DDPGAgent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            goal = self.encoder(goal)
 
             if not self.update_encoder:
+            
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                goal=goal.detach()
+        
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal, action, reward, discount,
+                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal, step))
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
             # update critic target
             utils.soft_update_params(self.critic2, self.critic2_target,
@@ -245,3 +245,9 @@ class ProtoAgent(DDPGAgent):
 
 
         return metrics
+
+    def get_q_value(self, obs,action):
+
+        Q1, Q2 = self.critic2(torch.tensor(obs).cuda(), torch.tensor(action).cuda())
+        Q = torch.min(Q1, Q2)
+        return Q

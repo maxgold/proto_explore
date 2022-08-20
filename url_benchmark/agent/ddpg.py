@@ -25,7 +25,6 @@ class Encoder(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs):
-        print('using encoder')
         obs = obs / 255.0 - 0.5
         h = self.convnet(obs)
         h = h.view(h.shape[0], -1)
@@ -37,8 +36,7 @@ class Actor(nn.Module):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-
-        self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim), 
+        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
@@ -59,8 +57,6 @@ class Actor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, std):
-        #print(obs.shape)
-        #print('goal',goal.shape)
         obs_goal = torch.cat([obs, goal], dim=-1)
         h = self.trunk(obs_goal)
         mu = self.policy(h)
@@ -251,17 +247,19 @@ class DDPGAgent:
             self.aug = utils.RandomShiftsAug(pad=4)
             self.encoder = Encoder(obs_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
+            self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
-
-        self.actor = Actor(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
+            self.goal_dim = goal_shape[0]
+        
+        self.actor = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                            feature_dim, hidden_dim).to(device)
 
-        self.critic = Critic(obs_type, self.obs_dim, goal_shape[0],self.action_dim,
+        self.critic = Critic(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic_target = Critic(obs_type, self.obs_dim, goal_shape[0], self.action_dim,
+        self.critic_target = Critic(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         

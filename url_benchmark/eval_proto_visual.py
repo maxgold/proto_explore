@@ -312,6 +312,10 @@ class Workspace:
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
                 
+
+
+
+
     def eval_goal(self, path, model_step, replay_dir2):
         goal_array = ndim_grid(2, 40)
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -344,7 +348,17 @@ class Workspace:
                     print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step))
                     save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_index, global_step), [[x, total_reward, time_step.observation[:2], step]])
         
-    
+    def eval_intr_reward(self, path, model_step, replay_dir2):
+        goal_array = ndim_grid(4, 20)
+        for i in range(1000):
+            eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+            idx = np.random.randint(0, len(goal_array),size=(1024,))
+            obs = goal_array[idx]
+            reward = self.agent.compute_intr_reward(obs, model_step)
+        
+            if self.cfg.eval:
+                print('saving')
+                save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(model_step), [[x, reward, x, model_step]])
 
 
     def train(self):
@@ -476,7 +490,7 @@ def main(cfg):
     print(agents)
     
     for ix, x in enumerate(agents):
-        if int(re.findall('\d+',x)[-1])==1400000:
+        if int(re.findall('\d+',x)[-1])==1900000:
             workspace = W(cfg, x)
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
@@ -488,6 +502,7 @@ def main(cfg):
             print('model_step', model)
             #workspace.eval(replay_dir, model, replay_dir2)
             workspace.eval_goal(replay_dir, model, replay_dir2)
+            #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
             print(ix)
 
 if __name__ == '__main__':

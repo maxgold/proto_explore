@@ -2,6 +2,9 @@ import warnings
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+
+import gc
+
 import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
@@ -578,6 +581,8 @@ class Workspace:
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
     from mypretrain_twin import Workspace as W
+    gc.collect()
+    torch.cuda.empty_cache()
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
