@@ -6,11 +6,11 @@ defaults:
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
-task: point_mass_maze_reach_top_left
+task: point_mass_maze_reach_custom_goal
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 2 # set to 2 for pixels
-discount: 1
+discount: .99
 # train settings
 num_train_frames: 2000010
 num_seed_frames: 4000

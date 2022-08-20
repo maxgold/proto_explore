@@ -484,7 +484,8 @@ class OfflineReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         idx = np.random.randint(int(time_step/10000)*10, (int(time_step/10000)+1)*10)
         obs = episode["observation"][idx]
-        return obs
+        state = episode["state"][idx][:2]
+        return obs, state
 
     
     def _sample_sequence(self, offset=10):

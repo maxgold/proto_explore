@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, protos_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -143,7 +143,7 @@ class ProtoAgent(DDPGAgent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            scores_t = self.protos_target(t)
+            scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
 
         # loss
