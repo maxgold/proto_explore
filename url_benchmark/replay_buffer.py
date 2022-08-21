@@ -404,7 +404,9 @@ class OfflineReplayBuffer(IterableDataset):
         print('model step', self.model_step)
 
         obs_tmp = []
+        np.random.shuffle(eps_fns)
         for eps_fn in eps_fns:
+            print(eps_fn)
             if self._size > self._max_size:
                 break
             
@@ -482,7 +484,10 @@ class OfflineReplayBuffer(IterableDataset):
     
     def _sample_pixel_goal(self, time_step):
         episode = self._sample_episode()
-        idx = np.random.randint(int(time_step/10000)*10, (int(time_step/10000)+1)*10)
+        if time_step < 1000000:
+            idx = np.random.randint(int(time_step/10000)*5, (int(time_step/10000)+1)*5)
+        else:
+            idx = np.random.randint(250,500)
         obs = episode["observation"][idx]
         state = episode["state"][idx][:2]
         return obs, state
