@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class Proto2Agent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
@@ -156,7 +156,7 @@ class ProtoAgent(DDPGAgent):
 
         return metrics
 
-    def update(self, replay_iter, step, actor1=False):
+    def update(self, replay_iter, step, actor1=False, gc_only=True):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -222,7 +222,8 @@ class ProtoAgent(DDPGAgent):
                                  self.critic2_target_tau)
 
         else:
-
+            if gc_only:
+                metrics.update(self.update_proto(obs, next_obs, step))
             reward = extr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()

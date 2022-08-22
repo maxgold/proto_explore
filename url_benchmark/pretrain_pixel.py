@@ -44,31 +44,6 @@ def get_state_embeddings(agent, states):
         s = F.normalize(s, dim=1, p=2)
     return s
 
-def encoding_grid(agent, work_dir, cfg, env, model_step):
-    replay_dir = work_dir / 'buffer2' / 'buffer_copy'
-    replay_buffer = make_replay_buffer(env,
-                                        replay_dir,
-                                        100000,
-                                        cfg.batch_size,
-                                        0,
-                                        cfg.discount,
-                                        goal=False,
-                                        relabel=False,
-                                        model_step = model_step,
-                                        replay_dir2=False,
-                                        obs_type = cfg.obs_type
-                                        )
-    pix, states, actions = replay_buffer._sample(eval_pixel=True)
-    if states == '':
-        print('nothing in buffer yet')
-    else:
-        pix = pix.astype(np.float64)
-        states = states.astype(np.float64)
-        states = states.reshape(-1,4)
-        grid = pix.reshape(-1,9, 84, 84)
-        grid = torch.tensor(grid).cuda().float()
-        return grid, states
-
 
 class Workspace:
     def __init__(self, cfg):
@@ -144,18 +119,27 @@ class Workspace:
         self.replay_buffer_goal = make_replay_buffer(self.eval_env,
                                                     self.work_dir / 'buffer2' / 'buffer_copy',
                                                     50000,
-                                                    1,
+                                                    self.cfg.batch_size,
                                                     0,
                                                     self.cfg.discount,
                                                     goal=False,
                                                     relabel=False,
                                                     replay_dir2 = False,
                                                     )
+        
+        self.replay_buffer_intr = make_replay_buffer(self.eval_env,
+                                                        self.work_dir / 'buffer2' / 'buffer_copy',
+                                                        100000,
+                                                        self.cfg.batch_size,
+                                                        0,
+                                                        self.cfg.discount,
+                                                        goal=False,
+                                                        relabel=False,
+                                                        replay_dir2 = False,
+                                                        )
         self._replay_iter1 = None
         self._replay_iter2 = None
 
-        
-        # create video recorders
         self.video_recorder = VideoRecorder(
             self.work_dir if cfg.save_video else None,
             camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
@@ -169,7 +153,8 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
         self.unreachable = []
-        
+        self.loaded = False
+
     @property
     def global_step(self):
         return self._global_step
@@ -206,15 +191,48 @@ class Workspace:
     #        num = proto2d.shape[0]
     #        idx = np.random.randint(0, num)
     #        return proto2d[idx,:].cpu().numpy()
+    
+    def encoding_grid(self):
+        if self.loaded == False:
+            replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
+            self.replay_buffer_intr = make_replay_buffer(self.eval_env,
+                                        replay_dir,
+                                        100000,
+                                        self.cfg.batch_size,
+                                        0,
+                                        self.cfg.discount,
+                                        goal=False,
+                                        relabel=False,
+                                        model_step = self.global_step,
+                                        replay_dir2=False,
+                                        obs_type = self.cfg.obs_type
+                                        )
+            self.loaded = True
+            pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
+            pix = pix.astype(np.float64)
+            states = states.astype(np.float64)
+            states = states.reshape(-1,4)
+            grid = pix.reshape(9, 84, 84)
+            grid = torch.tensor(grid).cuda().float()
+            return grid, states
+        else:
+            pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
+            pix = pix.astype(np.float64)
+            states = states.astype(np.float64)
+            states = states.reshape(-1,4)
+            grid = pix.reshape(9, 84, 84)
+            grid = torch.tensor(grid).cuda().float()
+            return grid, states
 
 
-    def sample_goal_pixel(self):
+
+    def sample_goal_pixel(self, eval=False):
         replay_dir = self.work_dir / "buffer2" / "buffer_copy"
-        if (self.global_step<50000 and self.global_step%10000==0) or self.global_step %100000==0:
+        if (self.global_step<50000 and self.global_step%10000==0 and eval==False) or (self.global_step %100000==0 and eval==False):
             self.replay_buffer_goal = make_replay_buffer(self.eval_env,
                                                         replay_dir,
                                                         50000,
-                                                         1,
+                                                        self.cfg.batch_size,
                                                         0,
                                                         self.cfg.discount,
                                                         goal=False,
@@ -233,7 +251,7 @@ class Workspace:
 
         for i in range(10):
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_pixel()
+            goal_pix, goal_state = self.sample_goal_pixel(eval=True)
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state, 
                                                   actor1=True)
@@ -277,25 +295,30 @@ class Workspace:
     
 
     def eval_intrinsic(self, model):
-        grid_embeddings = torch.empty(1024, 128)
+        obs = torch.empty(1024, 9, 84, 84)
         states = torch.empty(1024, 4)
+        grid_embeddings = torch.empty(1024, 128)
+        actions = torch.empty(1024,2)
+        meta = self.agent.init_meta()
         for i in range(1024):
-            grid, state = encoding_grid(self.agent, self.work_dir, self.cfg, self.eval_env, model)
-            grid_embeddings[i] = grid
-            states[i] = torch.tensor(state).cuda().float()
-        
+            with torch.no_grad():
+                grid, state = self.encoding_grid()
+                action = self.agent.act2(grid, meta, self._global_step, eval_mode=True)
+                actions[i] = action
+                obs[i] = grid
+                states[i] = torch.tensor(state).cuda().float()
+        import IPython as ipy; ipy.embed(colors='neutral')    
+        obs = obs.cuda().float()
+        actions = actions.cuda().float()
+        grid_embeddings = get_state_embeddings(self.agent, obs)
         protos = self.agent.protos.weight.data.detach().clone()
         protos = F.normalize(protos, dim=1, p=2)
-        dist_mat = torch.cdist(protos, grid_embeddings.cuda().float())
+        dist_mat = torch.cdist(protos, grid_embeddings)
         closest_points = dist_mat.argmin(-1)
         proto2d = states[closest_points.cpu(), :2]
-
-        meta = self.agent.init_meta() 
-        
         with torch.no_grad():
-            reward = self.agent.compute_intr_reward(grid_embeddings, self._global_step)
-            action = self.agent.act2(obs, meta, self._global_step, eval_mode=True)
-            q = self.agent.get_q_value(obs, action)
+            reward = self.agent.compute_intr_reward(obs, self._global_step)
+            q_value = self.agent.get_q_value(obs, actions)
         for x in range(len(reward)):
             print('saving')
             print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
@@ -368,11 +391,11 @@ class Workspace:
 
             # try to evaluate
             if eval_every_step(self.global_step) and self.global_step!=0:
-                if self.global_step%10000==0:
+                if self.global_step%3000==0:
                     proto=self.agent
                     model = False
                     self.eval()
-                    self.eval_intrinsic(model)
+                    #self.eval_intrinsic(model)
                 #else:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
                     #            self.global_frame)
