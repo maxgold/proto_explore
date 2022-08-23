@@ -370,7 +370,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, True)
+            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, self.first_goal_state,True)
             print('replay1')
        #     self.replay_storage2.add(time_step2, meta, True)  
        #     print('replay2')
@@ -406,7 +406,8 @@ class Workspace:
                 meta = self.agent.init_meta()
                 
                 if self.cfg.obs_type =='pixels':
-                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, True)
+                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
+
           #          self.replay_storage2.add(time_step2, meta,True)
                 else:
                     self.replay_storage.add(time_step, meta)
@@ -473,7 +474,7 @@ class Workspace:
             episode_reward += time_step1.reward
             
             if self.cfg.obs_type == 'pixels':
-                self.replay_storage1.add_goal(time_step1, meta, goal_pix, True)
+                self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
      #           self.replay_storage2.add(time_step2, meta, True)
             else:
                 self.replay_storage1.add_goal(time_step1, meta, goal)

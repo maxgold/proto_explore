@@ -1,7 +1,7 @@
 import warnings
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
+import itertools
 import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
@@ -105,7 +105,7 @@ class Workspace:
 
         # create replay buffer
         self.replay_loader1 = make_replay_loader(self.replay_storage1,
-                                                cfg.replay_buffer_size,
+                                                100000,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
@@ -127,16 +127,16 @@ class Workspace:
                                                     replay_dir2 = False,
                                                     )
         
-        self.replay_buffer_intr = make_replay_buffer(self.eval_env,
-                                                        self.work_dir / 'buffer2' / 'buffer_copy',
-                                                        100000,
-                                                        self.cfg.batch_size,
-                                                        0,
-                                                        self.cfg.discount,
-                                                        goal=False,
-                                                        relabel=False,
-                                                        replay_dir2 = False,
-                                                        )
+       # self.replay_buffer_intr = make_replay_buffer(self.eval_env,
+       #                                                 self.work_dir / 'buffer2' / 'buffer_copy',
+       #                                                 100000,
+       #                                                 self.cfg.batch_size,
+       #                                                 0,
+       #                                                 self.cfg.discount,
+       #                                                 goal=False,
+       #                                                 relabel=False,
+       #                                                 replay_dir2 = False,
+       #                                                 )
         self._replay_iter1 = None
         self._replay_iter2 = None
 
@@ -152,7 +152,8 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-        self.unreachable = []
+        self.unreachable_goal = np.empty((0,9,84,84))
+        self.unreachable_state = np.empty((0,2))
         self.loaded = False
 
     @property
@@ -228,7 +229,19 @@ class Workspace:
 
     def sample_goal_pixel(self, eval=False):
         replay_dir = self.work_dir / "buffer2" / "buffer_copy"
-        if (self.global_step<50000 and self.global_step%10000==0 and eval==False) or (self.global_step %100000==0 and eval==False):
+        if len(self.unreachable_goal) > 0 and eval==False:
+            a = [tuple(row) for row in self.unreachable_state]
+            idx = np.unique(a, axis=0, return_index=True)[1]
+            self.unreachable_state = self.unreachable_state[idx]
+            self.unreachable_goal = self.unreachable_goal[idx]
+            print('list of unreachables', self.unreachable_state)
+            obs = self.unreachable_goal[0]
+            state = self.unreachable_state[0]
+            self.unreachable_state = np.delete(self.unreachable_state, 0, 0)
+            self.unreachable_goal = np.delete(self.unreachable_goal, 0, 0)
+            return obs, state
+
+        elif (self.global_step<100000 and self.global_step%20000==0 and eval==False) or (self.global_step %100000==0 and eval==False):
             self.replay_buffer_goal = make_replay_buffer(self.eval_env,
                                                         replay_dir,
                                                         50000,
@@ -290,9 +303,9 @@ class Workspace:
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
         
-            #if total_reward < 500*self.cfg.num_eval_episodes:
-            #    self.unreachable.append([goal_pix, goal_state])
-    
+            if total_reward < 500*self.cfg.num_eval_episodes:
+                self.unreachable_goal = np.append(self.unreachable_goal, np.array(goal_pix[None,:,:,:]), axis=0)
+                self.unreachable_state = np.append(self.unreachable_state, np.array(goal_state[None,:]), axis=0)
 
     def eval_intrinsic(self, model):
         obs = torch.empty(1024, 9, 84, 84)
@@ -342,7 +355,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, True)
+            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, self.first_goal_state, True)
             print('replay1')
             self.replay_storage2.add(time_step2, meta, True)  
             print('replay2')
@@ -378,7 +391,7 @@ class Workspace:
                 meta = self.agent.init_meta()
                 
                 if self.cfg.obs_type =='pixels':
-                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, True)
+                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
                     self.replay_storage2.add(time_step2, meta,True)
                 else:
                     self.replay_storage.add(time_step, meta)
@@ -391,10 +404,8 @@ class Workspace:
 
             # try to evaluate
             if eval_every_step(self.global_step) and self.global_step!=0:
-                if self.global_step%3000==0:
-                    proto=self.agent
-                    model = False
-                    self.eval()
+                print('trying to evaluate')
+                self.eval()
                     #self.eval_intrinsic(model)
                 #else:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
@@ -446,7 +457,7 @@ class Workspace:
             episode_reward += time_step1.reward
             
             if self.cfg.obs_type == 'pixels':
-                self.replay_storage1.add_goal(time_step1, meta, goal_pix, True)
+                self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state,True)
                 self.replay_storage2.add(time_step2, meta, True)
             else:
                 self.replay_storage1.add_goal(time_step1, meta, goal)

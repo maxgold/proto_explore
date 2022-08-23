@@ -117,7 +117,7 @@ class ReplayBufferStorage:
             self._store_episode(episode)
             print('storing episode, no goal')
 
-    def add_goal(self, time_step, meta, goal,pixels=False):
+    def add_goal(self, time_step, meta, goal,goal_state,pixels=False):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -133,6 +133,7 @@ class ReplayBufferStorage:
                 self._current_episode[spec.name].append(value)
 
         self._current_episode['goal'].append(goal)
+        self._current_episode['goal_state'].append(goal_state)
 
         if time_step.last():
             episode = dict()
@@ -151,6 +152,8 @@ class ReplayBufferStorage:
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode['goal']
             episode['goal'] = np.array(value, np.float64)
+            value = self._current_episode['goal_state']
+            episode['goal_state'] = np.array(value, np.float64)
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
             print('storing episode, w/ goal')
@@ -231,7 +234,8 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
         self.goal = goal
-        
+        self.count = 0 
+
         if obs_type == 'pixels':
             self.pixels = True
         else:
@@ -272,6 +276,11 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+        
+        #if self._storage2:
+        #    eps_fns = chain(sorted(self._storage._replay_dir.glob("*.npz"), reverse=True),
+        #            sorted(self._storage2._replay_dir.glob("*.npz"), reverse=True))
+        #else:
         eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
 
         fetched_size = 0
@@ -317,6 +326,76 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)
+
+    def _sample_goal_hybrid(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+
+        obs = episode["observation"][idx - 1]
+
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        
+        if 'goal' in episode.keys():
+            goal = episode["goal"][idx]
+            for i in range(self._nstep):
+                step_reward = episode["reward"][idx + i]
+                reward += discount * step_reward
+                discount *= episode["discount"][idx + i] * self._discount
+        else:
+            idx = np.random.randint(int(self.count/1000000)*5, min((int(self.count/1000000)+1)*5, 500))    
+            goal = episode["observation"][idx + self._nstep]
+            goal_state = episode["state"][idx + self._nstep]
+            self.count+=1
+            for i in range(self._nstep):
+                step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])
+                reward += discount * step_reward
+                discount *= episode["discount"][idx+i] * self._discount
+        return (obs, action, reward, discount, next_obs, goal, *meta)
+
+
+
+
+    def _sample_goal_offline(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+
+        obs = episode["observation"][idx - 1]
+
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+
+        goal = episode["observation"][idx + self._nstep]
+        goal_state = episode["state"][idx + self._nstep]
+        for i in range(self._nstep):
+            step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
+            reward += discount * step_reward
+            discount *= episode["discount"][idx+i] * self._discount
+
+        return (obs, action, reward, discount, next_obs, goal, *meta)
+
 
     def _append(self):
         #add all, goal or no goal trajectories, used for sampling goals
@@ -484,10 +563,7 @@ class OfflineReplayBuffer(IterableDataset):
     
     def _sample_pixel_goal(self, time_step):
         episode = self._sample_episode()
-        if time_step < 1000000:
-            idx = np.random.randint(int(time_step/10000)*5, (int(time_step/10000)+1)*5)
-        else:
-            idx = np.random.randint(250,500)
+        idx = np.random.randint(int(time_step/100000)*25, min((int(time_step/100000)+1)*25, 500))
         obs = episode["observation"][idx]
         state = episode["state"][idx][:2]
         return obs, state
@@ -654,7 +730,7 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, obs_type):
+    storage,  max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, obs_type):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
