@@ -162,6 +162,7 @@ class ProtoAgent(DDPGAgent):
             return metrics
 
         batch = next(replay_iter)
+        print('next batch')
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
@@ -263,7 +264,7 @@ class ProtoAgent(DDPGAgent):
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
 
-
+        print('updated')
         return metrics
 
     def get_q_value(self, obs,action):

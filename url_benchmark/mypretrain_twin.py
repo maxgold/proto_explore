@@ -151,6 +151,7 @@ class Workspace:
         except:
             task = self.cfg.domain
         print('task', task)
+        
         self.train_env1 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, cfg.seed)
         self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
