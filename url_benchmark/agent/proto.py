@@ -43,11 +43,11 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, protos_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
-        self.protos_target_tau = protos_target_tau
+        #self.protos_target_tau = protos_target_tau
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
@@ -67,7 +67,7 @@ class ProtoAgent(DDPGAgent):
         self.protos = nn.Linear(pred_dim, num_protos,
                                 bias=False).to(self.device)
         self.protos.apply(utils.weight_init)
-        self.protos_target = deepcopy(self.protos)
+        #self.protos_target = deepcopy(self.protos)
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
@@ -101,8 +101,8 @@ class ProtoAgent(DDPGAgent):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder(obs)
-            z = self.predictor(z)
+            z = self.encoder_target(obs)
+            z = self.predictor_target(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
@@ -142,7 +142,7 @@ class ProtoAgent(DDPGAgent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            scores_t = self.protos_target(t)
+            scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
 
         # loss
@@ -186,7 +186,7 @@ class ProtoAgent(DDPGAgent):
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
                 
-                utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
+                #utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -247,8 +247,8 @@ class ProtoAgent(DDPGAgent):
             metrics.update(self.update_actor(obs.detach(), goal, step))
 
             # update critic target
-            utils.soft_update_params(self.critic2, self.critic2_target,
-                                 self.critic2_target_tau)
+            utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
 
 
 

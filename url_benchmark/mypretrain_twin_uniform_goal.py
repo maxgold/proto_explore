@@ -22,7 +22,6 @@ import torch.nn.functional as F
 import utils
 from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
-
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 
@@ -61,7 +60,6 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 def visualize_prototypes_visited(agent, work_dir, cfg, env):
-    #import IPython as ipy; ipy.embed(colors='neutral')
     replay_dir = work_dir / 'buffer2' / 'buffer_copy'
     replay_buffer = make_replay_buffer(env,
                                     replay_dir,
@@ -73,7 +71,6 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
                                     relabel=False,
                                     replay_dir2 = False
                                     )
-    #import IPython as ipy; ipy.embed(colors='neutral')
     states, actions = replay_buffer.parse_dataset()
     if states == '':
         print('nothing in buffer yet')
@@ -89,14 +86,14 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, concurrent):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, update_every_steps):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
-    cfg.concurrent = concurrent
+    cfg.update_every_steps = update_every_steps
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -112,12 +109,35 @@ def make_generator(env, cfg):
         cfg.discount,
         goal=True,
         relabel=False,
+        obs_type=False
     )
     states, actions, futures = replay_buffer.parse_dataset()
     states = states.astype(np.float64)
     knn = KNN(states[:, :2], futures)
     return knn
 
+def intr_reward_grid(agent, work_dir, cfg, env):
+    replay_dir = work_dir / 'buffer2' / 'buffer_copy'
+    replay_buffer = make_replay_buffer(env,
+                                        replay_dir, 
+                                        500000,
+                                        cfg.batch_size,
+                                        0,
+                                        cfg.discount,
+                                        goal=False,
+                                        relabel=False,
+                                        replay_dir2=False,
+                                        obs_type=False)
+    states, actions = replay_buffer.parse_dataset()
+    if states == '':
+        print('nothing in buffer yet')
+    else:
+        states = states.astype(np.float64)
+        grid = states.reshape(-1,4)
+        idx = np.random.randint(grid.shape[0], size=(5000,))
+        grid = grid[idx, :]
+        grid = torch.tensor(grid).cuda().float()
+        return grid
 
 def make_expert():
     return ExpertAgent()
@@ -164,7 +184,7 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                cfg.concurrent)
+                                cfg.update_every_steps)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -184,12 +204,14 @@ class Workspace:
                                                   cfg.replay_buffer_size,
                                                   cfg.batch_size,
                                                   cfg.replay_buffer_num_workers,
-                                                  False, cfg.nstep, cfg.discount, True)
+                                                  False, cfg.nstep, cfg.discount, True, 
+                                                  False)
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount, False)
+                                                False, cfg.nstep, cfg.discount, False,
+                                                False)
         self._replay_iter1 = None
         self._replay_iter2 = None
 
@@ -210,9 +232,7 @@ class Workspace:
         #self.knn = make_generator(self.eval_env, cfg)
         self.use_expert = False
         self.unreachable = []
-        self.actor1 = False #goal conditioned
-        self.actor2 = False #maximize intrinsic 
-
+        self.count = 0 
     @property
     def global_step(self):
         return self._global_step
@@ -270,11 +290,18 @@ class Workspace:
             num = proto2d.shape[0]
             idx = np.random.randint(0, num)
             return proto2d[idx,:].cpu().numpy()
-        
-    def sample_goal_uniform(self,obs):
-        goal_array = ndim_grid(2, 20)
-        goal = np.array(random.sample(np.ndarray.tolist(goal_array), 1)).T
-        goal = goal.reshape(2,)
+
+    def sample_goal_uniform(self, obs):
+        if len(self.unreachable) > 0:
+            print('list of unreachables', self.unreachable)
+            return self.unreachable.pop(0)
+        else:
+            goal_array = ndim_grid(2,20)
+            idx = self.count
+            goal = np.array([goal_array[idx][0], goal_array[idx][1]])
+            self.count += 1
+            if self.count == 400:
+                self.count = 0 
         return goal
 
     def eval(self):
@@ -306,7 +333,7 @@ class Workspace:
        # 
         #    episode += 1
         #    self.video_recorder.save(f'{self.global_frame}.mp4')
-        if self._global_step % int(1e4) == 0:
+        if self._global_step % int(1e5) == 0:
             proto2d = visualize_prototypes_visited(self.agent, self.work_dir, self.cfg, self.eval_env)
             plt.clf()
             fig, ax = plt.subplots()
@@ -318,8 +345,20 @@ class Workspace:
         #    log('episode_length', step * self.cfg.action_repeat / episode)
         #    log('episode', self.global_episode)
         #    log('step', self._global_step)
-    
-        
+
+    def eval_intr_reward(self):
+        obs = intr_reward_grid(self.agent, self.work_dir, self.cfg, self.eval_env)
+        meta = self.agent.init_meta()
+
+        with torch.no_grad():
+            reward = self.agent.compute_intr_reward(obs, self._global_step)
+            action = self.agent.act2(obs, meta, self._global_step, eval_mode=True)
+            q = self.agent.get_q_value(obs, action)
+        for x in range(len(reward)):
+            print('saving')
+            print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
+            save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
+
 
     def eval_goal(self, proto, model):
         
@@ -348,9 +387,11 @@ class Workspace:
             ax.scatter(proto2d[:,0], proto2d[:,1])
             plt.savefig(f"./{self._global_step}_proto2d.png")
         
-        goal_array = ndim_grid(2, 40)
-        idx = np.random.randint(0, num,size=(50,))
-        goal_array = random.sample(np.ndarray.tolist(goal_array),50)
+        goal_array = ndim_grid(2, 20)
+
+        idx = np.random.randint(low=0, high=self.count, size=(50,))
+        #goal_array = random.sample(np.ndarray.tolist(goal_array),50)
+        goal_array = goal_array[idx]
         for ix, x in enumerate(goal_array):
             print('goal', x)   
             print(ix)
@@ -478,12 +519,8 @@ class Workspace:
                     if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
-                        #self.eval()
                         self.eval_goal(proto, model)
-                    else:
-                        #self.logger.log('eval_total_time', self.timer.total_time(),
-                        #            self.global_frame)
-                        self.eval()
+                        self.eval_intr_reward()
             meta = self.agent.update_meta(meta, self._global_step, time_step2)
             if episode_step % resample_goal_every == 0:
                 

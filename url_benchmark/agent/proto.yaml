@@ -7,12 +7,11 @@ obs_shape: ??? # to be specified later
 action_shape: ??? # to be specified later
 goal_shape: ???
 goal: false
-update_every_steps: 5
+update_every_steps: 2
 device: ${device}
-lr: 1e-5
-critic_target_tau: 0.01
-critic2_target_tau: 0.01
-protos_target_tau: 0.001
+lr: 1e-4
+critic_target_tau: .01
+critic2_target_tau: .01
 use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
@@ -29,5 +28,5 @@ num_protos: 512
 tau: 0.1
 topk: 3
 queue_size: 2048
-encoder_target_tau: 0.01
+encoder_target_tau: .05
 update_encoder: ${update_encoder}
