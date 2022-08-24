@@ -99,7 +99,6 @@ class ActionRepeatWrapper(dm_env.Environment):
         reward = 0.0
         discount = 1.0
         count = 0
-        #import IPython as ipy; ipy.embed(colors='neutral')
         for i in range(self._num_repeats):
             time_step = self._env.step(action)
             if time_step.reward == None:
@@ -109,7 +108,6 @@ class ActionRepeatWrapper(dm_env.Environment):
             
             if count >1:
                 print('sth went wrong')
-                #import IPython as ipy; ipy.embed(colors='neutral')
             reward += time_step.reward * discount
             discount *= time_step.discount
             if time_step.last():
@@ -131,11 +129,12 @@ class ActionRepeatWrapper(dm_env.Environment):
 
 
 class FrameStackWrapper(dm_env.Environment):
-    def __init__(self, env, num_frames, pixels_key='pixels'):
+    def __init__(self, env, num_frames, pixels_key='pixels', goal=False):
         self._env = env
         self._num_frames = num_frames
         self._frames = deque([], maxlen=num_frames)
         self._pixels_key = pixels_key
+        self._goal = goal
 
         wrapped_obs_spec = env.observation_spec()
         assert pixels_key in wrapped_obs_spec
@@ -150,9 +149,9 @@ class FrameStackWrapper(dm_env.Environment):
                                             minimum=0,
                                             maximum=255,
                                             name='observation')
-        #import IPython as ipy; ipy.embed(colors='neutral')
     def _transform_observation(self, time_step):
         assert len(self._frames) == self._num_frames
+        
         obs = np.concatenate(list(self._frames), axis=0)
         observation = OrderedDict()
         observation['observations']=time_step.observation['observations']
@@ -174,9 +173,16 @@ class FrameStackWrapper(dm_env.Environment):
         return self._transform_observation(time_step)
 
     def step(self, action):
+        
         time_step = self._env.step(action)
         pixels = self._extract_pixels(time_step)
-        self._frames.append(pixels)
+        if len(self._frames)==0:
+            print('first, w/o reset')
+            for _ in range(self._num_frames):
+                self._frames.append(pixels)
+        else:
+            self._frames.append(pixels)
+        
         return self._transform_observation(time_step)
 
     def observation_spec(self):
@@ -353,7 +359,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
 
 
 def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
-        goal=None):
+        goal=None, actor1=False):
     assert obs_type in ['states', 'pixels']
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
@@ -369,7 +375,13 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal)
 
     if obs_type == 'pixels':
-        env = FrameStackWrapper(env, frame_stack)
+        if actor1:
+            goal_conditioned = True
+        else:
+            goal_conditioned = False
+        
+        env = FrameStackWrapper(env, frame_stack, goal=goal_conditioned)
+
     else:
         env = ObservationDTypeWrapper(env, np.float32)
 

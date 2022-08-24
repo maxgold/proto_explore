@@ -6,18 +6,18 @@ defaults:
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
-task: point_mass_maze_reach_top_left
+task: point_mass_maze_reach_custom_goal
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 1 # set to 2 for pixels
-discount: 0.99
+discount: .99
 # train settings
 num_train_frames: 2000010
 num_seed_frames: 4000
 # eval
 eval: False
 eval_every_frames: 10000
-num_eval_episodes: 10
+num_eval_episodes: 2
 # snapshot
 snapshots: [100000, 500000, 1000000, 2000000]
 snapshot_dir: ../../../models/${obs_type}/${domain}/${agent.name}/${seed}
@@ -35,12 +35,11 @@ save_train_video: false
 use_tb: false
 use_wandb: false
 goal: false
-update_every_steps: 2
 # experiment
 experiment: exp
 
-path: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/urlb_pixel_hs
-replay_dir: /misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/urlb_pixel_hs/buffer2/buffer_copy
+path: /home/ubuntu/proto_explore/url_benchmark/models/uniform_goal
+replay_dir: /home/ubuntu/proto_explore/url_benchmark/models/uniform_goal/buffer1/buffer_copy
 replay_dir2: false
 
 hydra:

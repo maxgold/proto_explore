@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class ProtoFilmAgent(DDPGFilmAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
@@ -68,6 +68,7 @@ class ProtoAgent(DDPGAgent):
                                 bias=False).to(self.device)
         self.protos.apply(utils.weight_init)
         #self.protos_target = deepcopy(self.protos)
+        
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
@@ -101,8 +102,8 @@ class ProtoAgent(DDPGAgent):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder_target(obs)
-            z = self.predictor_target(z)
+            z = self.encoder(obs)
+            z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
@@ -165,26 +166,10 @@ class ProtoAgent(DDPGAgent):
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
-            
-            if self.obs_type=='pixels':
-                goal = goal.reshape(-1, 9, 84, 84).float()
-            else: 
-                goal = goal.reshape(-1, 2).float()
         else:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
         
-        if self.obs_type=='pixels':
-            obs = obs.reshape(-1, 9, 84, 84).float()
-            next_obs = next_obs.reshape(-1, 9, 84, 84).float()
-        else:
-            obs = obs.reshape(-1, 4).float()
-            next_obs = next_obs.reshape(-1, 4).float()
-        
-        action = action.reshape(-1, 2).float()
-        extr_reward = extr_reward.reshape(-1, 1).float()
-        discount = discount.reshape(-1, 1).float()
-        extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():

@@ -204,7 +204,7 @@ def reach_custom_goal(
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
-    xml = get_model_and_assets("reach_hs")
+    xml = get_model_and_assets("reach_bottom_right")
     #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")

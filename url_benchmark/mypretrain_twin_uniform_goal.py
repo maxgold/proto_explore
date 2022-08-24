@@ -86,14 +86,13 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, update_every_steps):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
-    cfg.update_every_steps = update_every_steps
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -164,17 +163,21 @@ class Workspace:
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-        try:
-            task = PRIMAL_TASKS[self.cfg.domain]
-        except:
-            task = self.cfg.domain
-        print('task', task)
-        self.train_env1 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                   cfg.action_repeat, cfg.seed)
+        #try:
+        #    task = PRIMAL_TASKS[self.cfg.domain]
+        #except:
+        #    task = self.cfg.domain
+        task = 'point_mass_maze_reach_top_left'
+        goal=[]
+        goal.append(np.random.uniform(-0.29, -0.15))
+        goal.append(np.random.uniform(0.15, 0.29))
+        self.first_goal = np.array(goal)
+        self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, cfg.seed, self.first_goal)
         self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                                   cfg.action_repeat, cfg.seed)
-        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
+        self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                 cfg.action_repeat, cfg.seed, self.first_goal)
 
         # create agent
         self.agent = make_agent(cfg.obs_type,
@@ -184,8 +187,7 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                cfg.update_every_steps)
-
+                                )
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -202,7 +204,7 @@ class Workspace:
         # create replay buffer
         self.replay_loader1  = make_replay_loader(self.replay_storage1,
                                                   cfg.replay_buffer_size,
-                                                  cfg.batch_size,
+                                                  100000,
                                                   cfg.replay_buffer_num_workers,
                                                   False, cfg.nstep, cfg.discount, True, 
                                                   False)
@@ -302,7 +304,7 @@ class Workspace:
             self.count += 1
             if self.count == 400:
                 self.count = 0 
-        return goal
+            return goal
 
     def eval(self):
         #step, episode, total_reward = 0, 0, 0
@@ -457,10 +459,8 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
         time_step2 = self.train_env2.reset()
-        goal = np.random.sample((2,)) * .5 - .25
-        self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-        self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
         meta = self.agent.init_meta()
+        goal = self.first_goal
         self.replay_storage1.add_goal(time_step1, meta, goal)
         self.replay_storage2.add(time_step2, meta)      
         #self.train_video_recorder.init(time_step1.observation)
@@ -487,10 +487,8 @@ class Workspace:
 
                 # reset env
 
-                time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
-                self.replay_storage1.add_goal(time_step1, meta, goal)
                 self.replay_storage2.add(time_step2, meta)
                 #self.train_video_recorder.init(time_step1.observation)
 
@@ -519,8 +517,12 @@ class Workspace:
                     if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
-                        self.eval_goal(proto, model)
-                        self.eval_intr_reward()
+                        self.eval_goal()
+                        #self.eval_intr_reward()
+                    else:
+                        #self.logger.log('eval_total_time', self.timer.total_time(),
+                        #            self.global_frame)
+                        self.eval()
             meta = self.agent.update_meta(meta, self._global_step, time_step2)
             if episode_step % resample_goal_every == 0:
                 
@@ -532,7 +534,6 @@ class Workspace:
                 else:
                     goal = self.sample_goal_uniform(time_step2.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-                self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 
                 print('sampled goal', goal)
                 #print('resample goal make env', self.train_env)
@@ -590,7 +591,7 @@ class Workspace:
             #import IPython as ipy; ipy.embed(colors='neutral')
             time_step1 = self.train_env1.step(action1)
             time_step2 = self.train_env2.step(action2)
-            episode_reward += time_step2.reward
+            episode_reward += time_step1.reward
             self.replay_storage1.add_goal(time_step1, meta, goal)
             self.replay_storage2.add(time_step2, meta)
             #self.train_video_recorder.record(time_step1.observation)

@@ -30,40 +30,151 @@ class Encoder(nn.Module):
         h = h.view(h.shape[0], -1)
         return h
 
+class DenseResidualLayer(nn.Module):
+
+    def __init__(self, dim):
+        super(DenseResidualLayer, self).__init__()
+        self.linear = nn.Linear(dim)
+
+        self.apply(utils.weight_init)
+
+    def forward(self, x):
+        identity = x
+        out = self.linear(x)
+        out += identity
+        return out
+    
+class FiLM(nn.Module):
+    def __init__(self, goal_dim, hidden_dim):
+        #target_dim = shape of matrix to be adapted (x.shape, x being output 
+        #for fc layers
+
+        super().__init__()
+
+        #shared layer for all gamms & betas 
+        self.shared_layer = nn.Sequential(nn.Linear(goal_dim, hidden_dim),
+                                          nn.ReLU())
+        #processors (adaptation networks) & regularization lists for each of 
+        #the output params
+
+        #trying residual instead of linear
+        self.gamma_1 = nn.Sequential(
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim)
+        )
+
+        self.gamma_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
+
+        self.gamma_2 = nn.Sequential(
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim)
+        )
+
+        self.gamma_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
+
+        self.beta_1 = nn.Sequential(
+            DenseResidualLayer(target_dim),
+            nn.ReLU(),
+            DenseResidualLayer(target_dim),
+            nn.ReLU(),
+            DenseResidualLayer(target_dim)
+        )
+
+        self.beta_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
+
+        self.beta_2 = nn.Sequential(
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim)
+        )
+
+        self.beta_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
+
+        self.apply(utils.weight_init)
+
+    
+    def forward(self, goal):
+        x = self.shared_layer(goal)
+
+        gamma1 = self.gamma_1(x).squeeze() * self.gamma_1_regularizers + torch.ones_like(self.gamma_1_regularizers)
+        beta1 = self.beta_1(x).squeeze() * self,beta_1_regularizers
+        gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers + torch.ones_like(self.gamma_2_regularizers)
+        beta2 = self.beta_2(x).squeeze() * self,beta_2_regularizers
+
+        #gammas = gammas.unsqueeze(1).unsqueeze(2).expand_as(x)
+        #betas = betas.unsqueeze(1).unsqueeze(2).expand_as(x)
+        return (gamma1, beta1, gamma2, beta2)
+    
+    
+    def regularization_term(self):
+
+        l2_term = 0
+        for gamma_regularizer, beta_regularizer in zip(self.gamma1_regularizers, self.beta1_regularizers):
+            l2_term += (gamma_regularizer ** 2).sum()
+            l2_term += (beta_regularizer ** 2).sum()
+        for gamma_regularizer, beta_regularizer in zip(self.gamma2_regularizers, self.beta2_regularizers):
+            l2_term += (gamma_regularizer ** 2).sum()
+            l2_term += (beta_regularizer ** 2).sum()
+        return l2_term
+    
+    
+    
 
 class Actor(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-                                   nn.LayerNorm(feature_dim), nn.Tanh())
-
-        policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
-        ]
-        # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-        policy_layers += [nn.Linear(hidden_dim, action_dim)]
-
-        self.policy = nn.Sequential(*policy_layers)
-
+        
+        self.fc1 = nn.Linear(obs_dim, feature_dim)
+        self.ln1 = nn.LayerNorm(feature_dim)
+        self.fc2 = nn.Linear(feature_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc4 = nn.Linear(hidden_dim, action_dim)
+        self.tanh = nn.Tanh()
+        self.relu = nn.ReLU(inplace=True)
+        self.film1 = FiLM(goal_dim, hidden_dim)
+        self.film2 = FiLM(goal_dim, hidden_dim)
+        
         self.apply(utils.weight_init)
-
-    def forward(self, obs, goal, std):
+        
+    def forward(self, obs, goal, std, film_params):
+        gamma1, beta1, gamma2, beta2 = film_params
         obs_goal = torch.cat([obs, goal], dim=-1)
-        h = self.trunk(obs_goal)
-        mu = self.policy(h)
-        mu = torch.tanh(mu)
+        x = self.ln1(self.fc1(obs_goal))
+        x = self._film(x, gamma1, beta1)
+        x = self.tanh(x)
+        x = self.fc2(x)
+        x = self._film(x, gamma2, beta2)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
+        x = self.fc4(x)
+        mu = torch.tanh(x)
         std = torch.ones_like(mu) * std
+
         dist = utils.TruncatedNormal(mu, std)
         return dist
+    
+    def _film(self, x, gamma, beta):
+        #???
+        #check shape
+        gamma = gamma.unsqueeze(1).unsqueeze(2).expand_as(x)
+        beta = beta.unsqueeze(1).unsqueeze(2).expand_as(x)
+        return gamma * x + beta
+
 
 class Actor2(nn.Module):
     def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
@@ -198,7 +309,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGAgent:
+class DDPGFilmAgent:
     def __init__(self,
                  name,
                  reward_free,
