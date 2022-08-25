@@ -129,12 +129,11 @@ class ActionRepeatWrapper(dm_env.Environment):
 
 
 class FrameStackWrapper(dm_env.Environment):
-    def __init__(self, env, num_frames, pixels_key='pixels', goal=False):
+    def __init__(self, env, num_frames, pixels_key='pixels'):
         self._env = env
         self._num_frames = num_frames
         self._frames = deque([], maxlen=num_frames)
         self._pixels_key = pixels_key
-        self._goal = goal
 
         wrapped_obs_spec = env.observation_spec()
         assert pixels_key in wrapped_obs_spec
@@ -359,7 +358,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
 
 
 def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
-        goal=None, actor1=False):
+        goal=None):
     assert obs_type in ['states', 'pixels']
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
@@ -375,12 +374,7 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal)
 
     if obs_type == 'pixels':
-        if actor1:
-            goal_conditioned = True
-        else:
-            goal_conditioned = False
-        
-        env = FrameStackWrapper(env, frame_stack, goal=goal_conditioned)
+        env = FrameStackWrapper(env, frame_stack)
 
     else:
         env = ObservationDTypeWrapper(env, np.float32)

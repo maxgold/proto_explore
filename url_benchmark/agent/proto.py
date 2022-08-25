@@ -182,7 +182,6 @@ class ProtoAgent(DDPGAgent):
 
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
-                #utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 

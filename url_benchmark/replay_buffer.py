@@ -117,7 +117,7 @@ class ReplayBufferStorage:
             self._store_episode(episode)
             print('storing episode, no goal')
 
-    def add_goal(self, time_step, meta, goal,goal_state,pixels=False):
+    def add_goal(self, time_step, meta, goal,goal_state=False,pixels=False):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -133,7 +133,8 @@ class ReplayBufferStorage:
                 self._current_episode[spec.name].append(value)
 
         self._current_episode['goal'].append(goal)
-        self._current_episode['goal_state'].append(goal_state)
+        if pixels:
+            self._current_episode['goal_state'].append(goal_state)
 
         if time_step.last():
             episode = dict()
@@ -152,8 +153,9 @@ class ReplayBufferStorage:
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode['goal']
             episode['goal'] = np.array(value, np.float64)
-            value = self._current_episode['goal_state']
-            episode['goal_state'] = np.array(value, np.float64)
+            if pixels:
+                value = self._current_episode['goal_state']
+                episode['goal_state'] = np.array(value, np.float64)
             self._current_episode = defaultdict(list)
             self._store_episode(episode)
             print('storing episode, w/ goal')
@@ -354,7 +356,7 @@ class ReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
         else:
-            idx = np.random.randint(int(self.count/1000000)*5, min((int(self.count/1000000)+1)*5, 500))    
+            idx = np.random.randint(int(self.count/100000)*5, min((int(self.count/100000)+1)*5, 500))    
             goal = episode["observation"][idx + self._nstep]
             goal_state = episode["state"][idx + self._nstep]
             self.count+=1
@@ -563,7 +565,10 @@ class OfflineReplayBuffer(IterableDataset):
     
     def _sample_pixel_goal(self, time_step):
         episode = self._sample_episode()
-        idx = np.random.randint(int(time_step/100000)*25, min((int(time_step/100000)+1)*25, 500))
+        if time_step<1000000:
+            idx = np.random.randint(int(time_step/10000)*5, min((int(time_step/10000)+1)*5, 500))
+        else:
+            idx = np.random.randint(250,500)
         obs = episode["observation"][idx]
         state = episode["state"][idx][:2]
         return obs, state
