@@ -101,8 +101,8 @@ class ProtoAgent(DDPGAgent):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder_target(obs)
-            z = self.predictor_target(z)
+            z = self.encoder(obs)
+            z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
