@@ -154,9 +154,9 @@ class Workspace:
             self.first_goal_pix = npz['observation'][50]
             self.first_goal_state = npz['state'][50][:2]
             self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                                                               cfg.action_repeat, seed=None, goal=self.first_goal_state, actor1=True)
+                                                                               cfg.action_repeat, seed=None, goal=self.first_goal_state)
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                                     cfg.action_repeat, seed=None, goal=self.first_goal_state, actor1=True)
+                                                     cfg.action_repeat, seed=None, goal=self.first_goal_state)
         else:
             self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
@@ -351,8 +351,7 @@ class Workspace:
             goal_pix, goal_state = self.sample_goal_uniform(eval=True)
 #            import IPython as ipy; ipy.embed(colors='neutral') 
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=goal_state,
-                                                  actor1=True)
+                    self.cfg.action_repeat, seed=None, goal=goal_state)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
             while eval_until_episode(episode):
