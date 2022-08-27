@@ -20,7 +20,7 @@ feature_dim: 50
 stddev_schedule: 0.2
 stddev_clip: 0.3
 nstep: 3
-batch_size: 1024
+batch_size: 256
 init_critic: true
 pred_dim: 128
 proj_dim: 512

@@ -12,7 +12,6 @@ import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
-import deepdish
 
 
 def episode_len(episode):
@@ -72,10 +71,8 @@ class ReplayBufferStorage:
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
         last = str(replay_dir).split('/')[-1]
-        #self._replay_dir1 = replay_dir.parent / "buffer1"
         self._replay_dir2 = replay_dir.parent / last / "buffer_copy"
         replay_dir.mkdir(exist_ok=True)
-        #(replay_dir.parent / "buffer1").mkdir(exist_ok=True)
         (replay_dir.parent / last / "buffer_copy").mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
         self._preload()
@@ -279,10 +276,6 @@ class ReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         
-        #if self._storage2:
-        #    eps_fns = chain(sorted(self._storage._replay_dir.glob("*.npz"), reverse=True),
-        #            sorted(self._storage2._replay_dir.glob("*.npz"), reverse=True))
-        #else:
         eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
 
         fetched_size = 0
@@ -487,7 +480,6 @@ class OfflineReplayBuffer(IterableDataset):
         obs_tmp = []
         np.random.shuffle(eps_fns)
         for eps_fn in eps_fns:
-            print(eps_fn)
             if self._size > self._max_size:
                 break
             
