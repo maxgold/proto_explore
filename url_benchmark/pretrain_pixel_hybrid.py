@@ -109,9 +109,9 @@ class Workspace:
                                                 False,
                                                 100000,
                                                 cfg.batch_size,
-                                                cfg.replay_buffer_num_workers,
+                                                1,
                                                 False, cfg.nstep, cfg.discount,
-                                                True, False,cfg.obs_type)
+                                                True, cfg.hybrid,cfg.obs_type)
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
                                                 False,
                                                 cfg.replay_buffer_size,
@@ -120,7 +120,7 @@ class Workspace:
                                                 False, cfg.nstep, cfg.discount,
                                                 False, False,cfg.obs_type)
         self.replay_buffer_goal = make_replay_buffer(self.eval_env,
-                                                    self.work_dir / 'buffer2' / 'buffer_copy',
+                                                    self.work_dir / 'buffer1' / 'buffer_copy',
                                                     50000,
                                                     1,
                                                     0,
@@ -286,7 +286,7 @@ class Workspace:
 
         for i in range(10):
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_pixel(eval=True)
+            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -423,9 +423,9 @@ class Workspace:
                 episode_reward = 0
 
             # try to evaluate
-            if eval_every_step(self.global_step) and self.global_step!=0:
-                print('trying to evaluate')
-                self.eval()
+            #if eval_every_step(self.global_step) and self.global_step!=0:
+                #print('trying to evaluate')
+                #self.eval()
                     #self.eval_intrinsic(model)
                 #else:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
@@ -509,7 +509,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from pretrain_pixel import Workspace as W
+    from pretrain_pixel_hybrid import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

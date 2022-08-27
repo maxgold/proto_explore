@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg1 import DDPG1Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class Proto1Agent(DDPG1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
