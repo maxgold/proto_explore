@@ -67,7 +67,7 @@ class Workspace:
                              use_wandb=cfg.use_wandb)
         # create envs
         #task = PRIMAL_TASKS[self.cfg.domain]
-        npz  = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_2/buffer2/buffer_copy/20220817T211246_0_500.npz')
+        npz  = np.load('/misc/vlgscratch4/FergusGroup/mortensen/url_benchmark/exp_local/2022.08.27/224007_proto/buffer/20220827T224205_9_1000.npz')
         self.first_goal_pix = npz['observation'][50]
         self.first_goal_state = npz['state'][50][:2]
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,

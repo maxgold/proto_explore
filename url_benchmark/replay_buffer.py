@@ -732,7 +732,7 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage,  max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, obs_type):
+    storage,  max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal=False, obs_type='state'):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(

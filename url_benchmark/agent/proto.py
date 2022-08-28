@@ -162,7 +162,6 @@ class ProtoAgent(DDPGAgent):
             return metrics
 
         batch = next(replay_iter)
-        print('next batch')
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
@@ -175,17 +174,17 @@ class ProtoAgent(DDPGAgent):
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
         
-        if self.obs_type=='pixels':
-            obs = obs.reshape(-1, 9, 84, 84).float()
-            next_obs = next_obs.reshape(-1, 9, 84, 84).float()
-        else:
-            obs = obs.reshape(-1, 4).float()
-            next_obs = next_obs.reshape(-1, 4).float()
+        #if self.obs_type=='pixels':
+            #obs = obs.reshape(-1, 9, 84, 84).float()
+            #next_obs = next_obs.reshape(-1, 9, 84, 84).float()
+       # else:
+        #    obs = obs.reshape(-1, 4).float()
+         #   next_obs = next_obs.reshape(-1, 4).float()
         
-        action = action.reshape(-1, 2).float()
-        extr_reward = extr_reward.reshape(-1, 1).float()
-        discount = discount.reshape(-1, 1).float()
-        extr_reward = extr_reward.float()
+       # action = action.reshape(-1, 2).float()
+       # extr_reward = extr_reward.reshape(-1, 1).float()
+       # discount = discount.reshape(-1, 1).float()
+       # extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():
@@ -245,26 +244,25 @@ class ProtoAgent(DDPGAgent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            goal = self.encoder(goal)
+            #goal = self.encoder(goal)
 
             if not self.update_encoder:
             
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-                goal=goal.detach()
+             #   goal=goal.detach()
         
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
+                self.update_critic(obs.detach(), goal, action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
+            metrics.update(self.update_actor(obs.detach(), goal, step))
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
 
-        print('updated')
         return metrics
 
     def get_q_value(self, obs,action):

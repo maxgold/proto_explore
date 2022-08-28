@@ -43,8 +43,7 @@ TASKS = [
     ("reach_top_right", np.array([0.15, 0.15, 0.01])),
     ("reach_bottom_left", np.array([-0.15, -0.15, 0.01])),
     ("reach_bottom_right", np.array([0.15, -0.15, 0.01])),
-    ("reach_ud_hs", np.array([0.15, -0.15, 0.01]))
-    ]
+    ("reach_ud_hs", np.array([0.15, -0.15, 0.01]))]
 
 
 

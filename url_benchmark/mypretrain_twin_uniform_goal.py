@@ -174,8 +174,8 @@ class Workspace:
         self.first_goal = np.array(goal)
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, cfg.seed, self.first_goal)
-        self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                                  cfg.action_repeat, cfg.seed)
+        self.train_env2 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                                  cfg.action_repeat, cfg.seed, self.first_goal)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed, self.first_goal)
 
@@ -203,8 +203,8 @@ class Workspace:
                                                                   self.work_dir / 'buffer2')
         # create replay buffer
         self.replay_loader1  = make_replay_loader(self.replay_storage1,
-                                                  cfg.replay_buffer_size,
                                                   100000,
+                                                    cfg.batch_size,
                                                   cfg.replay_buffer_num_workers,
                                                   False, cfg.nstep, cfg.discount, True, 
                                                   False)
@@ -484,9 +484,10 @@ class Workspace:
                         log('step', self._global_step)
 
                 # reset env
-
+                time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
+                self.replay_storage1.add(time_step1, meta)
                 self.replay_storage2.add(time_step2, meta)
                 #self.train_video_recorder.init(time_step1.observation)
 
@@ -532,7 +533,7 @@ class Workspace:
                 else:
                     goal = self.sample_goal_uniform(time_step2.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-                
+                self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal) 
                 print('sampled goal', goal)
                 #print('resample goal make env', self.train_env)
             
@@ -591,7 +592,6 @@ class Workspace:
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
             self.replay_storage1.add_goal(time_step1, meta, goal)
-            print('add_goal')
             self.replay_storage2.add(time_step2, meta)
             #self.train_video_recorder.record(time_step1.observation)
             episode_step += 1
