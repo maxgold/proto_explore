@@ -7,6 +7,7 @@ import os
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 import glob
+import pandas as pd
 from pathlib import Path
 import re
 import hydra
@@ -148,9 +149,18 @@ class Workspace:
             task = PRIMAL_TASKS[self.cfg.domain]
         except:
             task = self.cfg.domain
-        self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+        if self.cfg.obs_type =='pixels':
+            npz  = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_2_hs/buffer2/buffer_copy/20220817T211246_0_500.npz')
+            self.first_goal_pix = npz['observation'][50]
+            self.first_goal_state = npz['state'][50][:2]
+            self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                                                               cfg.action_repeat, seed=None, goal=self.first_goal_state)
+            self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                                     cfg.action_repeat, seed=None, goal=self.first_goal_state)
+        else:
+            self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
-        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+            self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
@@ -180,7 +190,11 @@ class Workspace:
         self._global_episode = 0
         self.expert = make_expert()
         #self.knn = make_generator(self.eval_env, cfg)
-        self.use_expert = False
+        self.loaded = False
+        self.loaded_uniform = False
+        self.uniform_goal = []
+        self.uniform_state = []
+        self.count_uniform = 0
 
     @property
     def global_step(self):
@@ -237,7 +251,7 @@ class Workspace:
         plt.savefig(f"./{model_step}_proto2d.png")
     
 
-    def eval_goal_proto(self, path, model_step, replay_dir2):
+    def eval_goal_proto_state(self, path, model_step, replay_dir2):
         #if cfg.eval, then eval over goals
         #final evaluation over all final prototypes
         #load final agent model to get them
@@ -311,8 +325,67 @@ class Workspace:
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
-                
+    
 
+    def sample_goal_uniform(self, eval=False):
+        if self.loaded_uniform == False:
+            goal_index = pd.read_csv('/home/ubuntu/proto_explore/url_benchmark/uniform_goal_pixel_index.csv')
+            for ix in range(len(goal_index)):
+                tmp = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_cross/buffer2/buffer_copy/'+goal_index.iloc[ix, 0])
+                self.uniform_goal.append(np.array(tmp['observation'][int(goal_index.iloc[ix, -1])]))
+                self.uniform_state.append(np.array(tmp['state'][int(goal_index.iloc[ix, -1])]))
+            self.loaded_uniform = True
+            self.count_uniform +=1
+            print('loaded in uniform goals')
+            return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+        else:
+            if self.count_uniform<400:
+                self.count_uniform+=1
+            else:
+                self.count_uniform = 1
+            return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+
+    def eval_goal_pixel(self, path, model_step, replay_dir2):
+        for i in range(400):
+            step, episode, total_reward = 0, 0, 0
+            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+#            import IPython as ipy; ipy.embed(colors='neutral') 
+            self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=goal_state)
+            eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+            meta = self.agent.init_meta()
+            while eval_until_episode(episode):
+                time_step = self.eval_env.reset()
+                #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                while not time_step.last():
+                    with torch.no_grad(), utils.eval_mode(self.agent):
+                        if self.cfg.goal:
+                            action = self.agent.act(time_step.observation['pixels'],
+                                                    goal_pix,
+                                                    meta,
+                                                    self._global_step,
+                                                    eval_mode=True)
+                        else:
+                            action = self.agent.act(time_step.observation,
+                                                    meta,
+                                                    self._global_step,
+                                                    eval_mode=True)
+                    time_step = self.eval_env.step(action)
+                 #   self.video_recorder.record(self.eval_env)
+                    total_reward += time_step.reward
+                    step += 1
+
+                episode += 1
+               # self.video_recorder.save(f'{self.global_frame}.mp4')
+
+                if self.cfg.eval:
+                    print('saving')
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+
+                else:
+                    print('saving')
+                    print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
 
 
 
@@ -490,7 +563,7 @@ def main(cfg):
     print(agents)
     
     for ix, x in enumerate(agents):
-        if int(re.findall('\d+',x)[-1])==1900000:
+        if int(re.findall('\d+',x)[-1])%50000==0:
             workspace = W(cfg, x)
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
@@ -501,8 +574,9 @@ def main(cfg):
                 replay_dir2 = False
             print('model_step', model)
             #workspace.eval(replay_dir, model, replay_dir2)
-            workspace.eval_goal(replay_dir, model, replay_dir2)
+            #workspace.eval_goal(replay_dir, model, replay_dir2)
             #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
+            workspace.eval_goal_pixel(replay_dir, model, replay_dir2)
             print(ix)
 
 if __name__ == '__main__':

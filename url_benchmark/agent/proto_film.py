@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg_film import DDPGFilmAgent
 
 
 @jit.script
@@ -169,7 +169,13 @@ class ProtoFilmAgent(DDPGFilmAgent):
         else:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
-        
+       
+        obs = obs.reshape(-1, 9, 84, 84).float()
+        next_obs = next_obs.reshape(-1, 9, 84, 84).float()
+        action = action.reshape(-1, 2).float()
+        extr_reward = extr_reward.reshape(-1, 1).float()
+        discount = discount.reshape(-1, 1).float()
+        extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():
@@ -222,6 +228,8 @@ class ProtoFilmAgent(DDPGFilmAgent):
                                  self.critic2_target_tau)
 
         else:
+            goal = goal.reshape(-1, 9, 84, 84).float()
+
             reward = extr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()

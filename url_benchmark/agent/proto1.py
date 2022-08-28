@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg1 import DDPG1Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class Proto1Agent(DDPG1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
@@ -243,24 +243,25 @@ class ProtoAgent(DDPGAgent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            #goal = self.encoder(goal)
+            goal = self.encoder(goal)
 
             if not self.update_encoder:
             
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-             #   goal=goal.detach()
+                goal=goal.detach()
         
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal, action, reward, discount,
+                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal, step))
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
+
 
         return metrics
 

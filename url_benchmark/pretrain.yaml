@@ -9,14 +9,14 @@ domain: walker # primal task will be infered in runtime
 task: point_mass_maze_reach_custom_goal
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
-action_repeat: 1 # set to 2 for pixels
+action_repeat: 2 # set to 2 for pixels
 discount: .99
 # train settings
 num_train_frames: 2000010
 num_seed_frames: 4000
 # eval
 eval: False
-eval_every_frames: 10000
+eval_every_frames: 50000
 num_eval_episodes: 2
 # snapshot
 snapshots: [100000, 500000, 1000000, 2000000]
@@ -35,11 +35,13 @@ save_train_video: false
 use_tb: false
 use_wandb: false
 goal: false
+act1_every_step: 1
+hybrid: false
 # experiment
 experiment: exp
 
-path: /home/ubuntu/proto_explore/url_benchmark/models/uniform_goal
-replay_dir: /home/ubuntu/proto_explore/url_benchmark/models/uniform_goal/buffer1/buffer_copy
+path: /home/ubuntu/proto_explore/url_benchmark/models/eval_8_23_4
+replay_dir: /home/ubuntu/proto_explore/url_benchmark/models/eval_8_23_4/buffer1/buffer_copy
 replay_dir2: false
 
 hydra:
