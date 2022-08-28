@@ -55,14 +55,13 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 10
+        r = 1
     else:
-        #upper = 0.015
-        #margin = 0.1
-        #scale = np.sqrt(-2 * np.log(0.1))
-        #x = (dist_to_target - upper) / margin
-        #r = np.exp(-0.5 * (x * scale) ** 2)
-        r=-1
+        upper = 0.015
+        margin = 0.1
+        scale = np.sqrt(-2 * np.log(0.1))
+        x = (dist_to_target - upper) / margin
+        r = np.exp(-0.5 * (x * scale) ** 2)
     return float(r * control_reward)
 
 class ReplayBufferStorage:
@@ -351,8 +350,7 @@ class ReplayBuffer(IterableDataset):
         discount = np.ones_like(episode["discount"][idx])
         
         key = np.random.randint(0,2)
-        print(key)
-        if key ==0
+        if key ==0:
             goal = episode["goal"][idx]
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
@@ -374,7 +372,6 @@ class ReplayBuffer(IterableDataset):
         #reward = reward.astype(float)
         #action = action.astype(float)
         goal = goal.astype(int)
-        print('replay buffer hybrid reward', reward)
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
 

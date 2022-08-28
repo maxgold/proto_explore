@@ -34,8 +34,8 @@ class Encoder(nn.Module):
 class Actor(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
-        #feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        feature_dim = hidden_dim
+
+        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
@@ -69,8 +69,8 @@ class Actor2(nn.Module):
     def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
-        #feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        feature_dim = hidden_dim
+        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+
         self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
@@ -198,7 +198,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPG1Agent:
+class DDPGAgent:
     def __init__(self,
                  name,
                  reward_free,
