@@ -15,7 +15,7 @@ critic2_target_tau: .01
 use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
-#hidden_dim: 512
+hidden_dim: 512
 feature_dim: 50
 stddev_schedule: 0.2
 stddev_clip: 0.3
