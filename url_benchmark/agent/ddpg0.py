@@ -45,11 +45,11 @@ class Actor(nn.Module):
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
+        #if obs_type == 'pixels':
+        #    policy_layers += [
+        #        nn.Linear(hidden_dim, hidden_dim),
+        #        nn.ReLU(inplace=True)
+        #    ]
         policy_layers += [nn.Linear(hidden_dim, action_dim)]
 
         self.policy = nn.Sequential(*policy_layers)
@@ -80,11 +80,11 @@ class Actor2(nn.Module):
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
+        #if obs_type == 'pixels':
+        #    policy_layers += [
+        #        nn.Linear(hidden_dim, hidden_dim),
+        #        nn.ReLU(inplace=True)
+        #    ]
         policy_layers += [nn.Linear(hidden_dim, action_dim)]
 
         self.policy = nn.Sequential(*policy_layers)
@@ -124,11 +124,11 @@ class Critic(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-            if obs_type == 'pixels':
-                q_layers += [
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
-                ]
+           # if obs_type == 'pixels':
+           #     q_layers += [
+           #         nn.Linear(hidden_dim, hidden_dim),
+           #         nn.ReLU(inplace=True)
+           #     ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
 
@@ -173,11 +173,11 @@ class Critic2(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-            if obs_type == 'pixels':
-                q_layers += [
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
-                ]
+         #   if obs_type == 'pixels':
+         #       q_layers += [
+         #           nn.Linear(hidden_dim, hidden_dim),
+         #           nn.ReLU(inplace=True)
+         #       ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
 

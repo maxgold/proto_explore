@@ -12,7 +12,6 @@ import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
-import deepdish
 
 
 def episode_len(episode):
@@ -67,7 +66,6 @@ def my_reward(action, next_obs, goal):
         scale = np.sqrt(-2 * np.log(0.1))
         x = (dist_to_target - upper) / margin
         r = np.exp(-0.5 * (x * scale) ** 2)
-        
     return float(r * control_reward)
 
 class ReplayBufferStorage:
@@ -76,10 +74,8 @@ class ReplayBufferStorage:
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
         last = str(replay_dir).split('/')[-1]
-        #self._replay_dir1 = replay_dir.parent / "buffer1"
         self._replay_dir2 = replay_dir.parent / last / "buffer_copy"
         replay_dir.mkdir(exist_ok=True)
-        #(replay_dir.parent / "buffer1").mkdir(exist_ok=True)
         (replay_dir.parent / last / "buffer_copy").mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
         self._current_episode_goal = defaultdict(list)
@@ -506,7 +502,6 @@ class OfflineReplayBuffer(IterableDataset):
         print('model step', self.model_step)
         np.random.shuffle(eps_fns)
         for eps_fn in eps_fns:
-            print('eps_fn', eps_fn)
             if self._size > self._max_size:
                 break
             

@@ -21,7 +21,7 @@ from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
 import matplotlib.pyplot as plt
 import seaborn as sns; sns.set_theme()
-from video import TrainVideoRecorder, VideoRecorder
+#from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
 
@@ -120,7 +120,7 @@ class Workspace:
                              use_wandb=cfg.use_wandb)
         # create envs
         task = PRIMAL_TASKS[self.cfg.domain]
-        npz  = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_2_hs/buffer2/buffer_copy/20220817T211246_0_500.npz')
+        npz  = np.load('/scratch/nm1874/proto_explore/url_benchmark/models/pixel_proto_rl/buffer2/buffer_copy/20220822T140527_474_1000.npz')
         self.first_goal_pix = npz['observation'][50]
         self.first_goal_state = npz['state'][50][:2]
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
@@ -498,7 +498,7 @@ class Workspace:
                     goal_state = self.first_goal_state
                     goal_pix = self.first_goal_pix
                 else:
-                    goal_pix, goal_state = self.sample_goal_uniform()
+                    goal_pix, goal_state = self.sample_goal_pixel()
                 print('sampled goal', goal_state)
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
