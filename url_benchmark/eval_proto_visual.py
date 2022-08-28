@@ -17,6 +17,7 @@ import wandb
 from dm_env import specs
 import matplotlib.pyplot as plt
 from kdtree import KNN
+import seaborn as sns; sns.set_theme()
 
 import dmc
 import torch.nn.functional as F
@@ -89,6 +90,67 @@ def visualize_prototypes_visited(agent, replay_dir, cfg, env, model_step, replay
         #import IPython as ipy; ipy.embed(colors='neutral')
         return grid[closest_points, :2].cpu()
 
+def heatmaps(self, env, replay_dir, model_step, replay_dir2, goal):
+    replay_buffer = make_replay_buffer(env,
+                                Path(replay_dir),
+                                2000000,
+                                1,
+                                0,
+                                self.cfg.discount,
+                                goal=goal,
+                                relabel=False,
+                                model_step=model_step,
+                                replay_dir2=replay_dir2,
+                                obs_type=self.cfg.obs_type,
+                                eval=True)
+                                                
+    states, actions, rewards = replay_buffer.parse_dataset()
+    #only adding states and rewards in replay_buffer
+    tmp = np.hstack((states, rewards))
+    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
+                                   range=np.array(([-.29, .29],[-.29, .29])))
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+    ax.set_title(model_step)
+    if goal:
+        plt.savefig(f"./{model_step}_gc_heatmap.png")
+    else:
+        plt.savefig(f"./{model_step}_proto_heatmap.png")
+    #percentage breakdown
+    df=df*100
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
+                                   range=np.array(([-29, 29],[-29, 29])))
+    plt.clf()
+
+    fig, ax = plt.subplots(figsize=(10,10))
+    labels = np.round(heatmap.T/heatmap.sum()*100, 1)
+    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
+    if goal:
+        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+    else:
+        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+
+    
+    #rewards seen thus far 
+    df = df.astype(int)
+    result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+    result.fillna(0, inplace=True)
+
+    sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+    if goal:
+        plt.savefig(f"./{model_step}_gc_reward.png")
+    else:
+        plt.savefig(f"./{model_step}_proto_reward.png")
+
+
+    
+    
+    
+
+    
+    
 
 def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
     cfg.obs_type = obs_type
@@ -346,6 +408,10 @@ class Workspace:
             return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
 
     def eval_goal_pixel(self, path, model_step, replay_dir2):
+        replay_dir_goal = path+'/buffer1/buffer_copy'
+        replay_dir_proto = path+'/buffer2/buffer_copy'
+        heatmaps(self, self.eval_env, replay_dir_goal, model_step, replay_dir2, True)
+        heatmaps(self, self.eval_env, replay_dir_proto, model_step, replay_dir2, False)
         for i in range(400):
             step, episode, total_reward = 0, 0, 0
             goal_pix, goal_state = self.sample_goal_uniform(eval=True)
@@ -432,6 +498,8 @@ class Workspace:
             if self.cfg.eval:
                 print('saving')
                 save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(model_step), [[x, reward, x, model_step]])
+                
+        
 
 
     def train(self):
@@ -560,6 +628,7 @@ def main(cfg):
     from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
     agents = glob.glob(str(cfg.path)+'/*pth')
+    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.25/230737_proto/*pth')
     print(agents)
     
     for ix, x in enumerate(agents):
@@ -567,16 +636,18 @@ def main(cfg):
             workspace = W(cfg, x)
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
-            replay_dir = Path(cfg.replay_dir)
-            if cfg.replay_dir2:
-                replay_dir2 = Path(cfg.replay_dir2)
-            else:
-                replay_dir2 = False
+            #replay_dir = Path(cfg.replay_dir)
+            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.25/230737_proto/'
+            replay_dir2 = False
+            # if cfg.replay_dir2:
+           #     replay_dir2 = Path(cfg.replay_dir2)
+           # else:
+           #     replay_dir2 = False
             print('model_step', model)
             #workspace.eval(replay_dir, model, replay_dir2)
             #workspace.eval_goal(replay_dir, model, replay_dir2)
             #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
-            workspace.eval_goal_pixel(replay_dir, model, replay_dir2)
+            workspace.eval_goal_pixel(path, model, replay_dir2)
             print(ix)
 
 if __name__ == '__main__':

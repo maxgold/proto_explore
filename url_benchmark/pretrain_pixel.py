@@ -20,6 +20,7 @@ import utils
 from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
 import matplotlib.pyplot as plt
+import seaborn as sns; sns.set_theme()
 from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -43,6 +44,58 @@ def get_state_embeddings(agent, states):
         s = agent.projector(s)
         s = F.normalize(s, dim=1, p=2)
     return s
+
+def heatmaps(self, env, model_step, replay_dir2, goal):
+    if goal:
+        replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
+    else:
+        replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
+        
+    replay_buffer = make_replay_buffer(env,
+                                Path(replay_dir),
+                                2000000,
+                                1,
+                                0,
+                                self.cfg.discount,
+                                goal=goal,
+                                relabel=False,
+                                model_step=model_step,
+                                replay_dir2=replay_dir2,
+                                obs_type=self.cfg.obs_type,
+                                eval=True)
+    
+    states, actions, rewards = replay_buffer.parse_dataset()
+    #only adding states and rewards in replay_buffer
+    tmp = np.hstack((states, rewards))
+    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
+                                   range=np.array(([-.29, .29],[-.29, .29])))
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(10,6))
+    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+    ax.set_title(model_step)
+    plt.savefig(f"./{self._global_step}_heatmap.png")
+    
+    #percentage breakdown
+    df=df*100
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
+                                   range=np.array(([-29, 29],[-29, 29])))
+    plt.clf()
+
+    fig, ax = plt.subplots(figsize=(10,10))
+    labels = np.round(heatmap.T/heatmap.sum()*100, 1)
+    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
+    plt.savefig(f"./{self._global_step}_heatmap_pct.png")
+
+    
+    #rewards seen thus far 
+    df = df.astype(int)
+    result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+    result.fillna(0, inplace=True)
+    plt.clf()
+    fig, ax = plt.subplots()
+    sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
+    plt.savefig(f"./{self._global_step}_reward.png")
 
 
 class Workspace:
@@ -283,10 +336,12 @@ class Workspace:
 
 
     def eval(self):
+        heatmaps(self, self.eval_env, self.global_step, False, True)
+        heatmaps(self, self.eval_env, self.global_step, False, False)
 
-        for i in range(10):
+        for i in range(400):
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_pixel(eval=True)
+            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -324,10 +379,10 @@ class Workspace:
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
         
-            if total_reward < 200*self.cfg.num_eval_episodes:
-                self.unreachable_goal = np.append(self.unreachable_goal, np.array(goal_pix[None,:,:,:]), axis=0)
-                self.unreachable_state = np.append(self.unreachable_state, np.array(goal_state[None,:]), axis=0)
-
+#             if total_reward < 200*self.cfg.num_eval_episodes:
+#                 self.unreachable_goal = np.append(self.unreachable_goal, np.array(goal_pix[None,:,:,:]), axis=0)
+#                 self.unreachable_state = np.append(self.unreachable_state, np.array(goal_state[None,:]), axis=0)
+                
     def eval_intrinsic(self, model):
         obs = torch.empty(1024, 9, 84, 84)
         states = torch.empty(1024, 4)

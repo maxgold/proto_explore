@@ -28,10 +28,14 @@ def save_episode(episode, fn):
             f.write(bs.read())
 
 
-def load_episode(fn):
+def load_episode(fn, eval=False):
     with fn.open("rb") as f:
         episode = np.load(f)
-        episode = {k: episode[k] for k in episode.keys()}
+        if eval:
+            keys = ['state', 'reward', 'action']
+            episode = {k: episode[k] for k in keys}
+        else:
+            episode = {k: episode[k] for k in episode.keys()}
         return episode
 
 
@@ -56,14 +60,14 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 10
+        r = 1
     else:
-        #upper = 0.015
-        #margin = 0.1
-        #scale = np.sqrt(-2 * np.log(0.1))
-        #x = (dist_to_target - upper) / margin
-        #r = np.exp(-0.5 * (x * scale) ** 2)
-        r=-1
+        upper = 0.015
+        margin = 0.1
+        scale = np.sqrt(-2 * np.log(0.1))
+        x = (dist_to_target - upper) / margin
+        r = np.exp(-0.5 * (x * scale) ** 2)
+        
     return float(r * control_reward)
 
 class ReplayBufferStorage:
@@ -354,8 +358,7 @@ class ReplayBuffer(IterableDataset):
         discount = np.ones_like(episode["discount"][idx])
         
         key = np.random.randint(0,2)
-        print(key)
-        if key ==0
+        if key ==0:
             goal = episode["goal"][idx]
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
@@ -377,7 +380,6 @@ class ReplayBuffer(IterableDataset):
         #reward = reward.astype(float)
         #action = action.astype(float)
         goal = goal.astype(int)
-        print('replay buffer hybrid reward', reward)
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
 
@@ -449,7 +451,8 @@ class OfflineReplayBuffer(IterableDataset):
         vae=False,
         model_step=False,
         replay_dir2=False,
-        obs_type=''):
+        obs_type='state',
+        eval=False):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -474,6 +477,7 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = True      
         else:
             self.pixels = False
+        self.eval = eval
 
     def _load(self, relabel=False):
         #space: e.g. .2 apart for uniform observation from -1 to 1
@@ -502,14 +506,19 @@ class OfflineReplayBuffer(IterableDataset):
         print('model step', self.model_step)
         np.random.shuffle(eps_fns)
         for eps_fn in eps_fns:
-            print(eps_fn)
+            print('eps_fn', eps_fn)
             if self._size > self._max_size:
                 break
             
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:
                 continue
-            episode = load_episode(eps_fn)
+            if self.eval and self.pixels:
+                print('eval')
+                episode = load_episode(eps_fn, eval=True)
+            else:
+                episode = load_episode(eps_fn)
+
             if relabel:
                 episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
@@ -688,25 +697,21 @@ class OfflineReplayBuffer(IterableDataset):
     def parse_dataset(self, start_ind=0, end_ind=-1):
         states = []
         actions = []
-        pix=[]
+        rewards = []
         if len(self._episode_fns)>0:
             for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
                 episode = self._episodes[eps_fn]
                 ep_len = next(iter(episode.values())).shape[0] - 1
-                indx = np.random.randint(ep_len, size=(int(self.model_step/4)))
                 for idx in range(ep_len):
-                    pix.append(episode["observation"][idx - 1][None])
                     if self.pixels:
                         states.append(episode["state"][idx - 1][None])
+                    else:
+                        states.append(episode["observation"][idx - 1][None])
                     actions.append(episode["action"][idx][None])
-            if self.pixels:
-                return (np.concatenate(pix,0),
-                        np.concatenate(states, 0),
+                    rewards.append(episode["reward"][idx][None])
+            return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
-                        )
-            else:
-                return (np.concatenate(pix,0),
-                        np.concatenate(actions, 0),
+                        np.concatenate(rewards, 0)
                         )
         else:
             return ('', '')
@@ -729,7 +734,8 @@ def make_replay_buffer(
     relabel=False,
     model_step=False,
     replay_dir2=False,
-    obs_type=''):
+    obs_type='state',
+    eval=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -743,7 +749,8 @@ def make_replay_buffer(
         vae=vae,
         model_step=model_step,
         replay_dir2=replay_dir2,
-        obs_type=obs_type
+        obs_type=obs_type,
+        eval=eval
     )
     iterable._load(relabel=relabel)
 
