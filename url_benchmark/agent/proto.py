@@ -195,7 +195,7 @@ class ProtoAgent(DDPGAgent):
            
         if actor1==False:
 
-            if self.reward_free:
+            if self.reward_free and step<300000:
                 metrics.update(self.update_proto(obs, next_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)

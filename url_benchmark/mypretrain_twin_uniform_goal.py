@@ -487,7 +487,7 @@ class Workspace:
                 time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
-                self.replay_storage1.add(time_step1, meta)
+                self.replay_storage1.add_goal(time_step1, meta, goal)
                 self.replay_storage2.add(time_step2, meta)
                 #self.train_video_recorder.init(time_step1.observation)
 
@@ -513,15 +513,16 @@ class Workspace:
                     self.global_step +=1
                         
                 else:
-                    if self.global_step%100000==0 and self.global_step!=0:
+                    if self.global_step%10000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
                         self.eval_goal()
                         #self.eval_intr_reward()
                     else:
+                        print('ok')
                         #self.logger.log('eval_total_time', self.timer.total_time(),
                         #            self.global_frame)
-                        self.eval()
+                     #   self.eval()
             meta = self.agent.update_meta(meta, self._global_step, time_step2)
             if episode_step % resample_goal_every == 0:
                 
@@ -535,6 +536,7 @@ class Workspace:
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
                 self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal) 
                 print('sampled goal', goal)
+                print('task', self.cfg.task)
                 #print('resample goal make env', self.train_env)
             
             #if episode_step % update_buffer_every == 0:

@@ -124,7 +124,6 @@ class ReplayBufferStorage:
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
                 value = time_step[spec.name]
-                import IPython as ipy; ipy.embed(colors='neutral')
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
             else:
@@ -290,6 +289,7 @@ class ReplayBuffer(IterableDataset):
         eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
         
         fetched_size = 0
+        
         for eps_fn in eps_fns:
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
             if eps_idx % self._num_workers != worker_id:

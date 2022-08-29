@@ -443,7 +443,7 @@ class Workspace:
                     goal_state = self.first_goal_state
                     goal_pix = self.first_goal_pix
                 else:
-                    goal_pix, goal_state = self.sample_goal_uniform()
+                    goal_pix, goal_state = self.sample_goal_pixel()
                 print('sampled goal', goal_state)
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)

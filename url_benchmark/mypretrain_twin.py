@@ -24,7 +24,7 @@ import dmc
 import torch.nn.functional as F
 import utils
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
+from replay_buffer_concurrent import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 
@@ -91,14 +91,13 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, concurrent):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
-    cfg.concurrent = concurrent
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -167,7 +166,7 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                cfg.concurrent)
+                                )
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()

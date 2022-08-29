@@ -99,7 +99,6 @@ class ActionRepeatWrapper(dm_env.Environment):
         reward = 0.0
         discount = 1.0
         count = 0
-        #import IPython as ipy; ipy.embed(colors='neutral')
         for i in range(self._num_repeats):
             time_step = self._env.step(action)
             if time_step.reward == None:
@@ -109,7 +108,6 @@ class ActionRepeatWrapper(dm_env.Environment):
             
             if count >1:
                 print('sth went wrong')
-                import IPython as ipy; ipy.embed(colors='neutral')
             reward += time_step.reward * discount
             discount *= time_step.discount
             if time_step.last():
@@ -150,11 +148,14 @@ class FrameStackWrapper(dm_env.Environment):
                                             minimum=0,
                                             maximum=255,
                                             name='observation')
-
     def _transform_observation(self, time_step):
         assert len(self._frames) == self._num_frames
+        
         obs = np.concatenate(list(self._frames), axis=0)
-        return time_step._replace(observation=obs)
+        observation = OrderedDict()
+        observation['observations']=time_step.observation['observations']
+        observation['pixels'] = obs
+        return time_step._replace(observation=observation)
 
     def _extract_pixels(self, time_step):
         pixels = time_step.observation[self._pixels_key]
@@ -171,9 +172,16 @@ class FrameStackWrapper(dm_env.Environment):
         return self._transform_observation(time_step)
 
     def step(self, action):
+        
         time_step = self._env.step(action)
         pixels = self._extract_pixels(time_step)
-        self._frames.append(pixels)
+        if len(self._frames)==0:
+            print('first, w/o reset')
+            for _ in range(self._num_frames):
+                self._frames.append(pixels)
+        else:
+            self._frames.append(pixels)
+        
         return self._transform_observation(time_step)
 
     def observation_spec(self):
@@ -258,6 +266,7 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 
     def step(self, action):
         time_step = self._env.step(action)
+        #import IPython as ipy; ipy.embed(colors='neutral')
         return self._augment_time_step(time_step, action)
 
     def _augment_time_step(self, time_step, action=None):
@@ -343,7 +352,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
         camera_id = dict(quadruped=2).get(domain, 0)
         render_kwargs = dict(height=84, width=84, camera_id=camera_id)
         env = pixels.Wrapper(env,
-                             pixels_only=True,
+                             pixels_only=False,
                              render_kwargs=render_kwargs)
     return env
 
@@ -354,6 +363,9 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
         _, _, _, task = name.split('_', 3)
+    elif name.startswith('point_mass'):
+        domain = 'point_mass'
+        _, _, task = name.split('_', 2)
     else:
         domain, task = name.split('_', 1)
     domain = dict(cup='ball_in_cup').get(domain, domain)
@@ -363,6 +375,7 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
 
     if obs_type == 'pixels':
         env = FrameStackWrapper(env, frame_stack)
+
     else:
         env = ObservationDTypeWrapper(env, np.float32)
 

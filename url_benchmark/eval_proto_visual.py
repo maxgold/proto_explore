@@ -559,7 +559,8 @@ class Workspace:
 def main(cfg):
     from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
-    agents = glob.glob(str(cfg.path)+'/*pth')
+    #agents = glob.glob(str(cfg.path)+'/*pth')
+    agents = glob.glob('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/113833_proto/*.pth')
     print(agents)
     
     for ix, x in enumerate(agents):
@@ -567,16 +568,17 @@ def main(cfg):
             workspace = W(cfg, x)
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
-            replay_dir = Path(cfg.replay_dir)
-            if cfg.replay_dir2:
-                replay_dir2 = Path(cfg.replay_dir2)
-            else:
-                replay_dir2 = False
+            replay_dir = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/113833_proto/'
+            #if cfg.replay_dir2:
+            #    replay_dir2 = Path(cfg.replay_dir2)
+            #else:
+            #    replay_dir2 = False
+            replay_dir2 = False
             print('model_step', model)
             #workspace.eval(replay_dir, model, replay_dir2)
-            #workspace.eval_goal(replay_dir, model, replay_dir2)
+            workspace.eval_goal(replay_dir, model, replay_dir2)
             #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
-            workspace.eval_goal_pixel(replay_dir, model, replay_dir2)
+            #workspace.eval_goal_pixel(replay_dir, model, replay_dir2)
             print(ix)
 
 if __name__ == '__main__':
