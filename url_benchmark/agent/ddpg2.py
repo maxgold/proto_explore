@@ -40,9 +40,9 @@ class Actor(nn.Module):
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
+#        policy_layers += [
+#            nn.Linear(feature_dim, hidden_dim),
+#            nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
         #if obs_type == 'pixels':
@@ -75,9 +75,9 @@ class Actor2(nn.Module):
                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
+ #       policy_layers += [
+ #           nn.Linear(feature_dim, hidden_dim),
+ #           nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
         #if obs_type == 'pixels':
@@ -198,7 +198,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPG1Agent:
+class DDPG2Agent:
     def __init__(self,
                  name,
                  reward_free,
