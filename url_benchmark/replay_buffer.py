@@ -210,7 +210,7 @@ class ReplayBufferStorage:
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
         print('storing', eps_fn)
         save_episode(episode, self._replay_dir / eps_fn)
-        save_episode(episode, self._replay_dir2 / eps_fn)
+        #save_episode(episode, self._replay_dir2 / eps_fn)
 
 
 class ReplayBuffer(IterableDataset):
