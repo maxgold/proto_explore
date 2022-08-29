@@ -39,7 +39,8 @@ hybrid: false
 hybrid_pct: 5 #0-10
 batch_size: 1024
 hidden_dim: 1024
-one_loader: False
+batch_size_gc: 1024
+second: False #gc policy uses proto's replay buffer
 # experiment
 experiment: exp
 

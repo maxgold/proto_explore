@@ -228,7 +228,6 @@ class ReplayBuffer(IterableDataset):
         fetch_every,
         save_snapshot,
         hybrid_pct,
-        second,
         actor1=False):
         self._storage = storage
         self._storage2 = storage2
@@ -246,7 +245,6 @@ class ReplayBuffer(IterableDataset):
         self.hybrid = hybrid
         self.actor1 = actor1
         self.hybrid_pct = hybrid_pct
-        self.second = second
 
         if obs_type == 'pixels':
             self.pixels = True
@@ -289,25 +287,76 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+        #if hyperparameter: second=True, hybrid_pct=x
+        if self._storage2 and self.hybrid_pct!=0:
         
-        if self.second:
-            eps_fns = sorted(self._storage._replay_dir2.glob("*.npz"), reverse=True)
+            eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+            eps_fns2 = sorted(self._storage2._replay_dir2.glob("*.npz"), reverse=True)
+            
+            count1 = 0
+            count2 = 0
+            fetched_size = 0
+            for eps_fn1 in eps_fns1:
+                
+                if count1 < 10-self.hybrid_pct:
+                    print('eps1', eps_fn1)
+                    eps_idx, eps_len = [int(x) for x in eps_fn1.stem.split("_")[1:]]
+                    
+                    if eps_idx % self._num_workers != worker_id:
+                        continue
+                    if eps_fn1 in self._episodes.keys():
+                        break
+                    if fetched_size + eps_len > self._max_size:
+                        break
+                    fetched_size += eps_len
+                    if not self._store_episode(eps_fn1):
+                        break
+                    count1 += 1
+                
+                for ix, eps_fn2 in enumerate(eps_fns2):
+                    
+                    if count2 < self.hybrid_pct:
+                        print('eps2', eps_fn2)
+                        if ix!=last+1:
+                            continue
+                        else:
+                            eps_idx, eps_len = [int(x) for x in eps_fn2.stem.split("_")[1:]]
+                            if eps_idx % self._num_workers != worker_id:
+                                continue
+                            if eps_fn2 in self._episodes.keys():
+                                break
+                            if fetched_size + eps_len > self._max_size:
+                                break
+                            fetched_size += eps_len
+                            if not self._store_episode(eps_fn2):
+                                break
+                            count2 += 1
+                            last=ix
+
+                    else:
+                        break
+                if count1 == 10-self.hybrid_pct and count2 == self.hybrid_pct:
+                    count1 = 0 
+                    count2 = 0
+
+        #if hyperparameter: second=False
         else:
             eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
         
-        fetched_size = 0
-        for eps_fn in eps_fns:
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-            if eps_idx % self._num_workers != worker_id:
-                continue
-            if eps_fn in self._episodes.keys():
-                break
-            if fetched_size + eps_len > self._max_size:
-                break
-            fetched_size += eps_len
-            if not self._store_episode(eps_fn):
-                #print('break')
-                break
+            fetched_size = 0
+            for eps_fn in eps_fns:
+                print('eps_fn', eps_fn)
+                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn in self._episodes.keys():
+                    break
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if not self._store_episode(eps_fn):
+                    #print('break')
+                    break
 
     def _sample(self):
         try:
@@ -360,15 +409,25 @@ class ReplayBuffer(IterableDataset):
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
-        if self.second:
-            idx = np.random.randint(500-self._nstep)
-            goal = episode["observation"][idx + self._nstep]
-            goal_state = episode["state"][idx + self._nstep]
+        if self._storage2:
+            if 'goal' in episode.keys():
+                print('keys', episode.keys())
+                goal = episode["goal"][idx]
+                for i in range(self._nstep):
+                    step_reward = episode["reward"][idx + i]
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx + i] * self._discount
 
-            for i in range(self._nstep):
-                step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
-                reward += discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount
+            else:
+
+                idx = np.random.randint(500-self._nstep)
+                goal = episode["observation"][idx + self._nstep]
+                goal_state = episode["state"][idx + self._nstep]
+
+                for i in range(self._nstep):
+                    step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx+i] * self._discount
         else:
 
             key = np.random.randint(0,10)
@@ -770,7 +829,7 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid, obs_type, hybrid_pct=0, second=False, actor1=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid, obs_type, hybrid_pct=0, actor1=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -784,7 +843,6 @@ def make_replay_loader(
         hybrid=hybrid,
         obs_type = obs_type,
         hybrid_pct=hybrid_pct,
-        second=second,
         actor1 = actor1,
         fetch_every=1000,
         save_snapshot=save_snapshot,

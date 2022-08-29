@@ -147,22 +147,32 @@ class Workspace:
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer1')
-        if cfg.one_loader:
-            print('only one loader')
-        else:
-            self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
+        self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2')
         
 
         # create replay buffer
-        self.replay_loader1 = make_replay_loader(self.replay_storage2,
+        if cfg.second:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                self.replay_storage2,
                                                 False,
                                                 100000,
-                                                cfg.batch_size,
-                                                1,
+                                                cfg.batch_size_gc,
+                                                cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
-                                                True, cfg.hybrid,cfg.obs_type,cfg.hybrid_pct,second=cfg.one_loader)
-        #make the loader so that it can take in storage 1 & 2. chain them
+                                                True, cfg.hybrid,cfg.obs_type,
+                                                cfg.hybrid_pct)
+        else:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                    False,
+                                                    False,
+                                                    100000,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False, cfg.nstep, cfg.discount,
+                                                    True, cfg.hybrid,cfg.obs_type,
+                                                    cfg.hybrid_pct)
+
         #& then put them in two different eps_fns
         #if randomint > x, load episode in one of the eps_fns
 
@@ -173,6 +183,7 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
                                                 False, False,cfg.obs_type)
+        
         self.replay_buffer_goal = make_replay_buffer(self.eval_env,
                                                     self.work_dir / 'buffer1' / 'buffer_copy',
                                                     50000,
@@ -432,15 +443,12 @@ class Workspace:
                                       self.cfg.action_repeat)
 
         episode_step, episode_reward = 0, 0
-        if self.cfg.one_loader==False:
-            time_step1 = self.train_env1.reset()
+        time_step1 = self.train_env1.reset()
         time_step2 = self.train_env2.reset()
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            if self.cfg.one_loader==False:
-                self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, self.first_goal_state, True)
-
+            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, self.first_goal_state, True)
             self.replay_storage2.add(time_step2, meta, True)
         else:
             self.replay_storage1.add_goal(time_step1, meta, goal)
@@ -508,8 +516,7 @@ class Workspace:
                 else:
                     goal_pix, goal_state = self.sample_goal_uniform()
                 print('sampled goal', goal_state)
-                if self.cfg.one_loader==False:
-                    self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
 
 
@@ -517,8 +524,7 @@ class Workspace:
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.obs_type == 'pixels':
-                    if self.cfg.one_loader==False:
-                        action1 = self.agent.act(time_step1.observation['pixels'].copy(),
+                    action1 = self.agent.act(time_step1.observation['pixels'].copy(),
                                             goal_pix,
                                             meta,
                                             self._global_step,
@@ -535,16 +541,14 @@ class Workspace:
                                         eval_mode=False)
 
             # take env step
-            if self.cfg.one_loader==False:
-                time_step1 = self.train_env1.step(action1)
-                episode_reward += time_step1.reward
+            time_step1 = self.train_env1.step(action1)
+            episode_reward += time_step1.reward
             time_step2 = self.train_env2.step(action2)
             
             #episode_reward += time_step1.reward
             
             if self.cfg.obs_type == 'pixels':
-                if self.cfg.one_loader==False:
-                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state,True)
+                self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state,True)
                 self.replay_storage2.add(time_step2, meta, True)
             else:
                 self.replay_storage1.add_goal(time_step1, meta, goal)

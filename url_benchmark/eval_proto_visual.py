@@ -628,7 +628,7 @@ def main(cfg):
     from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
     agents = glob.glob(str(cfg.path)+'/*pth')
-    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.27/202525_proto1/*pth')
+    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/*pth')
     print(agents)
     
     for ix, x in enumerate(agents):
@@ -637,7 +637,7 @@ def main(cfg):
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
             #replay_dir = Path(cfg.replay_dir)
-            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.27/202525_proto1/'
+            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/'
             replay_dir2 = False
             # if cfg.replay_dir2:
            #     replay_dir2 = Path(cfg.replay_dir2)
@@ -645,9 +645,9 @@ def main(cfg):
            #     replay_dir2 = False
             print('model_step', model)
             #workspace.eval(replay_dir, model, replay_dir2)
-            #workspace.eval_goal(replay_dir, model, replay_dir2)
+            workspace.eval_goal(path, model, replay_dir2)
             #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
-            workspace.eval_goal_pixel(path, model, replay_dir2)
+            #workspace.eval_goal_pixel(path, model, replay_dir2)
             print(ix)
 
 if __name__ == '__main__':
