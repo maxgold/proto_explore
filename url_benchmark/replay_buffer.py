@@ -210,7 +210,7 @@ class ReplayBufferStorage:
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
         print('storing', eps_fn)
         save_episode(episode, self._replay_dir / eps_fn)
-        #save_episode(episode, self._replay_dir2 / eps_fn)
+        save_episode(episode, self._replay_dir2 / eps_fn)
 
 
 class ReplayBuffer(IterableDataset):
@@ -228,6 +228,7 @@ class ReplayBuffer(IterableDataset):
         fetch_every,
         save_snapshot,
         hybrid_pct,
+        second,
         actor1=False):
         self._storage = storage
         self._storage2 = storage2
@@ -245,6 +246,7 @@ class ReplayBuffer(IterableDataset):
         self.hybrid = hybrid
         self.actor1 = actor1
         self.hybrid_pct = hybrid_pct
+        self.second = second
 
         if obs_type == 'pixels':
             self.pixels = True
@@ -288,7 +290,10 @@ class ReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         
-        eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+        if self.second:
+            eps_fns = sorted(self._storage._replay_dir2.glob("*.npz"), reverse=True)
+        else:
+            eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
         
         fetched_size = 0
         for eps_fn in eps_fns:
@@ -355,25 +360,36 @@ class ReplayBuffer(IterableDataset):
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
-        key = np.random.randint(0,10)
-        if key < self.hybrid_pct:
-            goal = episode["goal"][idx]
-            for i in range(self._nstep):
-                step_reward = episode["reward"][idx + i]
-                reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
-            
-        elif key >= self.hybrid_pct:
-            idx = np.random.randint(500-self._nstep)    
+        if self.second:
+            idx = np.random.randint(500-self._nstep)
             goal = episode["observation"][idx + self._nstep]
             goal_state = episode["state"][idx + self._nstep]
-            
+
             for i in range(self._nstep):
                 step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
         else:
-            print('sth went wrong in replay buffer')
+
+            key = np.random.randint(0,10)
+            if key < self.hybrid_pct:
+                goal = episode["goal"][idx]
+                for i in range(self._nstep):
+                    step_reward = episode["reward"][idx + i]
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx + i] * self._discount
+            
+            elif key >= self.hybrid_pct:
+                idx = np.random.randint(500-self._nstep)    
+                goal = episode["observation"][idx + self._nstep]
+                goal_state = episode["state"][idx + self._nstep]
+            
+                for i in range(self._nstep):
+                    step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx+i] * self._discount
+            else:
+                print('sth went wrong in replay buffer')
         #discount = discount.astype(float)
         #reward = reward.astype(float)
         #action = action.astype(float)
@@ -754,7 +770,7 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid, obs_type, hybrid_pct=0, actor1=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid, obs_type, hybrid_pct=0, second=False, actor1=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -768,6 +784,7 @@ def make_replay_loader(
         hybrid=hybrid,
         obs_type = obs_type,
         hybrid_pct=hybrid_pct,
+        second=second,
         actor1 = actor1,
         fetch_every=1000,
         save_snapshot=save_snapshot,

@@ -39,6 +39,7 @@ hybrid: false
 hybrid_pct: 5 #0-10
 batch_size: 1024
 hidden_dim: 1024
+one_loader: False
 # experiment
 experiment: exp
 

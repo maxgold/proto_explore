@@ -628,7 +628,7 @@ def main(cfg):
     from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
     agents = glob.glob(str(cfg.path)+'/*pth')
-    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.25/230737_proto/*pth')
+    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.27/202525_proto1/*pth')
     print(agents)
     
     for ix, x in enumerate(agents):
@@ -637,7 +637,7 @@ def main(cfg):
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
             #replay_dir = Path(cfg.replay_dir)
-            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.25/230737_proto/'
+            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.27/202525_proto1/'
             replay_dir2 = False
             # if cfg.replay_dir2:
            #     replay_dir2 = Path(cfg.replay_dir2)
