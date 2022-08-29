@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg2 import DDPG2Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class Proto2Agent(DDPGAgent):
+class Proto2Agent(DDPG2Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, **kwargs):
         super().__init__(**kwargs)
@@ -68,7 +68,6 @@ class Proto2Agent(DDPGAgent):
                                 bias=False).to(self.device)
         self.protos.apply(utils.weight_init)
         #self.protos_target = deepcopy(self.protos)
-        
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
@@ -156,7 +155,7 @@ class Proto2Agent(DDPGAgent):
 
         return metrics
 
-    def update(self, replay_iter, step, actor1=False, gc_only=True):
+    def update(self, replay_iter, step, actor1=False):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -166,10 +165,26 @@ class Proto2Agent(DDPGAgent):
         if actor1:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
+            
+            if self.obs_type=='pixels':
+                goal = goal.reshape(-1, 9, 84, 84).float()
+            else: 
+                goal = goal.reshape(-1, 2).float()
         else:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
         
+        #if self.obs_type=='pixels':
+         #   obs = obs.reshape(-1, 9, 84, 84).float()
+        #    next_obs = next_obs.reshape(-1, 9, 84, 84).float()
+        #else:
+         #   obs = obs.reshape(-1, 4).float()
+         #   next_obs = next_obs.reshape(-1, 4).float()
+        
+        #action = action.reshape(-1, 2).float()
+        #extr_reward = extr_reward.reshape(-1, 1).float()
+        #discount = discount.reshape(-1, 1).float()
+        extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():
@@ -182,7 +197,6 @@ class Proto2Agent(DDPGAgent):
 
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
-                #utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -222,8 +236,6 @@ class Proto2Agent(DDPGAgent):
                                  self.critic2_target_tau)
 
         else:
-            if gc_only:
-                metrics.update(self.update_proto(obs, next_obs, step))
             reward = extr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()
@@ -249,7 +261,6 @@ class Proto2Agent(DDPGAgent):
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-
 
 
         return metrics

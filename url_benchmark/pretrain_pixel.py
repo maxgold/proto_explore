@@ -28,13 +28,15 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
+    cfg.hidden_dim = hidden_dim
+    cfg.batch_size = batch_size
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -140,7 +142,9 @@ class Workspace:
                                 (9, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 True,
-                                cfg.agent)
+                                cfg.agent,
+                                cfg.hidden_dim,
+                                cfg.batch_size)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -287,9 +291,9 @@ class Workspace:
 
     def sample_goal_uniform(self, eval=False):
         if self.loaded_uniform == False:
-            goal_index = pd.read_csv('/home/ubuntu/proto_explore/url_benchmark/uniform_goal_pixel_index.csv')
+            goal_index = pd.read_csv('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/uniform_goal_pixel_index.csv')
             for ix in range(len(goal_index)):
-                tmp = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_cross/buffer2/buffer_copy/'+goal_index.iloc[ix, 0])
+                tmp = np.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.08.27/224211_proto/buffer2/buffer_copy/'+goal_index.iloc[ix, 0])
                 self.uniform_goal.append(np.array(tmp['observation'][int(goal_index.iloc[ix, -1])]))
                 self.uniform_state.append(np.array(tmp['state'][int(goal_index.iloc[ix, -1])]))
             self.loaded_uniform = True
@@ -378,6 +382,7 @@ class Workspace:
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+       
         
 #             if total_reward < 200*self.cfg.num_eval_episodes:
 #                 self.unreachable_goal = np.append(self.unreachable_goal, np.array(goal_pix[None,:,:,:]), axis=0)
@@ -498,7 +503,7 @@ class Workspace:
                     goal_state = self.first_goal_state
                     goal_pix = self.first_goal_pix
                 else:
-                    goal_pix, goal_state = self.sample_goal_pixel()
+                    goal_pix, goal_state = self.sample_goal_uniform()
                 print('sampled goal', goal_state)
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)

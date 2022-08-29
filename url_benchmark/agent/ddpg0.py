@@ -198,7 +198,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGAgent:
+class DDPG0Agent:
     def __init__(self,
                  name,
                  reward_free,
