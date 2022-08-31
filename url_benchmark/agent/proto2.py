@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class Proto2Agent(DDPG2Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, **kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -51,6 +51,7 @@ class Proto2Agent(DDPG2Agent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
+        self.update_gc = update_gc
 
 
         # models
@@ -162,7 +163,7 @@ class Proto2Agent(DDPG2Agent):
             return metrics
 
         batch = next(replay_iter)
-        if actor1:
+        if actor1 and step % self.update_gc==0:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             
@@ -170,10 +171,11 @@ class Proto2Agent(DDPG2Agent):
                 goal = goal.reshape(-1, 9, 84, 84).float()
             else: 
                 goal = goal.reshape(-1, 2).float()
-        else:
+        elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
-        
+        else:
+            return metrics
         #if self.obs_type=='pixels':
          #   obs = obs.reshape(-1, 9, 84, 84).float()
         #    next_obs = next_obs.reshape(-1, 9, 84, 84).float()
@@ -235,7 +237,7 @@ class Proto2Agent(DDPG2Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
 
-        else:
+        elif actor1 and step % self.update_gc==0:
             reward = extr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()

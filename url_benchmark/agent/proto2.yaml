@@ -9,7 +9,7 @@ goal_shape: ???
 goal: false
 update_every_steps: 2
 device: ${device}
-lr: 1e-4
+lr: ???
 critic_target_tau: .01
 critic2_target_tau: .01
 use_tb: ${use_tb}
@@ -29,4 +29,5 @@ tau: 0.1
 topk: 3
 queue_size: 2048
 encoder_target_tau: .05
+update_gc: ???
 update_encoder: ${update_encoder}

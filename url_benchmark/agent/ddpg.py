@@ -241,7 +241,6 @@ class DDPGAgent:
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.solved_meta = None
-
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)

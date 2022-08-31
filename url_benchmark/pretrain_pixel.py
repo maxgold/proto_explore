@@ -3,7 +3,7 @@ import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 import itertools
 import os
-
+import seaborn as sns; sns.set_theme()
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
 
@@ -20,7 +20,6 @@ import utils
 from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
 import matplotlib.pyplot as plt
-import seaborn as sns; sns.set_theme()
 #from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -28,7 +27,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -37,6 +36,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.goal = goal
     cfg.hidden_dim = hidden_dim
     cfg.batch_size = batch_size
+    cfg.update_gc = update_gc
+    cfg.lr = lr 
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -144,7 +145,9 @@ class Workspace:
                                 True,
                                 cfg.agent,
                                 cfg.hidden_dim,
-                                cfg.batch_size)
+				cfg.batch_size,
+				cfg.update_gc,
+				cfg.lr)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -165,7 +168,7 @@ class Workspace:
         self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                 False,
                                                 100000,
-                                                cfg.batch_size,
+                                                cfg.batch_size_gc,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
                                                 True, False,cfg.obs_type)
@@ -466,12 +469,12 @@ class Workspace:
                         log('step', self.global_step)
 
                 # reset env
-                #time_step1 = self.train_env1.reset()
+                time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
                 
                 if self.cfg.obs_type =='pixels':
-                    #self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
+                    self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
                     self.replay_storage2.add(time_step2, meta,True)
                 else:
                     self.replay_storage.add(time_step, meta)

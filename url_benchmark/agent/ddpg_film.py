@@ -379,7 +379,7 @@ class DDPGFilmAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
-        self.film = FiLM(goal_dim, feature_dim, hidden_dim).to(device)
+        self.film = FiLM(self.goal_dim, feature_dim, hidden_dim).to(device)
 
         # optimizers
 
@@ -489,13 +489,13 @@ class DDPGFilmAgent:
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
-            self.film_opt.zero_grad(set_to_none=True)
+            #self.film_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
         if self.encoder_opt is not None:
             self.encoder_opt.step()
-            self.film_opt.step()
+            #self.film_opt.step()
         return metrics
 
     def update_critic2(self, obs, action, reward, discount, next_obs, step):
@@ -540,9 +540,13 @@ class DDPGFilmAgent:
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
+        self.film_opt.zero_grad(set_to_none=True)
+
         actor_loss.backward()
         self.actor_opt.step()
-
+        
+        self.film_opt.step()
+        
         if self.use_tb or self.use_wandb:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()

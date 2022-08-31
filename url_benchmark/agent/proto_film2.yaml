@@ -1,17 +1,17 @@
 # @package agent
-_target_: agent.proto.ProtoAgent
-name: proto
+_target_: agent.proto_film.ProtoFilmAgent
+name: proto_film
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
 action_shape: ??? # to be specified later
 goal_shape: ???
 goal: false
-update_every_steps: 2
 device: ${device}
-lr: ???
-critic_target_tau: .01
-critic2_target_tau: .01
+lr: 1e-4
+critic_target_tau: 0.01
+critic2_target_tau: 0.01
+update_every_steps: 2
 use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
@@ -28,8 +28,8 @@ num_protos: 512
 tau: 0.1
 topk: 3
 queue_size: 2048
-encoder_target_tau: .05
 update_gc: ???
 gc_only: ???
 offline: ???
+encoder_target_tau: 0.05
 update_encoder: ${update_encoder}

@@ -450,6 +450,9 @@ class OfflineReplayBuffer(IterableDataset):
         model_step=False,
         replay_dir2=False,
         obs_type='state',
+        hybrid=False,
+        offline=False,
+        nstep=1,
         eval=False):
 
         self._env = env
@@ -471,6 +474,9 @@ class OfflineReplayBuffer(IterableDataset):
         self.obs = []
         self.model_step = int(int(model_step)/500)
         self._replay_dir2 = replay_dir2
+        self.offline = offline
+        self.hybrid = hybrid
+        self._nstep=nstep
         if obs_type == 'pixels':
             self.pixels = True      
         else:
@@ -489,8 +495,6 @@ class OfflineReplayBuffer(IterableDataset):
             tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
         else:
             tmp_fns = sorted(self._replay_dir.glob("*.npz"))
-        #print(tmp_fns)
-        # for eps_fn in tqdm.tqdm(eps_fns):
         tmp_fns_=[]
         tmp_fns2 = []
         
@@ -677,11 +681,54 @@ class OfflineReplayBuffer(IterableDataset):
         discount = episode["discount"][idx] * self._discount
         return (obs, action, reward, discount, next_obs)
     
+
+
+    def _sample_goal_hybrid(self):
+
+        episode = self._sample_episode()
+        idx = np.random.randint(0, episode_len(episode)-self._nstep) + 1
+
+        obs = episode["observation"][idx - 1]
+
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+
+
+        if 'goal' in episode.keys():
+            goal = episode["goal"][idx]
+            for i in range(self._nstep):
+                step_reward = episode["reward"][idx + i]
+                reward += discount * step_reward
+                discount *= episode["discount"][idx + i] * self._discount
+
+        else:
+            iz = np.random.randint(0,min(50, episode_len(episode)-idx))
+            goal = episode["observation"][idx + iz]
+            goal_state = episode["state"][idx + iz]
+
+            for i in range(self._nstep):
+                step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
+                reward += discount * step_reward
+                discount *= episode["discount"][idx+i] * self._discount
+
+        goal = goal.astype(int)
+        obs = np.array(obs)
+        obs = obs.reshape(-1, 9, 84, 84)
+        next_obs = next_obs.reshape(-1,9,84,84)
+        goal = goal.reshape(-1,9,84,84)
+        reward = reward.reshape(-1,1)
+        discount = discount.reshape(-1,1)
+        action = action.reshape(-1,2)
+        return (obs, action, reward, discount, next_obs, goal)
                 
                 
     def __iter__(self):
         while True:
-            if self.pixels:
+            if (self.offline and self.goal and self.pixels) or (self.hybrid and self.goal and self.pixels):
+                yield self._sample_goal_hybrid()
+            elif self.pixels:
                 yield self._sample_pixel_goal()
             elif self.goal:
                 yield self._sample_goal()
@@ -732,6 +779,9 @@ def make_replay_buffer(
     model_step=False,
     replay_dir2=False,
     obs_type='state',
+    offline=False,
+    hybrid=False,
+    nstep=1,
     eval=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -747,6 +797,9 @@ def make_replay_buffer(
         model_step=model_step,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
+	offline=offline,
+        hybrid=hybrid,
+        nstep=nstep,
         eval=eval
     )
     iterable._load(relabel=relabel)
@@ -754,7 +807,7 @@ def make_replay_buffer(
     return iterable
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid, obs_type, hybrid_pct=0, actor1=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(

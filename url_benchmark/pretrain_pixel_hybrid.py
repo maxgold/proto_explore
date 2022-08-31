@@ -27,7 +27,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -36,6 +36,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.goal = goal
     cfg.hidden_dim = hidden_dim
     cfg.batch_size = batch_size
+    cfg.update_gc = update_gc
+    cfg.lr = lr
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -75,8 +77,11 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     fig, ax = plt.subplots(figsize=(10,6))
     sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
     ax.set_title(model_step)
-    plt.savefig(f"./{self._global_step}_heatmap.png")
-    
+    if goal:
+        plt.savefig(f"./{model_step}_gc_heatmap.png")
+    else:
+        plt.savefig(f"./{model_step}_proto_heatmap.png")
+
     #percentage breakdown
     df=df*100
     heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
@@ -88,6 +93,14 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
     plt.savefig(f"./{self._global_step}_heatmap_pct.png")
     
+    #rewards seen thus far
+    df = df.astype(int)
+    result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+    result.fillna(0, inplace=True)
+    plt.clf()
+    fig, ax = plt.subplots()
+    sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
+    plt.savefig(f"./{self._global_step}_reward.png")
 
 class Workspace:
     def __init__(self, cfg):
@@ -133,7 +146,9 @@ class Workspace:
                                 True,
                                 cfg.agent,
                                 cfg.hidden_dim,
-                                cfg.batch_size)
+                                cfg.batch_size,
+                                cfg.update_gc,
+                                cfg.lr)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -153,9 +168,9 @@ class Workspace:
         # create replay buffer
         self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                 False,
-                                                100000,
-                                                cfg.batch_size,
-                                                1,
+                                                200000,
+                                                cfg.batch_size_gc,
+                                                cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
                                                 True, cfg.hybrid,cfg.obs_type,cfg.hybrid_pct)
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
@@ -251,7 +266,7 @@ class Workspace:
             replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
             self.replay_buffer_intr = make_replay_buffer(self.eval_env,
                                         replay_dir,
-                                        100000,
+                                        self.replay_buffer_gc,
                                         self.cfg.batch_size,
                                         0,
                                         self.cfg.discount,
@@ -322,7 +337,7 @@ class Workspace:
                                                         self.cfg.discount,
                                                         goal=False,
                                                         relabel=False,
-                                                         replay_dir2 = False,
+                                                        replay_dir2 = False,
                                                         obs_type=self.cfg.obs_type,
                                                         model_step=self.global_step                                                                                                          )
             obs, state = self.replay_buffer_goal._sample_pixel_goal(self.global_step)
@@ -495,7 +510,10 @@ class Workspace:
                     goal_state = self.first_goal_state
                     goal_pix = self.first_goal_pix
                 else:
-                    goal_pix, goal_state = self.sample_goal_uniform()
+                    if self.cfg.uniform:
+                        goal_pix, goal_state = self.sample_goal_uniform()
+                    else:
+                        goal_pix, goal_state = self.sample_goal_pixel()
                 print('sampled goal', goal_state)
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
