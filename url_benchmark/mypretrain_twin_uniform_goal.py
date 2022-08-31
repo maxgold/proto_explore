@@ -516,7 +516,7 @@ class Workspace:
                     if self.global_step%10000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
-                        self.eval_goal()
+                        self.eval_goal(proto,model)
                         #self.eval_intr_reward()
                     else:
                         print('ok')

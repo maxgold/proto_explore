@@ -7,7 +7,7 @@ obs_shape: ??? # to be specified later
 action_shape: ??? # to be specified later
 goal_shape: ???
 goal: false
-update_every_steps: 2
+update_every_steps: 10
 device: ${device}
 lr: 1e-4
 critic_target_tau: .01

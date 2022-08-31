@@ -560,7 +560,7 @@ def main(cfg):
     from eval_proto_visual import Workspace as W
     root_dir = Path.cwd()
     #agents = glob.glob(str(cfg.path)+'/*pth')
-    agents = glob.glob('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/113833_proto/*.pth')
+    agents = glob.glob('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/213314_proto/*.pth')
     print(agents)
     
     for ix, x in enumerate(agents):
@@ -568,7 +568,7 @@ def main(cfg):
             workspace = W(cfg, x)
             model = str(x).split('_')[-1]
             model = str(model).split('.')[-2]
-            replay_dir = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/113833_proto/'
+            replay_dir = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.08.29/213314_proto'
             #if cfg.replay_dir2:
             #    replay_dir2 = Path(cfg.replay_dir2)
             #else:
