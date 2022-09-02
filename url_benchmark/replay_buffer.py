@@ -290,22 +290,76 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+        #if hyperparameter: second=True, hybrid_pct=x
+        if self._storage2 and self.hybrid_pct!=0:
         
-        eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+            eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
+            eps_fns2 = sorted(self._storage2._replay_dir2.glob("*.npz"), reverse=True)
+            
+            count1 = 0
+            count2 = 0
+            fetched_size = 0
+            for eps_fn1 in eps_fns1:
+                
+                if count1 < 10-self.hybrid_pct:
+                    print('eps1', eps_fn1)
+                    eps_idx, eps_len = [int(x) for x in eps_fn1.stem.split("_")[1:]]
+                    
+                    if eps_idx % self._num_workers != worker_id:
+                        continue
+                    if eps_fn1 in self._episodes.keys():
+                        break
+                    if fetched_size + eps_len > self._max_size:
+                        break
+                    fetched_size += eps_len
+                    if not self._store_episode(eps_fn1):
+                        break
+                    count1 += 1
+                
+                for ix, eps_fn2 in enumerate(eps_fns2):
+                    
+                    if count2 < self.hybrid_pct:
+                        print('eps2', eps_fn2)
+                        if ix!=last+1:
+                            continue
+                        else:
+                            eps_idx, eps_len = [int(x) for x in eps_fn2.stem.split("_")[1:]]
+                            if eps_idx % self._num_workers != worker_id:
+                                continue
+                            if eps_fn2 in self._episodes.keys():
+                                break
+                            if fetched_size + eps_len > self._max_size:
+                                break
+                            fetched_size += eps_len
+                            if not self._store_episode(eps_fn2):
+                                break
+                            count2 += 1
+                            last=ix
+
+                    else:
+                        break
+                if count1 == 10-self.hybrid_pct and count2 == self.hybrid_pct:
+                    count1 = 0 
+                    count2 = 0
+
+        #if hyperparameter: second=False
+        else:
+            eps_fns = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
         
-        fetched_size = 0
-        for eps_fn in eps_fns:
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-            if eps_idx % self._num_workers != worker_id:
-                continue
-            if eps_fn in self._episodes.keys():
-                break
-            if fetched_size + eps_len > self._max_size:
-                break
-            fetched_size += eps_len
-            if not self._store_episode(eps_fn):
-                #print('break')
-                break
+            fetched_size = 0
+            for eps_fn in eps_fns:
+                print('eps_fn', eps_fn)
+                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn in self._episodes.keys():
+                    break
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if not self._store_episode(eps_fn):
+                    #print('break')
+                    break
 
     def _sample(self):
         try:
@@ -358,32 +412,53 @@ class ReplayBuffer(IterableDataset):
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
-        key = np.random.randint(0,10)
-        if key < self.hybrid_pct:
-            goal = episode["goal"][idx]
-            for i in range(self._nstep):
-                step_reward = episode["reward"][idx + i]
-                reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
-            
-        elif key >= self.hybrid_pct:
-            idx = np.random.randint(500-self._nstep)    
-            goal = episode["observation"][idx + self._nstep][6:,:,:]
-            print('goal',goal.shape)
-            goal_state = episode["state"][idx + self._nstep]
-            
-            for i in range(self._nstep):
-                step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
-                reward += discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount
-            print('reward', reward)
+        if self._storage2:
+            if 'goal' in episode.keys():
+                print('keys', episode.keys())
+                goal = episode["goal"][idx]
+                for i in range(self._nstep):
+                    step_reward = episode["reward"][idx + i]
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx + i] * self._discount
+
+            else:
+
+                idx = np.random.randint(500-self._nstep)
+                goal = episode["observation"][idx + self._nstep]
+                goal_state = episode["state"][idx + self._nstep]
+
+                for i in range(self._nstep):
+                    step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx+i] * self._discount
         else:
-            print('sth went wrong in replay buffer')
+
+            key = np.random.randint(0,10)
+            if key < self.hybrid_pct:
+                goal = episode["goal"][idx]
+                for i in range(self._nstep):
+                    step_reward = episode["reward"][idx + i]
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx + i] * self._discount
+            
+            elif key >= self.hybrid_pct:
+                idx = np.random.randint(500-self._nstep)    
+                goal = episode["observation"][idx + self._nstep][6:,:,:]
+                print('goal',goal.shape)
+                goal_state = episode["state"][idx + self._nstep]
+            
+                for i in range(self._nstep):
+                    step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
+                    reward += discount * step_reward
+                    discount *= episode["discount"][idx+i] * self._discount
+                print('reward', reward)
+            else:
+                print('sth went wrong in replay buffer')
         #discount = discount.astype(float)
         #reward = reward.astype(float)
         #action = action.astype(float)
         goal = goal.astype(int)
-        
+
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
 

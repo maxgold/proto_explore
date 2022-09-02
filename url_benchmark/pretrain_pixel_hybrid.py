@@ -130,9 +130,6 @@ class Workspace:
         # create envs
         task = PRIMAL_TASKS[self.cfg.domain]
         self.no_goal_task = 'point_mass_maze_reach_no_goal'
-        #npz  = np.load('/scratch/nm1874/proto_explore/url_benchmark/models/pixel_proto_rl/buffer2/buffer_copy/20220822T140527_474_1000.npz')
-        #self.first_goal_pix = npz['observation'][50]
-        #self.first_goal_state = npz['state'][50][:2]
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]]) 
@@ -186,13 +183,30 @@ class Workspace:
         
 
         # create replay buffer
-        self.replay_loader1 = make_replay_loader(self.replay_storage1,
+        if cfg.second:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                self.replay_storage2,
                                                 False,
                                                 cfg.replay_buffer_gc,
                                                 cfg.batch_size_gc,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
-                                                True, cfg.hybrid,cfg.obs_type,cfg.hybrid_pct)
+                                                True, cfg.hybrid,cfg.obs_type,
+                                                cfg.hybrid_pct)
+        else:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                    False,
+                                                    False,
+                                                    100000,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False, cfg.nstep, cfg.discount,
+                                                    True, cfg.hybrid,cfg.obs_type,
+                                                    cfg.hybrid_pct)
+
+        #& then put them in two different eps_fns
+        #if randomint > x, load episode in one of the eps_fns
+
         self.replay_loader2  = make_replay_loader(self.replay_storage2,
                                                 False,
                                                 cfg.replay_buffer_size,
@@ -200,6 +214,7 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
                                                 False, False,cfg.obs_type)
+        
         self.replay_buffer_goal = make_replay_buffer(self.eval_env,
                                                     self.work_dir / 'buffer1' / 'buffer_copy',
                                                     50000,
@@ -600,6 +615,9 @@ class Workspace:
             time_step_no_goal = self.train_env_no_goal.step(action1)
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
+            time_step2 = self.train_env2.step(action2)
+            
+            #episode_reward += time_step1.reward
             
             if self.cfg.obs_type == 'pixels':
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
