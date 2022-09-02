@@ -51,21 +51,21 @@ class ProtoFilmAgent(DDPGFilmAgent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
-	self.update_gc = update_gc
+        self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
 
         # models
         if self.offline==False and self.gc_only==False:
             self.encoder_target = deepcopy(self.encoder)
-
+            
             self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
             self.predictor.apply(utils.weight_init)
             self.predictor_target = deepcopy(self.predictor)
-
+            
             self.projector = Projector(pred_dim, proj_dim).to(self.device)
             self.projector.apply(utils.weight_init)
-
+            
             # prototypes
             self.protos = nn.Linear(pred_dim, num_protos,
                                 bias=False).to(self.device)
@@ -94,6 +94,11 @@ class ProtoFilmAgent(DDPGFilmAgent):
         utils.hard_update_params(other.protos, self.protos)
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
+    
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+
+
 
     def normalize_protos(self):
         C = self.protos.weight.data.clone()

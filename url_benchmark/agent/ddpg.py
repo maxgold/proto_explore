@@ -316,8 +316,15 @@ class DDPGAgent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.reshape(goal, (1,-1, 84, 84))
+            goal = torch.tile(goal, (1,3,1,1))
+        
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]
@@ -377,13 +384,13 @@ class DDPGAgent:
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
         # optimize critic
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
+       # if self.encoder_opt is not None:
+       #     self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
+       # if self.encoder_opt is not None:
+       #     self.encoder_opt.step()
         return metrics
 
     def update_critic2(self, obs, action, reward, discount, next_obs, step):

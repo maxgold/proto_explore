@@ -29,5 +29,7 @@ tau: 0.1
 topk: 3
 queue_size: 2048
 encoder_target_tau: .05
+offline: ???
+gc_only: ???
 update_gc: ???
 update_encoder: ${update_encoder}

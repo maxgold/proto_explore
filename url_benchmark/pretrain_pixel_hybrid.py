@@ -27,7 +27,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -38,6 +38,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.batch_size = batch_size
     cfg.update_gc = update_gc
     cfg.lr = lr
+    cfg.offline = offline
+    cfg.gc_only = gc_only
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -100,7 +102,10 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     plt.clf()
     fig, ax = plt.subplots()
     sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
-    plt.savefig(f"./{self._global_step}_reward.png")
+    if goal:
+        plt.savefig(f"./{self._global_step}_gc_reward.png")
+    else:
+        plt.savefig(f"./{self._global_step}_proto_reward.png")
 
 class Workspace:
     def __init__(self, cfg):
@@ -124,31 +129,46 @@ class Workspace:
                              use_wandb=cfg.use_wandb)
         # create envs
         task = PRIMAL_TASKS[self.cfg.domain]
-        npz  = np.load('/scratch/nm1874/proto_explore/url_benchmark/models/pixel_proto_rl/buffer2/buffer_copy/20220822T140527_474_1000.npz')
-        self.first_goal_pix = npz['observation'][50]
-        self.first_goal_state = npz['state'][50][:2]
+        self.no_goal_task = 'point_mass_maze_reach_no_goal'
+        #npz  = np.load('/scratch/nm1874/proto_explore/url_benchmark/models/pixel_proto_rl/buffer2/buffer_copy/20220822T140527_474_1000.npz')
+        #self.first_goal_pix = npz['observation'][50]
+        #self.first_goal_state = npz['state'][50][:2]
+        idx = np.random.randint(0,400)
+        goal_array = ndim_grid(2,20)
+        self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]]) 
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                   cfg.action_repeat, seed=None, goal=self.first_goal_state)
-        print('env1')
-        
-        self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=self.first_goal)
+        print('goal', self.first_goal)
+        self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        print('no goal task env', self.no_goal_task)
+        self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
+        self.train_env2 = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                                   cfg.action_repeat, seed=None, goal=None)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, seed=None, goal=self.first_goal_state)
+                                 cfg.action_repeat, seed=None, goal=self.first_goal)
+        self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
+        self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
 
         # create agent
         #import IPython as ipy; ipy.embed(colors='neutral')
         self.agent = make_agent(cfg.obs_type,
                                 self.train_env2.observation_spec(),
                                 self.train_env2.action_spec(),
-                                (9, 84, 84),
+                                (3, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 True,
                                 cfg.agent,
                                 cfg.hidden_dim,
                                 cfg.batch_size,
                                 cfg.update_gc,
-                                cfg.lr)
+                                cfg.lr,
+                                cfg.offline,
+                                False)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -168,7 +188,7 @@ class Workspace:
         # create replay buffer
         self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                 False,
-                                                200000,
+                                                cfg.replay_buffer_gc,
                                                 cfg.batch_size_gc,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
@@ -204,14 +224,14 @@ class Workspace:
         self._replay_iter1 = None
         self._replay_iter2 = None
 
-      #  self.video_recorder = VideoRecorder(
-      #      self.work_dir if cfg.save_video else None,
-      #      camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-      #      use_wandb=self.cfg.use_wandb)
-      #  self.train_video_recorder = TrainVideoRecorder(
-      #      self.work_dir if cfg.save_train_video else None,
-      #      camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-      #      use_wandb=self.cfg.use_wandb)
+        self.video_recorder = VideoRecorder(
+            self.work_dir if cfg.save_video else None,
+            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+            use_wandb=self.cfg.use_wandb)
+        self.train_video_recorder = TrainVideoRecorder(
+            self.work_dir if cfg.save_train_video else None,
+            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+            use_wandb=self.cfg.use_wandb)
 
         self.timer = utils.Timer()
         self._global_step = 0
@@ -295,23 +315,23 @@ class Workspace:
         
         
 
-    def sample_goal_uniform(self, eval=False):
-        if self.loaded_uniform == False:
-            goal_index = pd.read_csv('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/uniform_goal_pixel_index.csv')
-            for ix in range(len(goal_index)):
-                tmp = np.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.08.27/224211_proto/buffer2/buffer_copy/'+goal_index.iloc[ix, 0])
-                self.uniform_goal.append(np.array(tmp['observation'][int(goal_index.iloc[ix, -1])]))
-                self.uniform_state.append(np.array(tmp['state'][int(goal_index.iloc[ix, -1])]))
-            self.loaded_uniform = True
-            self.count_uniform +=1
-            print('loaded in uniform goals')
-            return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
-        else:
-            if self.count_uniform<400:
-                self.count_uniform+=1
-            else:
-                self.count_uniform = 1
-            return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+ #   def sample_goal_uniform(self, eval=False):
+ #       if self.loaded_uniform == False:
+ #           goal_index = pd.read_csv('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/uniform_goal_pixel_index.csv')
+ #           for ix in range(len(goal_index)):
+ #               tmp = np.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.08.27/224211_proto/buffer2/buffer_copy/'+goal_index.iloc[ix, 0])
+ #               self.uniform_goal.append(np.array(tmp['observation'][int(goal_index.iloc[ix, -1])]))
+ #               self.uniform_state.append(np.array(tmp['state'][int(goal_index.iloc[ix, -1])]))
+ #           self.loaded_uniform = True
+ #           self.count_uniform +=1
+ #           print('loaded in uniform goals')
+ #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+ #       else:
+ #           if self.count_uniform<400:
+ #               self.count_uniform+=1
+ #           else:
+ #               self.count_uniform = 1
+ #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
         
         
     def sample_goal_pixel(self, eval=False):
@@ -350,22 +370,37 @@ class Workspace:
     def eval(self):
         heatmaps(self, self.eval_env, self.global_step, False, True)
         heatmaps(self, self.eval_env, self.global_step, False, False)
+        
+        goal_array = ndim_grid(2,10)
 
-        for i in range(400):
+        for i in range(len(goal_array)):
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+         #   goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+            goal_state = np.array([goal_array[i][0], goal_array[i][1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
+            self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None)
+            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
+
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
-                #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                time_step_no_goal = self.eval_env_no_goal.reset()
+                #time_step_goal = self.eval_env_goal.reset()
+                
+                with self.eval_env_goal.physics.reset_context():
+                    time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
+                time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                self.video_recorder.init(self.eval_env_no_goal, enabled=(episode == 0))
+                
                 while not time_step.last():
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
-                            action = self.agent.act(time_step.observation['pixels'],
-                                                    goal_pix,
+                            action = self.agent.act(time_step_no_goal.observation['pixels'],
+                                                    time_step_goal,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True)
@@ -375,12 +410,14 @@ class Workspace:
                                                     self._global_step,
                                                     eval_mode=True)
                     time_step = self.eval_env.step(action)
-                 #   self.video_recorder.record(self.eval_env)
+                    time_step_no_goal = self.eval_env_no_goal.step(action)
+                    #time_step_goal = self.eval_env_goal.step(action)
+                    self.video_recorder.record(self.eval_env_no_goal)
                     total_reward += time_step.reward
                     step += 1
        
                 episode += 1
-               # self.video_recorder.save(f'{self.global_frame}.mp4')
+                self.video_recorder.save(f'{self.global_frame}_{i}.mp4')
             
                 if self.cfg.eval:
                     print('saving')
@@ -438,11 +475,20 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
+        time_step_no_goal = self.train_env_no_goal.reset()
+        time_step_goal = self.train_env_goal.reset()
+        #with self.no_goal_env1.physics.reset_context():
+        #    time_step_no_goal = self.no_goal_env1.physics.set_state(time_step1["physics"])
+        with self.train_env_goal.physics.reset_context():
+            time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
+        
+        time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+
         time_step2 = self.train_env2.reset()
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage1.add_goal(time_step1, meta, self.first_goal_pix, self.first_goal_state, True)
+            self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
             print('replay1')
             self.replay_storage2.add(time_step2, meta, True)  
             print('replay2')
@@ -462,8 +508,7 @@ class Workspace:
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
                     episode_frame = episode_step * self.cfg.action_repeat
-                    with self.logger.log_and_dump_ctx(self.global_frame,
-                                                      ty='train') as log:
+                    with self.logger.log_and_dump_ctx(self.global_frame,ty='train') as log:
                         log('fps', episode_frame / elapsed_time)
                         log('total_time', total_time)
                         log('episode_reward', episode_reward)
@@ -472,16 +517,20 @@ class Workspace:
                         log('buffer_size', len(self.replay_storage2))
                         log('step', self.global_step)
 
-                # reset env
-                #time_step1 = self.train_env1.reset()
-                time_step2 = self.train_env2.reset()
-                meta = self.agent.init_meta()
                 
+                # reset env
+                time_step1 = self.train_env1.reset()
+                time_step2 = self.train_env2.reset()
+                time_step_no_goal = self.train_env_no_goal.reset()
+                #time_step_goal = self.train_env_goal.reset()
+                meta = self.agent.init_meta()
+
                 if self.cfg.obs_type =='pixels':
-                    #self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state, True)
+                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True)
                     self.replay_storage2.add(time_step2, meta,True)
                 else:
                     self.replay_storage.add(time_step, meta)
+
                 #self.train_video_recorder.init(time_step.observation)
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
@@ -501,31 +550,37 @@ class Workspace:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
                     #    self.global_frame)
                     
-
             meta = self.agent.update_meta(meta, self._global_step, time_step1)
             
             if episode_step % resample_goal_every == 0:
                 
-                if seed_until_step(self._global_step):
-                    goal_state = self.first_goal_state
-                    goal_pix = self.first_goal_pix
-                else:
-                    if self.cfg.uniform:
-                        goal_pix, goal_state = self.sample_goal_uniform()
-                    else:
-                        goal_pix, goal_state = self.sample_goal_pixel()
-                print('sampled goal', goal_state)
+                #if seed_until_step(self._global_step):
+                    #if self.cfg.uniform:
+                    #    goal_pix, goal_state = self.sample_goal_uniform()
+                    #else:
+                    #    goal_pix, goal_state = self.sample_goal_pixel()
+                #print('sampled goal', goal_state)
+                idx = np.random.randint(0,400)
+                goal_array = ndim_grid(2,20)
+                goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
 
-
-
+                time_step1 = self.train_env1.reset()
+                #time_step_no_goal = self.train_env_no_goal.reset()
+                #time_step_goal = self.train_env_goal.reset()
+                
+                print('sampled goal', goal_state)
+                with self.train_env_goal.physics.reset_context():
+                    time_step_goal = self.train_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1],0,0]))
+                time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+            
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.obs_type == 'pixels':
 
-                    action1 = self.agent.act(time_step1.observation['pixels'].copy(),
-                                            goal_pix,
+                    action1 = self.agent.act(time_step_no_goal.observation['pixels'].copy(),
+                                            time_step_goal.copy(),
                                             meta,
                                             self._global_step,
                                             eval_mode=False)
@@ -542,11 +597,12 @@ class Workspace:
 
             # take env step
             time_step1 = self.train_env1.step(action1)
+            time_step_no_goal = self.train_env_no_goal.step(action1)
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
             
             if self.cfg.obs_type == 'pixels':
-                self.replay_storage1.add_goal(time_step1, meta, goal_pix, goal_state,True)
+                self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
                 self.replay_storage2.add(time_step2, meta, True)
             else:
                 self.replay_storage1.add_goal(time_step1, meta, goal)

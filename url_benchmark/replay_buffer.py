@@ -118,12 +118,12 @@ class ReplayBufferStorage:
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
 
-    def add_goal(self, time_step, meta, goal,goal_state=False,pixels=False):
+    def add_goal(self, time_step, meta, goal, time_step_no_goal=False,goal_state=False,pixels=False):
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
-                value = time_step[spec.name]
+                value = time_step_no_goal[spec.name]
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
             else:
@@ -133,7 +133,7 @@ class ReplayBufferStorage:
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode_goal[spec.name].append(value)
 
-        self._current_episode_goal['goal'].append(goal)
+        self._current_episode_goal['goal'].append(goal.T)
         if pixels:
             self._current_episode_goal['goal_state'].append(goal_state)
 
@@ -153,7 +153,10 @@ class ReplayBufferStorage:
                 value = self._current_episode_goal[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode_goal['goal']
-            episode['goal'] = np.array(value, np.float64)
+            if pixels:
+               episode['goal'] = np.array(value).astype(int) 
+            else:
+                episode['goal'] = np.array(value, np.float64)
             if pixels:
                 value = self._current_episode_goal['goal_state']
                 episode['goal_state'] = np.array(value, np.float64)
@@ -365,7 +368,8 @@ class ReplayBuffer(IterableDataset):
             
         elif key >= self.hybrid_pct:
             idx = np.random.randint(500-self._nstep)    
-            goal = episode["observation"][idx + self._nstep]
+            goal = episode["observation"][idx + self._nstep][6:,:,:]
+
             goal_state = episode["state"][idx + self._nstep]
             
             for i in range(self._nstep):

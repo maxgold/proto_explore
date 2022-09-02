@@ -51,7 +51,7 @@ class ProtoFilm1Agent(DDPGFilm1Agent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
-	self.update_gc = update_gc
+        self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only 
         # models
@@ -95,6 +95,9 @@ class ProtoFilm1Agent(DDPGFilm1Agent):
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
 
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+    
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)

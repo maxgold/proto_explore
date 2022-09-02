@@ -56,7 +56,7 @@ class ProtoAgent(DDPGAgent):
         self.gc_only = gc_only
 
         # models
-        if self.offline==False and self.gc_only==False:
+        if self.gc_only==False:
             self.encoder_target = deepcopy(self.encoder)
 
             self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
@@ -173,9 +173,11 @@ class ProtoAgent(DDPGAgent):
             batch, self.device)
             
             if self.obs_type=='pixels':
-                goal = goal.reshape(-1, 9, 84, 84).float()
+                goal = goal.reshape(-1, 3, 84, 84)
+                goal = torch.tile(goal, (1,3,1,1))
             else: 
-                goal = goal.reshape(-1, 2).float()
+                goal = goal.reshape(-1, 2).int()
+            
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)

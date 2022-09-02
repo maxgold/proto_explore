@@ -98,16 +98,8 @@ class ActionRepeatWrapper(dm_env.Environment):
     def step(self, action):
         reward = 0.0
         discount = 1.0
-        count = 0
         for i in range(self._num_repeats):
             time_step = self._env.step(action)
-            if time_step.reward == None:
-                print('first step', self._env.step(action).step_type)
-                count += 1
-                continue
-            
-            if count >1:
-                print('sth went wrong')
             reward += time_step.reward * discount
             discount *= time_step.discount
             if time_step.last():
@@ -175,12 +167,12 @@ class FrameStackWrapper(dm_env.Environment):
         
         time_step = self._env.step(action)
         pixels = self._extract_pixels(time_step)
-        if len(self._frames)==0:
-            print('first, w/o reset')
-            for _ in range(self._num_frames):
-                self._frames.append(pixels)
-        else:
-            self._frames.append(pixels)
+        #if len(self._frames)==0:
+        #    print('first, w/o reset')
+        #    for _ in range(self._num_frames):
+        #        self._frames.append(pixels)
+        #else:
+        self._frames.append(pixels)
         
         return self._transform_observation(time_step)
 

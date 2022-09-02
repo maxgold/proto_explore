@@ -43,7 +43,10 @@ TASKS = [
     ("reach_top_right", np.array([0.15, 0.15, 0.01])),
     ("reach_bottom_left", np.array([-0.15, -0.15, 0.01])),
     ("reach_bottom_right", np.array([0.15, -0.15, 0.01])),
-    ("reach_ud_hs", np.array([0.15, -0.15, 0.01]))
+    ("reach_ud_hs", np.array([0.15, -0.15, 0.01])),
+    ("env3", np.array([0.15, -0.15, 0.01])),
+    ("env3", np.array([0.15, -0.15, 0.01])),
+    ("reach_no_goal", np.array([0.15, -0.15, 0.01])),
     ]
 
 
@@ -179,6 +182,20 @@ def env16(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
+@SUITE.add('benchmarking')
+def reach_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'reach_no_goal'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_no_goal'))
+    task = MultiTaskPointMassMaze(target_id=8, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
 
 def make_target_str(goal):
     new_pos_str = 'pos="'
@@ -261,8 +278,10 @@ class MultiTaskPointMassMaze(base.Task):
           physics: An instance of `mujoco.Physics`.
         """
         randomizers.randomize_limited_and_rotational_joints(physics, self.random)
-        physics.data.qpos[0] = np.random.uniform(-.15, -.29)
-        physics.data.qpos[1] = np.random.uniform(0.15, .29)
+        #physics.data.qpos[0] = np.random.uniform(-.15, -.29)
+        #physics.data.qpos[1] = np.random.uniform(0.15, .29)
+        physics.data.qpos[0] = -.15
+        physics.data.qpos[1] = .15
         # import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos["target"][:] = self._target
 
