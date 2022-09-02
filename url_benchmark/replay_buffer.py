@@ -369,19 +369,21 @@ class ReplayBuffer(IterableDataset):
         elif key >= self.hybrid_pct:
             idx = np.random.randint(500-self._nstep)    
             goal = episode["observation"][idx + self._nstep][6:,:,:]
-
+            print('goal',goal.shape)
             goal_state = episode["state"][idx + self._nstep]
             
             for i in range(self._nstep):
                 step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
+            print('reward', reward)
         else:
             print('sth went wrong in replay buffer')
         #discount = discount.astype(float)
         #reward = reward.astype(float)
         #action = action.astype(float)
         goal = goal.astype(int)
+        
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
 
