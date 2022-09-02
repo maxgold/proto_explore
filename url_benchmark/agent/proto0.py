@@ -171,10 +171,14 @@ class Proto0Agent(DDPG0Agent):
         if actor1 and step % self.update_gc==0:
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
-
+           # print('obs', obs.shape)
+           # print('action', action.shape)
+           # print('r', extr_reward.shape)
+           # print('discount', discount.shape)
+           # print('next', next_obs.shape)
+           # print('goal', goal.shape)
             if self.obs_type=='pixels':
-                goal = goal.reshape(-1, 3, 84, 84)
-                goal = torch.tile(goal, (1,3,1,1))
+                goal = goal.reshape(-1, 9, 84, 84)
             else:
                 goal = goal.reshape(-1, 2).int()  
         

@@ -44,6 +44,7 @@ replay_buffer_gc: 100000
 lr: .0001
 offline: False
 uniform: False
+second: False
 # experiment
 experiment: exp
 
