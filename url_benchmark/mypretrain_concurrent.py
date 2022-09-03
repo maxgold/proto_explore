@@ -560,8 +560,8 @@ class Workspace:
             # try to update the agent
             if not seed_until_step(self._global_step):
                 metrics = self.agent.update(self.replay_iter1, self._global_step, actor1=True)
-                metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                metrics = self.agent.update(self.replay_iter2, self._global_step, actor1=False)
             
             self._global_step += 1
             
