@@ -391,9 +391,10 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx]
-            goal = goal.reshape(3,84,84)
-            goal = np.tile(goal,(3,1,1))
-            goal = goal.reshape(-1, 9, 84, 84)
+            if self.pixels:
+                goal = goal.reshape(3,84,84)
+                goal = np.tile(goal,(3,1,1))
+                goal = goal.reshape(-1, 9, 84, 84)
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)

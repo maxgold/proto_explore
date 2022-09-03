@@ -338,7 +338,7 @@ class Workspace:
     
         
 
-    def eval_goal(self, proto, model):
+    def eval_goal_proto_visual(self, proto, model):
         
         #final evaluation over all final prototypes
         #load final agent model to get them
@@ -403,6 +403,38 @@ class Workspace:
             #if total_reward < 500*self.cfg.num_eval_episodes:
             #    self.unreachable.append(x)
 
+    def eval_goal(self):
+        goal_array = ndim_grid(2, 40)
+        eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+        for ix, x in enumerate(goal_array):
+            step, episode, total_reward = 0, 0, 0
+            env = dmc.make(self.cfg.task, seed=None, goal=x)
+            time_step = env.reset()
+            meta = self.agent.init_meta()
+            while eval_until_episode(episode):
+                while not time_step.last():
+                    with torch.no_grad(), utils.eval_mode(self.agent):
+                        if self.cfg.goal:
+                            action = self.agent.act(time_step.observation, x, meta, self.global_step, eval_mode=True)
+                        else:
+                            action = self.agent.act(time_step.observation, meta,self.global_step, eval_mode=True)
+
+                    time_step = env.step(action)
+                    total_reward += time_step.reward
+                    step += 1
+
+                episode += 1
+                print('work_dir+...', str(self.work_dir))
+                if self.cfg.eval:
+                    print('saving')
+                    save(str(self.work_dir)+'/eval_goal_{}.csv'.format(model_step), [[x, total_reward, time_step.observation[:2], step]])
+
+                else:
+                    print('saving')
+                    print(str(self.work_dir)+'/eval_{}.csv'.format(self.global_step))
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self.global_step), [[x, total_reward, time_step.observation[:2], step]]) 
+
+
     def train(self):
         # predicates
         resample_goal_every = 1000
@@ -428,9 +460,6 @@ class Workspace:
         metrics = None
 
         while train_until_step(self._global_step):
-            print(self._global_step)
-            print('step1', time_step1.last())
-            print('step2', time_step2.last())
             if time_step1.last() and time_step2.last():
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -482,15 +511,11 @@ class Workspace:
                     if self.global_step%100000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
-                        self.eval_goal(proto, model)
-                    else:
+                        self.eval_goal()
                         self.logger.log('eval_total_time', self.timer.total_time(),
                                     self.global_frame)
-                        self.eval()
 
-            if episode_step==0 and self.global_step!=0:
-                print('env1',time_step1.last())
-                print('env2',time_step2.last())
+            if episode_step%1000==0 and self.global_step!=0:
                 if seed_until_step(self._global_step):
                     goal = []
                     goal.append(np.random.uniform(-0.29, -0.15))
@@ -528,10 +553,8 @@ class Workspace:
             time_step1 = self.train_env1.step(action1)
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
-            if time_step1.last()==False and time_step2.last()==False:
-                print('add')
-                self.replay_storage1.add_goal(time_step1, meta, goal)
-                self.replay_storage2.add(time_step2, meta)
+            self.replay_storage1.add_goal(time_step1, meta, goal)
+            self.replay_storage2.add(time_step2, meta)
             self.train_video_recorder.record(time_step1.observation)
             episode_step += 1
             # try to update the agent

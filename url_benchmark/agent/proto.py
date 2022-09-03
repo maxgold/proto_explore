@@ -236,7 +236,6 @@ class ProtoAgent(DDPGAgent):
                                  self.critic2_target_tau)
 
         elif actor1 and step % self.update_gc==0:
-            print('updating actor1')
             reward = extr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()
