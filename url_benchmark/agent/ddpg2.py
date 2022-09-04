@@ -316,8 +316,15 @@ class DDPG2Agent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
+
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]

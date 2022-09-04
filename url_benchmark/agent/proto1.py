@@ -167,25 +167,16 @@ class Proto1Agent(DDPG1Agent):
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             
-            if self.obs_type=='pixels':
-                goal = goal.reshape(-1, 9, 84, 84).float()
-            else: 
+            if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
-        #if self.obs_type=='pixels':
-         #   obs = obs.reshape(-1, 9, 84, 84).float()
-        #    next_obs = next_obs.reshape(-1, 9, 84, 84).float()
-        #else:
-         #   obs = obs.reshape(-1, 4).float()
-         #   next_obs = next_obs.reshape(-1, 4).float()
-        
-        #action = action.reshape(-1, 2).float()
-        #extr_reward = extr_reward.reshape(-1, 1).float()
-        #discount = discount.reshape(-1, 1).float()
+
+        action = action.reshape(-1,2)
+        discount = discount.reshape(-1,1)
         extr_reward = extr_reward.float()
 
         # augment and encode

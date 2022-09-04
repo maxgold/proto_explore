@@ -132,10 +132,10 @@ class ReplayBufferStorage:
                     value = np.full(spec.shape, value, spec.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode_goal[spec.name].append(value)
-
-        self._current_episode_goal['goal'].append(goal.T)
         if pixels:
+            goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
+        self._current_episode_goal['goal'].append(goal)
 
         if time_step.last():
             print('replay last')
@@ -390,9 +390,8 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx]
-            goal = goal.reshape(3,84,84)
             goal = np.tile(goal,(3,1,1))
-            goal = goal.reshape(-1, 9, 84, 84)
+            #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)
@@ -441,9 +440,8 @@ class ReplayBuffer(IterableDataset):
             key = np.random.randint(0,10)
             if key > self.hybrid_pct:
                 goal = episode["goal"][idx-1]
-                goal = goal.reshape(3,84,84)
                 goal = np.tile(goal,(3,1,1))
-                goal = goal.reshape(-1, 9, 84, 84)
+                #goal = goal[None,:,:,:]
 
                 for i in range(self._nstep):
                     step_reward = episode["reward"][idx + i]
@@ -466,7 +464,7 @@ class ReplayBuffer(IterableDataset):
                 next_obs = episode['observation'][self.iz+self._nstep-1]
                 idx_goal = np.random.randint(self.iz,501)
                 goal = episode["observation"][idx_goal]
-                goal = goal.reshape(-1, 9, 84, 84)
+                #goal = goal[None,:,:,:]
                 goal_state = episode["state"][idx_goal]
                 #reward = my_reward(action,episode["state"][self.iz] , goal_state[:2])
                 #discount = episode['discount'][self.iz]*self._discount
@@ -825,7 +823,7 @@ class OfflineReplayBuffer(IterableDataset):
             next_obs = episode['observation'][self.iz+self._nstep-1]
             idx_goal = np.random.randint(self.iz,501)
             goal = episode["observation"][idx_goal]
-            goal = goal.reshape(-1, 9, 84, 84)
+            goal = goal[None,:,:,:]
             goal_state = episode["state"][idx_goal]
             #reward = my_reward(action,episode["state"][self.iz] , goal_state[:2])
             #discount = episode['discount'][self.iz]*self._discount
@@ -844,12 +842,6 @@ class OfflineReplayBuffer(IterableDataset):
 	
         goal = goal.astype(int)
         obs = np.array(obs)
-        obs = obs.reshape(-1, 9, 84, 84)
-        next_obs = next_obs.reshape(-1,9,84,84)
-        goal = goal.reshape(-1,9,84,84)
-        reward = reward.reshape(-1,1)
-        discount = discount.reshape(-1,1)
-        action = action.reshape(-1,2)
         return (obs, action, reward, discount, next_obs, goal)
                 
                 

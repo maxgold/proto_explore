@@ -45,6 +45,8 @@ lr: .0001
 offline: False
 uniform: False
 second: False
+curriculum: False
+tmux_session: ???
 # experiment
 experiment: exp
 
