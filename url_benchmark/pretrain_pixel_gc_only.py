@@ -521,7 +521,8 @@ class Workspace:
                 with self.eval_env_goal.physics.reset_context():
                     time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                if ix%10==0:
+                    self.video_recorder.init(self.eval_env, enabled=(episode == 0))
          
                 while not time_step.last():
                     with torch.no_grad(), utils.eval_mode(self.agent):
@@ -539,12 +540,14 @@ class Workspace:
                     time_step = self.eval_env.step(action)
                     time_step_no_goal = self.eval_env_no_goal.step(action)
                     #time_step_goal = self.eval_env_goal.step(action)
-                    self.video_recorder.record(self.eval_env)
+                    if ix%10==0:
+                        self.video_recorder.record(self.eval_env)
                     total_reward += time_step.reward
                     step += 1
 
                 episode += 1
-                self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
+                if ix%10==0:
+                    self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
 
                 if self.cfg.eval:
                     print('saving')
