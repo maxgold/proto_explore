@@ -229,7 +229,7 @@ class Workspace:
         # create replay buffer
         if cfg.offline:
             print('make buffer1')
-            self.replay_loader1 = make_replay_buffer(self.eval_env,
+            self.replay_loader1 = make_replay_offline(self.eval_env,
                                                     self.replay_goal_dir,
                                                     cfg.replay_buffer_size,
                                                     cfg.batch_size_gc,

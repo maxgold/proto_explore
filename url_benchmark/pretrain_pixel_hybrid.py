@@ -19,7 +19,7 @@ import dmc
 import utils
 from scipy.spatial.distance import cdist
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
 import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 
@@ -57,7 +57,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     else:
         replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
         
-    replay_buffer = make_replay_buffer(env,
+    replay_buffer = make_replay_offline(env,
                                 Path(replay_dir),
                                 2000000,
                                 1,
@@ -239,16 +239,6 @@ class Workspace:
                                                 False, cfg.nstep, cfg.discount,
                                                 False, False,cfg.obs_type)
         
-        #self.replay_buffer_goal = make_replay_buffer(self.eval_env,
-        #                                            self.work_dir / 'buffer1' / 'buffer_copy',
-        #                                            50000,
-        #                                            1,
-        #                                            0,
-        #                                            self.cfg.discount,
-        #                                            goal=False,
-        #                                            relabel=False,
-        #                                            replay_dir2 = False,
-        #                                            )
         
        # self.replay_buffer_intr = make_replay_buffer(self.eval_env,
        #                                                 self.work_dir / 'buffer2' / 'buffer_copy',
@@ -328,7 +318,7 @@ class Workspace:
     def encoding_grid(self):
         if self.loaded == False:
             replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
-            self.replay_buffer_intr = make_replay_buffer(self.eval_env,
+            self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         replay_dir,
                                         self.replay_buffer_gc,
                                         self.cfg.batch_size,
