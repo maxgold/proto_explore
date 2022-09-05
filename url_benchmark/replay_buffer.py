@@ -5,13 +5,14 @@ import traceback
 import copy
 from collections import defaultdict
 import tqdm
-import re
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
+import deepdish
 
 
 def episode_len(episode):
@@ -27,14 +28,10 @@ def save_episode(episode, fn):
             f.write(bs.read())
 
 
-def load_episode(fn, eval=False):
+def load_episode(fn):
     with fn.open("rb") as f:
         episode = np.load(f)
-        if eval:
-            keys = ['state', 'reward', 'action']
-            episode = {k: episode[k] for k in keys}
-        else:
-            episode = {k: episode[k] for k in episode.keys()}
+        episode = {k: episode[k] for k in episode.keys()}
         return episode
 
 
@@ -59,13 +56,14 @@ def my_reward(action, next_obs, goal):
     control_reward += max(min(tmp[1], 1), 0) / 2
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
-        r = 1
+        r = 10
     else:
-        upper = 0.015
-        margin = 0.1
-        scale = np.sqrt(-2 * np.log(0.1))
-        x = (dist_to_target - upper) / margin
-        r = np.exp(-0.5 * (x * scale) ** 2)
+        #upper = 0.015
+        #margin = 0.1
+        #scale = np.sqrt(-2 * np.log(0.1))
+        #x = (dist_to_target - upper) / margin
+        #r = np.exp(-0.5 * (x * scale) ** 2)
+        r=-1
     return float(r * control_reward)
 
 class ReplayBufferStorage:
@@ -74,38 +72,43 @@ class ReplayBufferStorage:
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
         last = str(replay_dir).split('/')[-1]
+        #self._replay_dir1 = replay_dir.parent / "buffer1"
         self._replay_dir2 = replay_dir.parent / last / "buffer_copy"
         replay_dir.mkdir(exist_ok=True)
+        #(replay_dir.parent / "buffer1").mkdir(exist_ok=True)
         (replay_dir.parent / last / "buffer_copy").mkdir(exist_ok=True)
         self._current_episode = defaultdict(list)
+        ########################################test1
         self._current_episode_goal = defaultdict(list)
+        ###########################################test1
         self._preload()
 
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta,pixels=False):
+    def add(self, time_step, meta):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
-            if spec.name == 'observation' and pixels:
-                value = time_step[spec.name]    
-                self._current_episode['observation'].append(value['pixels'])
-                self._current_episode['state'].append(value['observations'])
-            else:
-                
-                value = time_step[spec.name]
-                if np.isscalar(value):
-                    value = np.full(spec.shape, value, spec.dtype)
-                assert spec.shape == value.shape and spec.dtype == value.dtype
-                self._current_episode[spec.name].append(value)
+            value = time_step[spec.name]
+            if np.isscalar(value):
+                value = np.full(spec.shape, value, spec.dtype)
+            assert spec.shape == value.shape and spec.dtype == value.dtype
+            self._current_episode[spec.name].append(value)
         if time_step.last():
             episode = dict()
             for spec in self._data_specs:
-                if spec.name == 'observation' and pixels:
-                    value1 = self._current_episode['observation']
-                    value2 = self._current_episode['state']
-                    episode['observation'] = np.array(value1, spec.dtype)
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            for spec in self._meta_specs:
+                value = self._current_episode[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            self._current_episode = defaultdict(list)
+            self._store_episode(episode)
+            print('storing episode, no goal')
+
+    def add_goal(self, time_step, meta, goal):
+        for key, value in meta.items():
                     episode['state'] = np.array(value2, 'float32')
                 else:
                     value = self._current_episode[spec.name]
@@ -132,10 +135,10 @@ class ReplayBufferStorage:
                     value = np.full(spec.shape, value, spec.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode_goal[spec.name].append(value)
-
-        self._current_episode_goal['goal'].append(goal.T)
         if pixels:
+            goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
+        self._current_episode_goal['goal'].append(goal)
 
         if time_step.last():
             print('replay last')
@@ -232,7 +235,9 @@ class ReplayBuffer(IterableDataset):
         fetch_every,
         save_snapshot,
         hybrid_pct,
-        actor1=False):
+        actor1=False,
+        replay_dir2=False,
+        model_step=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -250,7 +255,14 @@ class ReplayBuffer(IterableDataset):
         self.actor1 = actor1
         self.hybrid_pct = hybrid_pct
         self.count=0
+        self.count1=0
+        self.count2=0
+        self.last=-1
         self.iz=1
+        self._replay_dir2=replay_dir2
+        if model_step:
+            self.model_step = int(int(model_step)/500)
+
 
         if obs_type == 'pixels':
             self.pixels = True
@@ -297,15 +309,23 @@ class ReplayBuffer(IterableDataset):
         if self._storage2 and self.hybrid_pct!=0:
         
             eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
-            eps_fns2 = sorted(self._storage2._replay_dir2.glob("*.npz"), reverse=True)
-            
-            count1 = 0
-            count2 = 0
+            tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
+            tmp_fns_=[]
+            tmp_fns2 = []
+
+            for x in tmp_fns:
+                tmp_fns_.append(str(x))
+                tmp_fns2.append(x)
+            if self.model_step:
+                eps_fns2 = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
+            else:
+                eps_fns2 = tmp_fns
+
+            np.random.shuffle(eps_fns2)
             fetched_size = 0
             for eps_fn1 in eps_fns1:
-                
-                if count1 < 10-self.hybrid_pct:
-                    print('eps1', eps_fn1)
+                print('count1', self.count1)
+                if self.count1 < 10-self.hybrid_pct:
                     eps_idx, eps_len = [int(x) for x in eps_fn1.stem.split("_")[1:]]
                     
                     if eps_idx % self._num_workers != worker_id:
@@ -317,12 +337,12 @@ class ReplayBuffer(IterableDataset):
                     fetched_size += eps_len
                     if not self._store_episode(eps_fn1):
                         break
-                    count1 += 1
+                    self.count1 += 1
                 
                 for ix, eps_fn2 in enumerate(eps_fns2):
-                    
-                    if count2 < self.hybrid_pct:
-                        print('eps2', eps_fn2)
+                    print('count2', self.count2)
+                    if self.count2 < self.hybrid_pct:
+                       # print('eps2', eps_fn2)
                         if ix!=last+1:
                             continue
                         else:
@@ -336,14 +356,19 @@ class ReplayBuffer(IterableDataset):
                             fetched_size += eps_len
                             if not self._store_episode(eps_fn2):
                                 break
-                            count2 += 1
-                            last=ix
+                            self.count2 += 1
+                            self.last=ix
 
                     else:
                         break
-                if count1 == 10-self.hybrid_pct and count2 == self.hybrid_pct:
-                    count1 = 0 
-                    count2 = 0
+                print('final count1',self.count1)
+                print('final count2', self.count2)
+                if self.count1 == (10-self.hybrid_pct-1) and self.count2 == (self.hybrid_pct-1):
+                    print('reset')
+                    print('reset count1', self.count1)
+                    print('reset count2', self.count2)
+                    self.count1 = 0
+                    self.count2 = 0
 
         #if hyperparameter: second=False
         else:
@@ -391,10 +416,15 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx]
+<<<<<<< HEAD
             if self.pixels:
                 goal = goal.reshape(3,84,84)
                 goal = np.tile(goal,(3,1,1))
                 goal = goal.reshape(-1, 9, 84, 84)
+=======
+            goal = np.tile(goal,(3,1,1))
+            #goal = goal[None,:,:]
+>>>>>>> aed4428c9c9e9bb19bc85d305158f15f09094c6e
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)
@@ -420,42 +450,50 @@ class ReplayBuffer(IterableDataset):
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
-        if self._storage2:
+        if self._replay_dir2:
+            #hybrid where we use HER on proto data & leave gc data only as is 
+            #can change later so what we label proto & some of gc data 
             if 'goal' in episode.keys():
-                goal = episode["goal"][idx]
+                goal = episode["goal"][idx-1]
+                goal = np.tile(goal,(3,1,1))
                 for i in range(self._nstep):
                     step_reward = episode["reward"][idx + i]
                     reward += discount * step_reward
                     discount *= episode["discount"][idx + i] * self._discount
 
-            else:
 
-                idx = np.random.randint(500-self._nstep)
-                goal = episode["observation"][idx + self._nstep]
-                goal_state = episode["state"][idx + self._nstep]
+
+            else:
+                self.count+=1
+                if self.count==1000*self.hybrid_pct:
+                    self.iz +=1
+                if self.iz>500-self._nstep:
+                    self.iz=1
+                
+                obs = episode["observation"][self.iz-1]
+                action = episode["action"][self.iz]
+                next_obs = episode['observation'][self.iz+self._nstep-1]
+                idx_goal = np.random.randint(self.iz,min(self.iz+50, 499))
+                goal = episode["observation"][idx_goal]
+                goal_state = episode["state"][idx_goal]
 
                 for i in range(self._nstep):
-                    step_reward = my_reward(action,episode["state"][idx+i] , goal_state[:2])*2
-                    reward += discount * step_reward
-                    discount *= episode["discount"][idx+i] * self._discount
+                    for z in range(2):
+                        step_reward = my_reward(episode["action"][self.iz+i],episode["state"][self.iz+i] , goal_state[:2])
+                        reward += discount * step_reward
+                        discount *= episode["discount"][idx+i] * self._discount
         else:
-            
+            #hybrid where we use hybrid_pct of relabeled gc data in each batch
+            #100-hybrid_pct*10 is just original gc data
             key = np.random.randint(0,10)
             if key > self.hybrid_pct:
                 goal = episode["goal"][idx-1]
-                goal = goal.reshape(3,84,84)
                 goal = np.tile(goal,(3,1,1))
-                goal = goal.reshape(-1, 9, 84, 84)
 
                 for i in range(self._nstep):
                     step_reward = episode["reward"][idx + i]
                     reward += discount * step_reward
                     discount *= episode["discount"][idx + i] * self._discount
-                #print('obs', episode["state"][idx-1])
-                #print('goal', episode["goal"][idx])
-                #print('r',reward)
-                #reward = episode['reward'][idx]
-                #discount = episode['discount'][idx]*self._discount
 
             elif key <= self.hybrid_pct:
                 self.count+=1
@@ -468,7 +506,7 @@ class ReplayBuffer(IterableDataset):
                 next_obs = episode['observation'][self.iz+self._nstep-1]
                 idx_goal = np.random.randint(self.iz,501)
                 goal = episode["observation"][idx_goal]
-                goal = goal.reshape(-1, 9, 84, 84)
+                #goal = goal[None,:,:,:]
                 goal_state = episode["state"][idx_goal]
                 #reward = my_reward(action,episode["state"][self.iz] , goal_state[:2])
                 #discount = episode['discount'][self.iz]*self._discount
@@ -484,12 +522,9 @@ class ReplayBuffer(IterableDataset):
                         discount *= episode["discount"][self.iz+i] * self._discount
             else:
                 print('sth went wrong in replay buffer')
-        #discount = discount.astype(float)
-        #reward = reward.astype(float)
-        #action = action.astype(float)
+        
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
-        #print('reward',reward)
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
 
@@ -563,411 +598,9 @@ class OfflineReplayBuffer(IterableDataset):
         replay_dir2=False,
         obs_type='state',
         hybrid=False,
+        hybrid_pct=0,
         offline=False,
         nstep=1,
-        eval=False):
-
-        self._env = env
-        self._replay_dir = replay_dir
-        self._replay_dir2 = replay_dir2
-        self._size = 0
-        self._max_size = max_size
-        self._num_workers = max(1, num_workers)
-        self._episode_fns = []
-        self._episodes = dict()
-        self._discount = discount
-        self._loaded = False
-        self.offset = offset
-        self.offset_schedule = offset_schedule
-        self.goal = goal
-        self.vae = vae
-        self.goal_array = []
-        self._goal_array = False
-        self.obs = []
-        self.model_step = int(int(model_step)/500)
-        self._replay_dir2 = replay_dir2
-        self.offline = offline
-        self.hybrid = hybrid
-        self._nstep=nstep
-        self.count=0
-        self.iz=1
-        if obs_type == 'pixels':
-            self.pixels = True      
-        else:
-            self.pixels = False
-        self.eval = eval
-
-    def _load(self, relabel=False):
-        #space: e.g. .2 apart for uniform observation from -1 to 1
-        print("Labeling data...")
-        try:
-            worker_id = torch.utils.data.get_worker_info().id
-        except:
-            worker_id = 0
-        
-        if self._replay_dir2:
-            tmp_fns = chain(sorted(self._replay_dir.glob("*.npz")), sorted(self._replay_dir2.glob("*.npz")))
-        else:
-            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
-        tmp_fns_=[]
-        tmp_fns2 = []
-        
-        for x in tmp_fns:
-            tmp_fns_.append(str(x))
-            tmp_fns2.append(x)
-        if self.model_step:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-        else:
-            eps_fns = tmp_fns
-        print('model step', self.model_step)
-        np.random.shuffle(eps_fns)
-        for eps_fn in eps_fns:
-            if self._size > self._max_size:
-                break
-            
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-            if eps_idx % self._num_workers != worker_id:
-                continue
-            if self.eval and self.pixels:
-                print('eval')
-                episode = load_episode(eps_fn, eval=True)
-            else:
-                episode = load_episode(eps_fn)
-
-            if relabel:
-                episode = self._relabel_reward(episode)
-            self._episode_fns.append(eps_fn)
-            self._episodes[eps_fn] = episode
-            self._size += episode_len(episode)
-
-
-    
-    def _get_goal_array(self, eval_mode=False, space=6):
-        #assuming max & min are 1, -1, but position vector can be 2d or more dim.
-        #fix obs_dim. figure out how to index position & orientation 
-    
-        if eval_mode==False:
-            #obs_dim = self.env.observation_spec()['position'].shape[0]
-            obs_dim = 2
-            self.goal_array = ndim_grid(obs_dim, space)
-            #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
-        else:
-            if not self._loaded:
-                self._load()
-                self._loaded = True
-
-            #obs_dim = env.observation_spec()['position'].shape[0]
-            obs_dim = 2
-            goal_array = ndim_grid(obs_dim, space)
-            return goal_array
-        
-
-    def _sample_episode(self):
-        if not self._loaded:
-            self._load()
-            self._loaded = True
-        eps_fn = random.choice(self._episode_fns)
-        return self._episodes[eps_fn]
-
-    def _relabel_reward(self, episode):
-        return relabel_episode(self._env, episode)
-
-    def _sample(self, eval_pixel=False):
-        if eval_pixel:
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            state = episode["state"][idx - 1]
-            action = episode["action"][idx]
-            return (obs, state, action)
-        else:
-            episode = self._sample_episode()
-            # add +1 for the first dummy transition
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            action = episode["action"][idx]
-            next_obs = episode["observation"][idx]
-            reward = episode["reward"][idx]
-            discount = episode["discount"][idx] * self._discount
-            reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
-            #        control_reward = rewards.tolerance(
-            #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-            #        ).mean()
-            #        small_control = (control_reward + 4) / 5
-            #        near_target = rewards.tolerance(
-            #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
-            #            bounds=(0, .015),
-            #            margin=.015,
-            #        )
-            #        reward = near_target * small_control
-            return (obs, action, reward, discount, next_obs)
-    
-    def _sample_pixel_goal(self, time_step):
-        episode = self._sample_episode()
-        if time_step<1000000:
-            idx = np.random.randint(int(time_step/10000)*5, min((int(time_step/10000)+1)*5, 500))
-        else:
-            idx = np.random.randint(250,500)
-        obs = episode["observation"][idx]
-        state = episode["state"][idx][:2]
-        return obs, state
-
-    
-    def _sample_sequence(self, offset=10):
-        
-        #len of obs should be 10 
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - offset) + 1
-        obs = episode["observation"][idx - 1:idx + 9]
-        action = episode["action"][idx-1:idx+9]
-        next_obs = episode["observation"][idx:idx+10]
-        reward = episode["action"][idx-1:idx+9]
-        q_value = episode["q"][idx-1:idx+9]
-        split = episode['task'][0].split('_')
-       
-        
-        if split[-2] == 'top':
-            #check these coordinates
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-        else:
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-        
-        goal = np.array(zip(x_coor, y_coor))
-        
-        return (obs, action, reward, discount, next_obs, goal, q)
-    
-
-    def _sample_goal(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
-        goal = episode["observation"][idx + self.offset][:2]
-        rewards = []
-
-        #sampling 5 goals from uniform goal matrix
-        
-        if not self._goal_array:
-            self._get_goal_array()
-            self._goal_array = True
-        
-        goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
-        #goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
-        for goal in goal_array:
-            rewards.append(my_reward(action, next_obs, goal))
-
-        discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (5, 1))
-        action = np.tile(action, (5, 1))
-        discount = np.tile(discount, (5, 1))
-        next_obs = np.tile(next_obs, (5, 1))
-        reward = np.array(rewards)
-        goal_array = np.array(goal_array)
-        return (obs, action, reward, discount, next_obs, goal_array)
-
-
-    def _sample_future(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self.offset]
-        reward = episode["reward"][idx]
-        discount = episode["discount"][idx] * self._discount
-        return (obs, action, reward, discount, next_obs)
-    
-
-
-    def _sample_goal_hybrid(self):
-
-        episode = self._sample_episode()
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        obs = episode["observation"][idx - 1]
-
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx+self._nstep-1]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-
-
-        if 'goal' in episode.keys():
-            goal = episode["goal"][idx]
-            for i in range(self._nstep):
-                step_reward = episode["reward"][idx + i]
-                reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
-
-        else:
-            self.count+=1
-            if self.count==1000:
-                self.iz +=1
-            if self.iz>500-self._nstep:
-                self.iz=1
-            obs = episode["observation"][self.iz-1]
-            action = episode["action"][self.iz]
-            next_obs = episode['observation'][self.iz+self._nstep-1]
-            idx_goal = np.random.randint(self.iz,501)
-            goal = episode["observation"][idx_goal]
-            goal = goal.reshape(-1, 9, 84, 84)
-            goal_state = episode["state"][idx_goal]
-            #reward = my_reward(action,episode["state"][self.iz] , goal_state[:2])
-            #discount = episode['discount'][self.iz]*self._discount
-            for i in range(self._nstep):
-                for z in range(2):
-                    step_reward = my_reward(episode["action"][self.iz+i],episode["state"][self.iz+i] , goal_state[:2])
-                    reward += discount * step_reward
-                    #print('state',episode["state"][self.iz+i])
-                    #print('iz',self.iz+i)
-                    #print('goal', goal_state[:2])
-                    #print('idx',idx_goal)
-                    #print('reward',step_reward)
-                    discount *= episode["discount"][self.iz+i] * self._discount
-        
-        reward = np.array(reward).astype(float)
-	
-        goal = goal.astype(int)
-        obs = np.array(obs)
-        obs = obs.reshape(-1, 9, 84, 84)
-        next_obs = next_obs.reshape(-1,9,84,84)
-        goal = goal.reshape(-1,9,84,84)
-        reward = reward.reshape(-1,1)
-        discount = discount.reshape(-1,1)
-        action = action.reshape(-1,2)
-        return (obs, action, reward, discount, next_obs, goal)
-                
-                
-    def __iter__(self):
-        while True:
-            if (self.offline and self.goal and self.pixels) or (self.hybrid and self.goal and self.pixels):
-                yield self._sample_goal_hybrid()
-            elif self.pixels:
-                yield self._sample_pixel_goal()
-            elif self.goal:
-                yield self._sample_goal()
-            elif self.vae:
-                yield self._sample_future()
-            else:
-                yield self._sample()
-
-
-    def parse_dataset(self, start_ind=0, end_ind=-1):
-        states = []
-        actions = []
-        rewards = []
-        if len(self._episode_fns)>0:
-            for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
-                episode = self._episodes[eps_fn]
-                ep_len = next(iter(episode.values())).shape[0] - 1
-                for idx in range(ep_len):
-                    if self.pixels:
-                        states.append(episode["state"][idx - 1][None])
-                    else:
-                        states.append(episode["observation"][idx - 1][None])
-                    actions.append(episode["action"][idx][None])
-                    rewards.append(episode["reward"][idx][None])
-            return (np.concatenate(states,0),
-                        np.concatenate(actions, 0),
-                        np.concatenate(rewards, 0)
-                        )
-        else:
-            return ('', '')
-
-def _worker_init_fn(worker_id):
-    seed = np.random.get_state()[1][0] + worker_id
-    np.random.seed(seed)
-    random.seed(seed)
-
-def make_replay_buffer(
-    env,
-    replay_dir,
-    max_size,
-    batch_size,
-    num_workers,
-    discount,
-    offset=100,
-    goal=False,
-    vae=False,
-    relabel=False,
-    model_step=False,
-    replay_dir2=False,
-    obs_type='state',
-    offline=False,
-    hybrid=False,
-    nstep=1,
-    eval=False):
-    max_size_per_worker = max_size // max(1, num_workers)
-
-    iterable = OfflineReplayBuffer(
-        env,
-        replay_dir,
-        max_size_per_worker,
-        num_workers,
-        discount,
-        offset,
-        goal=goal,
-        vae=vae,
-        model_step=model_step,
-        replay_dir2=replay_dir2,
-        obs_type=obs_type,
-	offline=offline,
-        hybrid=hybrid,
-        nstep=nstep,
-        eval=eval
-    )
-    iterable._load(relabel=relabel)
-
-    return iterable
-
-def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False):
-    max_size_per_worker = max_size // max(1, num_workers)
-
-    iterable = ReplayBuffer(
-        storage,
-        storage2,
-        max_size_per_worker,
-        num_workers,
-        nstep,
-        discount,
-        goal=goal,
-        hybrid=hybrid,
-        obs_type = obs_type,
-        hybrid_pct=hybrid_pct,
-        actor1 = actor1,
-        fetch_every=1000,
-        save_snapshot=save_snapshot,
-        )
-
-    loader = torch.utils.data.DataLoader(
-        iterable,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=True,
-        worker_init_fn=_worker_init_fn,
-    )
-    return loader
-
-
-def ndim_grid(ndims, space):
-    L = [np.linspace(-.25,.25,space) for i in range(ndims)]
-    return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
-
+        load_every=1000,
+        eval=False,
+        load_once=False):

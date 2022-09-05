@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.proto1.Proto1Agent
-name: proto1
+_target_: agent.proto_intr.ProtoIntrAgent
+name: proto_intr
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
@@ -29,7 +29,8 @@ tau: 0.1
 topk: 3
 queue_size: 2048
 encoder_target_tau: .05
-offline: ???
-gc_only: ???
 update_gc: ???
+gc_only: ???
+offline: ???
+intr_coef: ???
 update_encoder: ${update_encoder}

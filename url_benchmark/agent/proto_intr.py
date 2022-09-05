@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 
 import utils
-from agent.ddpg0 import DDPG0Agent
+from agent.ddpg import DDPGAgent
 
 
 @jit.script
@@ -41,9 +41,9 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class Proto0Agent(DDPG0Agent):
+class ProtoIntrAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc,offline,gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,intr_coef,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -51,12 +51,13 @@ class Proto0Agent(DDPG0Agent):
         self.topk = topk
         self.num_protos = num_protos
         self.update_encoder = update_encoder
-        self.offline=offline
-        self.gc_only=gc_only
         self.update_gc = update_gc
+        self.offline = offline
+        self.gc_only = gc_only
+        self.intr_coef = intr_coef
 
+        # models
         if self.gc_only==False:
-            # models
             self.encoder_target = deepcopy(self.encoder)
 
             self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
@@ -97,7 +98,7 @@ class Proto0Agent(DDPG0Agent):
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
-   
+
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)
@@ -172,8 +173,8 @@ class Proto0Agent(DDPG0Agent):
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             if self.obs_type=='states':
-                goal = goal.reshape(-1, 2).float()  
-        
+                goal = goal.reshape(-1, 2).float()
+            
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
@@ -234,7 +235,8 @@ class Proto0Agent(DDPG0Agent):
                                  self.critic2_target_tau)
 
         elif actor1 and step % self.update_gc==0:
-            reward = extr_reward
+            intr_reward = self.compute_intr_reward(next_obs, step)
+            reward = extr_reward + self.intr_coef * intr_reward
             if self.use_tb or self.use_wandb:
                 metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()

@@ -17,8 +17,9 @@ from dm_env import specs
 import pandas as pd
 import dmc
 import utils
+from scipy.spatial.distance import cdist
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
 import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 
@@ -27,7 +28,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -40,6 +41,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
+    if cfg.name=='proto_intr':
+        cfg.intr_coef = intr_coef
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -56,7 +59,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     else:
         replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
         
-    replay_buffer = make_replay_buffer(env,
+    replay_buffer = make_replay_offline(env,
                                 Path(replay_dir),
                                 2000000,
                                 1,
@@ -81,9 +84,10 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     ax.set_title(model_step)
     if goal:
         plt.savefig(f"./{model_step}_gc_heatmap.png")
+        wandb.save(f"./{model_step}_gc_heatmap.png")
     else:
         plt.savefig(f"./{model_step}_proto_heatmap.png")
-
+        wandb.save(f"./{model_step}_proto_heatmap.png")
     #percentage breakdown
     df=df*100
     heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
@@ -93,8 +97,13 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     fig, ax = plt.subplots(figsize=(10,10))
     labels = np.round(heatmap.T/heatmap.sum()*100, 1)
     sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
-    plt.savefig(f"./{self._global_step}_heatmap_pct.png")
-    
+    if goal:
+        plt.savefig(f"./{self._global_step}_gc_heatmap_pct.png")
+        wandb.save(f"./{self._global_step}_gc_heatmap_pct.png")
+    else:
+        plt.savefig(f"./{self._global_step}_proto_heatmap_pct.png")
+        wandb.save(f"./{self._global_step}_proto_heatmap_pct.png")
+
     #rewards seen thus far
     df = df.astype(int)
     result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
@@ -104,8 +113,10 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
     if goal:
         plt.savefig(f"./{self._global_step}_gc_reward.png")
+        wandb.save(f"./{self._global_step}_gc_reward.png")
     else:
         plt.savefig(f"./{self._global_step}_proto_reward.png")
+        wandb.save(f"./{self._global_step}_proto_reward.png")
 
 class Workspace:
     def __init__(self, cfg):
@@ -115,12 +126,13 @@ class Workspace:
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
-
+        work_path = str(os.getcwd().split('/')[-2])+'/'+str(os.getcwd().split('/')[-1])
+        
         # create logger
         if cfg.use_wandb:
             exp_name = '_'.join([
                 cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
-                str(cfg.seed)
+                str(cfg.seed), str(cfg.tmux_session),work_path
             ])
             wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
 
@@ -141,7 +153,7 @@ class Workspace:
         #import IPython as ipy; ipy.embed(colors='neutral')
         print('no goal task env', self.no_goal_task)
         self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                   cfg.action_repeat, seed=None, goal=None)
+                                   1, seed=None, goal=None)
         self.train_env2 = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                                   cfg.action_repeat, seed=None, goal=None)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
@@ -149,7 +161,7 @@ class Workspace:
         self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=None)
         self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                   cfg.action_repeat, seed=None, goal=None)
+                                   1, seed=None, goal=None)
 
         # create agent
         #import IPython as ipy; ipy.embed(colors='neutral')
@@ -165,7 +177,8 @@ class Workspace:
                                 cfg.update_gc,
                                 cfg.lr,
                                 cfg.offline,
-                                False)
+                                False,
+                                cfg.intr_coef)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -183,7 +196,22 @@ class Workspace:
         
 
         # create replay buffer
-        if cfg.second:
+        if cfg.offline:
+            #might have conflict 
+            self.replay_loader1 = make_replay_loader(self.replay_storage2,
+                                                    False,
+                                                    False,
+                                                    cfg.replay_buffer_size,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False,
+                                                    cfg.nstep,
+                                                    cfg.discount,
+                                                    True,
+                                                    False,
+                                                    cfg.obs_type,
+                                                    0)
+        elif cfg.second:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                 self.replay_storage2,
                                                 False,
@@ -214,16 +242,6 @@ class Workspace:
                                                 False, cfg.nstep, cfg.discount,
                                                 False, False,cfg.obs_type)
         
-        #self.replay_buffer_goal = make_replay_buffer(self.eval_env,
-        #                                            self.work_dir / 'buffer1' / 'buffer_copy',
-        #                                            50000,
-        #                                            1,
-        #                                            0,
-        #                                            self.cfg.discount,
-        #                                            goal=False,
-        #                                            relabel=False,
-        #                                            replay_dir2 = False,
-        #                                            )
         
        # self.replay_buffer_intr = make_replay_buffer(self.eval_env,
        #                                                 self.work_dir / 'buffer2' / 'buffer_copy',
@@ -257,6 +275,11 @@ class Workspace:
         self.uniform_goal = []
         self.uniform_state = []
         self.count_uniform = 0
+        self.goal_loaded = False
+        self.distance_goal = []
+        self.count=0
+        self.global_success_rate = []
+        self.global_index=[]
 
     @property
     def global_step(self):
@@ -298,7 +321,7 @@ class Workspace:
     def encoding_grid(self):
         if self.loaded == False:
             replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
-            self.replay_buffer_intr = make_replay_buffer(self.eval_env,
+            self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         replay_dir,
                                         self.replay_buffer_gc,
                                         self.cfg.batch_size,
@@ -346,6 +369,27 @@ class Workspace:
  #           else:
  #               self.count_uniform = 1
  #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+    def sample_goal_distance(self):
+        if self.goal_loaded==False:
+            goal_array = ndim_grid(2,20)
+            dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')
+            df1 = pd.DataFrame()
+            df1['distance'] = dist_goal.reshape((400,))
+            df1['index'] = df1.index
+            df1 = df1.sort_values(by='distance')
+            goal_array_ = []
+            for x in range(len(df1)):
+                goal_array_.append(goal_array[df1.iloc[x,1]])
+            self.distance_goal = goal_array_
+            self.goal_loaded=True
+            index=self.global_step//5000
+            idx = np.random.randint(index,min(index+30, 400))
+            
+        else:
+            index=self.global_step//5000
+            idx = np.random.randint(index,min(index+30, 400))
+        
+        return self.distance_goal[idx]
         
         
     def sample_goal_pixel(self, eval=False):
@@ -386,11 +430,13 @@ class Workspace:
         heatmaps(self, self.eval_env, self.global_step, False, False)
         
         goal_array = ndim_grid(2,10)
+        success=0
+        df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
 
-        for i in range(len(goal_array)):
+        for ix, x in enumerate(goal_array):
             step, episode, total_reward = 0, 0, 0
          #   goal_pix, goal_state = self.sample_goal_uniform(eval=True)
-            goal_state = np.array([goal_array[i][0], goal_array[i][1]])
+            goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
             self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -408,7 +454,7 @@ class Workspace:
                 with self.eval_env_goal.physics.reset_context():
                     time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                self.video_recorder.init(self.eval_env_no_goal, enabled=(episode == 0))
+                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                 
                 while not time_step.last():
                     with torch.no_grad(), utils.eval_mode(self.agent):
@@ -426,12 +472,12 @@ class Workspace:
                     time_step = self.eval_env.step(action)
                     time_step_no_goal = self.eval_env_no_goal.step(action)
                     #time_step_goal = self.eval_env_goal.step(action)
-                    self.video_recorder.record(self.eval_env_no_goal)
+                    self.video_recorder.record(self.eval_env)
                     total_reward += time_step.reward
                     step += 1
        
                 episode += 1
-                self.video_recorder.save(f'{self.global_frame}_{i}.mp4')
+                self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
             
                 if self.cfg.eval:
                     print('saving')
@@ -441,10 +487,23 @@ class Workspace:
                     print('saving')
                     print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                     save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
-        
-#             if total_reward < 200*self.cfg.num_eval_episodes:
-#                 self.unreachable_goal = np.append(self.unreachable_goal, np.array(goal_pix[None,:,:,:]), axis=0)
-#                 self.unreachable_state = np.append(self.unreachable_state, np.array(goal_state[None,:]), axis=0)
+            if total_reward > 100*self.cfg.num_eval_episodes:
+                success +=1
+            df.loc[ix, 'x'] = x[0]
+            df.loc[ix, 'y'] = x[1]
+            df.loc[ix, 'r'] = total_reward
+
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./{self.global_step}_heatmap.png")
+        wandb.save(f"./{self.global_step}_heatmap.png")
+        success_rate = success/len(goal_array)
+        self.global_success_rate.append(success_rate)
+        self.global_index.append(self.global_step)
+        print('success_rate of current eval', success_rate)
+            
 
     def eval_intrinsic(self, model):
         obs = torch.empty(1024, 9, 84, 84)
@@ -491,8 +550,6 @@ class Workspace:
         time_step1 = self.train_env1.reset()
         time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
-        #with self.no_goal_env1.physics.reset_context():
-        #    time_step_no_goal = self.no_goal_env1.physics.set_state(time_step1["physics"])
         with self.train_env_goal.physics.reset_context():
             time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
         
@@ -513,6 +570,7 @@ class Workspace:
         #self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self.global_step):
+            
             if time_step1.last() and time_step2.last():
                 print('last')
                 self._global_episode += 1
@@ -555,6 +613,14 @@ class Workspace:
             if eval_every_step(self.global_step) and self.global_step!=0:
                 #print('trying to evaluate')
                 self.eval()
+                plt.clf()
+                fig, ax = plt.subplots()
+                sr, idx = zip(*sorted(zip(self.global_success_rate, self.global_index)))
+
+                ax.ticklabel_format(style='plain')
+                ax.plot(idx,sr)
+                plt.savefig(f"./{self._global_step}_eval.png")
+                wandb.save("./{self._global_step}_eval.png")
                     #self.eval_intrinsic(model)
                 #else:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
@@ -573,9 +639,13 @@ class Workspace:
                     #else:
                     #    goal_pix, goal_state = self.sample_goal_pixel()
                 #print('sampled goal', goal_state)
-                idx = np.random.randint(0,400)
-                goal_array = ndim_grid(2,20)
-                goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+                if self.cfg.curriculum:
+                    goal_=self.sample_goal_distance()
+                    goal_state = np.array([goal_[0], goal_[1]])
+                else:
+                    idx = np.random.randint(0,400)
+                    goal_array = ndim_grid(2,20)
+                    goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
 
@@ -632,8 +702,8 @@ class Workspace:
             
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                metrics = self.agent.update(self.replay_iter2, self.global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                metrics = self.agent.update(self.replay_iter2, self.global_step)
             
             self._global_step += 1
 

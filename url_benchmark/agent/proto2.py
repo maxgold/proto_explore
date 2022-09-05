@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class Proto2Agent(DDPG2Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc,offline,gc_only,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -52,36 +52,38 @@ class Proto2Agent(DDPG2Agent):
         self.num_protos = num_protos
         self.update_encoder = update_encoder
         self.update_gc = update_gc
+        self.offline = offline
+        self.gc_only = gc_only
 
+        if self.gc_only==False:
+            # models
+            self.encoder_target = deepcopy(self.encoder)
 
-        # models
-        self.encoder_target = deepcopy(self.encoder)
+            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.predictor.apply(utils.weight_init)
+            self.predictor_target = deepcopy(self.predictor)
 
-        self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-        self.predictor.apply(utils.weight_init)
-        self.predictor_target = deepcopy(self.predictor)
+            self.projector = Projector(pred_dim, proj_dim).to(self.device)
+            self.projector.apply(utils.weight_init)
 
-        self.projector = Projector(pred_dim, proj_dim).to(self.device)
-        self.projector.apply(utils.weight_init)
-
-        # prototypes
-        self.protos = nn.Linear(pred_dim, num_protos,
+            # prototypes
+            self.protos = nn.Linear(pred_dim, num_protos,
                                 bias=False).to(self.device)
-        self.protos.apply(utils.weight_init)
-        #self.protos_target = deepcopy(self.protos)
-        # candidate queue
-        self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
-        self.queue_ptr = 0
+            self.protos.apply(utils.weight_init)
+            #self.protos_target = deepcopy(self.protos)
+            # candidate queue
+            self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
+            self.queue_ptr = 0
 
-        # optimizers
-        self.proto_opt = torch.optim.Adam(utils.chain(
-            self.encoder.parameters(), self.predictor.parameters(),
-            self.projector.parameters(), self.protos.parameters()),
+            # optimizers
+            self.proto_opt = torch.optim.Adam(utils.chain(
+                self.encoder.parameters(), self.predictor.parameters(),
+                self.projector.parameters(), self.protos.parameters()),
                                           lr=self.lr)
 
-        self.predictor.train()
-        self.projector.train()
-        self.protos.train()
+            self.predictor.train()
+            self.projector.train()
+            self.protos.train()
 
     def init_from(self, other):
         # copy parameters over
@@ -167,25 +169,18 @@ class Proto2Agent(DDPG2Agent):
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             
-            if self.obs_type=='pixels':
-                goal = goal.reshape(-1, 9, 84, 84).float()
-            else: 
+            if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+        
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
+        
         else:
             return metrics
-        #if self.obs_type=='pixels':
-         #   obs = obs.reshape(-1, 9, 84, 84).float()
-        #    next_obs = next_obs.reshape(-1, 9, 84, 84).float()
-        #else:
-         #   obs = obs.reshape(-1, 4).float()
-         #   next_obs = next_obs.reshape(-1, 4).float()
         
-        #action = action.reshape(-1, 2).float()
-        #extr_reward = extr_reward.reshape(-1, 1).float()
-        #discount = discount.reshape(-1, 1).float()
+        action = action.reshape(-1,2)
+        discount = discount.reshape(-1,1)
         extr_reward = extr_reward.float()
 
         # augment and encode

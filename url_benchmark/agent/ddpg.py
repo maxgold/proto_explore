@@ -321,8 +321,8 @@ class DDPGAgent:
             goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         else:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            goal = torch.reshape(goal, (1,-1, 84, 84))
             goal = torch.tile(goal, (1,3,1,1))
         
         h = self.encoder(obs)
@@ -366,7 +366,6 @@ class DDPGAgent:
 
     def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
         metrics = dict()
-
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, goal, stddev)
@@ -383,6 +382,7 @@ class DDPGAgent:
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
+        
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
@@ -432,7 +432,7 @@ class DDPGAgent:
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
-
+        
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()

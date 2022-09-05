@@ -322,8 +322,8 @@ class DDPG0Agent:
             goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         else:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            goal = torch.reshape(goal, (1,-1, 84, 84))
             goal = torch.tile(goal, (1,3,1,1))
  
         h = self.encoder(obs)
