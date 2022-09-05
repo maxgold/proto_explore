@@ -211,16 +211,8 @@ class Workspace:
                                                     False,
                                                     cfg.obs_type,
                                                     0)
-        elif cfg.second:
-            self.replay_loader1 = make_replay_loader(self.replay_storage1,
-                                                self.replay_storage2,
-                                                False,
-                                                cfg.replay_buffer_gc,
-                                                cfg.batch_size_gc,
-                                                cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount,
-                                                True, cfg.hybrid,cfg.obs_type,
-                                                cfg.hybrid_pct)
+        elif cfg.offline_online:
+            print('making it later')
         else:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
@@ -280,6 +272,7 @@ class Workspace:
         self.count=0
         self.global_success_rate = []
         self.global_index=[]
+        self.storage1=False
 
     @property
     def global_step(self):
@@ -636,12 +629,6 @@ class Workspace:
             
             if episode_step== 0 and self.global_step!=0:
                 
-                #if seed_until_step(self._global_step):
-                    #if self.cfg.uniform:
-                    #    goal_pix, goal_state = self.sample_goal_uniform()
-                    #else:
-                    #    goal_pix, goal_state = self.sample_goal_pixel()
-                #print('sampled goal', goal_state)
                 if self.cfg.curriculum:
                     goal_=self.sample_goal_distance()
                     goal_state = np.array([goal_[0], goal_[1]])
@@ -649,9 +636,9 @@ class Workspace:
                     idx = np.random.randint(0,400)
                     goal_array = ndim_grid(2,20)
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
-
                 time_step1 = self.train_env1.reset()
                 time_step_no_goal = self.train_env_no_goal.reset()
                 time_step2 = self.train_env2.reset()
@@ -693,6 +680,8 @@ class Workspace:
             time_step_no_goal = self.train_env_no_goal.step(action1)
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
+
+            print('reward', time_step1.reward)
             
             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
@@ -701,9 +690,60 @@ class Workspace:
                 self.replay_storage1.add_goal(time_step1, meta, goal)
                 self.replay_storage2.add(time_step2, meta)
             
+            
             episode_step += 1
             
+            if time_step1.reward > 1.9 and self.cfg.test:
+                print('reached making new env')
+                current_state = time_step1.observation['observations'][:2]
+
+                if self.cfg.curriculum:
+                    goal_=self.sample_goal_distance()
+                    goal_state = np.array([goal_[0], goal_[1]])
+                else:
+                    idx = np.random.randint(0,400)
+                    goal_array = ndim_grid(2,20)
+                    goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+
+                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
+                print('new env state', self.train_env1._env.physics.state())
+                time_step1 = self.train_env1.reset()
+                print('reset state', time_step1.observation['observations'])
+                time_step_no_goal = self.train_env_no_goal.reset()
+                print('no goal reset', time_step_no_goal.observation['observations'])
+                time_step2 = self.train_env2.reset()
+                #time_step_goal = self.train_env_goal.reset()
+                meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                print('sampled goal', goal_state)
+
+                with self.train_env_goal.physics.reset_context():
+                    time_step_goal = self.train_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1],0,0]))
+
+                time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+
+                if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
+                    self.replay_storage2.add(time_step2,meta,True)
+
+
             if not seed_until_step(self.global_step):
+                
+                if self.cfg.offline_online and self.storage1==False:
+                    self.replay_loader1 = make_replay_buffer(self.eval_env,
+                                                self.work_dir/ "buffer2"/"buffer_copy",
+                                                self.cfg.replay_buffer_gc,
+                                                self.cfg.batch_size_gc,
+                                                self.cfg.replay_buffer_num_workers,
+                                                self.cfg.discount,
+                                                goal=True,
+                                                relabel=False,
+                                                replay_dir2=self.work_dir/"buffer1"/"buffer_copy",
+                                                obs_type=self.cfg.obs_type,
+                                                offline=True,
+                                                nstep=self.cfg.nstep)
+                    self.storage1=True
+
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
                 metrics = self.agent.update(self.replay_iter2, self.global_step)
