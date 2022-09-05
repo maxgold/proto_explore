@@ -28,7 +28,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -41,6 +41,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
+    if cfg.name=='proto_intr':
+        cfg.intr_coef = intr_coef
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -175,7 +177,8 @@ class Workspace:
                                 cfg.update_gc,
                                 cfg.lr,
                                 cfg.offline,
-                                False)
+                                False,
+                                cfg.intr_coef)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -568,11 +571,6 @@ class Workspace:
         metrics = None
         while train_until_step(self.global_step):
             
-            if 0<self.global_step<50000 and self.global_step%10000==0: 
-                self.update_buffer()
-            elif self.global_step>=50000 and self.global_step%100000==0:
-                self.update_buffer()
-
             if time_step1.last() and time_step2.last():
                 print('last')
                 self._global_episode += 1
