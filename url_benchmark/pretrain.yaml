@@ -48,6 +48,8 @@ second: False
 curriculum: False
 tmux_session: ???
 intr_coef: 0
+offline_online: False
+test: False
 # experiment
 experiment: exp
 

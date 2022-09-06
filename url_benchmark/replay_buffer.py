@@ -621,6 +621,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._load_every = load_every
         self._samples_since_last_load = load_every
         self.load_once=load_once
+        self.switch=False
 
         if obs_type == 'pixels':
             self.pixels = True      
@@ -638,10 +639,17 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        
-        if self.hybrid:
+
+        if self.offline and self._size+500 >= self._max_size and self.switch==False:
+            print('swtiching to hybrid')
+            self.hybrid=True
+            self.switch=True
+
+        if self.hybrid and self.offline==False:
             tmp_fns = sorted(self._replay_dir.glob("*.npz"))
             tmp_fns_offline = sorted(self._replay_dir2.glob("*.npz"))
+        elif self.hybrid and self.offline:
+            tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
         else:
             tmp_fns = sorted(self._replay_dir.glob("*.npz"))
         
@@ -655,8 +663,7 @@ class OfflineReplayBuffer(IterableDataset):
             eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
         else:
             eps_fns = tmp_fns
-        
-        if self.hybrid:
+        if self.hybrid and self.offline==False:
             tmp_fns_off=[]
             tmp_fns2_off = []
 
@@ -670,23 +677,52 @@ class OfflineReplayBuffer(IterableDataset):
             else:
                 eps_fns_off = tmp_fns_offline
         
-        if self.hybrid:
+        if self.hybrid and self.offline==False:
 
             eps_fns = eps_fns+eps_fns_off
         #np.random.shuffle(eps_fns)
+
         fetched_size = 0
         for eps_fn in eps_fns:
-            if self._size > self._max_size:
-                break
-            
-            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-            if eps_idx % self._num_workers != worker_id:
-                continue
-            if eps_fn in self._episodes.keys():
-                continue
-            if fetched_size + eps_len > self._max_size:
-                break
-            fetched_size += eps_len
+            if self.load_once:
+                if self._size > self._max_size:
+                    break
+
+                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn in self._episodes.keys():
+                    continue
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if self.eval and self.pixels:
+                    print('eval')
+                    episode = load_episode(eps_fn, eval=True)
+                else:
+                    episode = load_episode(eps_fn)
+                    print('loading eps', eps_fn)
+                if relabel:
+                    episode = self._relabel_reward(episode)
+                self._episode_fns.append(eps_fn)
+                self._episodes[eps_fn] = episode
+                self._size += episode_len(episode)
+            else:
+                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn in self._episodes.keys():
+                    continue
+                #should this be break or continue? 
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if not self._store_episode(eps_fn,relabel=relabel):
+                    break
+
+
+    def _store_episode(self, eps_fn, relabel=False):
+        try: 
             if self.eval and self.pixels:
                 print('eval')
                 episode = load_episode(eps_fn, eval=True)
@@ -694,12 +730,25 @@ class OfflineReplayBuffer(IterableDataset):
                 episode = load_episode(eps_fn)
                 print('loading eps', eps_fn)
 
-            if relabel:
-                episode = self._relabel_reward(episode)
-            self._episode_fns.append(eps_fn)
-            self._episodes[eps_fn] = episode
-            self._size += episode_len(episode)
-
+        except:
+            return False
+        
+        eps_len = episode_len(episode)
+        while eps_len + self._size > self._max_size:
+            early_eps_fn = self._episode_fns.pop(0)
+            early_eps = self._episodes.pop(early_eps_fn)
+            print('getting rid of', early_eps_fn)
+            self._size -= episode_len(early_eps)
+            early_eps_fn.unlink(missing_ok=True)
+ 
+        if relabel:
+            episode = self._relabel_reward(episode)
+        self._episode_fns.append(eps_fn)
+        self._episode_fns.sort()
+        self._episodes[eps_fn] = episode
+        self._size += episode_len(episode)
+        
+        return True
         
     
     def _get_goal_array(self, eval_mode=False, space=6):
@@ -723,7 +772,7 @@ class OfflineReplayBuffer(IterableDataset):
         
 
     def _sample_episode(self):
-        if self.load_once and self._loaded:
+        if self.load_once and self._loaded==False:
             self._load()
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
@@ -869,6 +918,7 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             traceback.print_exc()
         self._samples_since_last_load += 1
+        
 
         episode = self._sample_episode()
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
@@ -992,7 +1042,7 @@ def make_replay_buffer(
         hybrid=hybrid,
         hybrid_pct=hybrid_pct,
         nstep=nstep,
-        load_every=100000,
+        load_every=1000,
         eval=eval
     )
     iterable._load()
