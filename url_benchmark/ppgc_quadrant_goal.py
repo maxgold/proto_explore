@@ -80,14 +80,15 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
         grid = get_state_embeddings(agent, grid)
         return grid, states
 
-    
 
 def heatmaps(self, env, model_step, replay_dir2, goal):
-    if goal:
+    if self.cfg.offline:
+        replay_dir = self.replay_goal_dir 
+    elif goal:
         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
     else:
         replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
-        
+    print('heatmap buffer')
     replay_buffer = make_replay_offline(env,
                                 Path(replay_dir),
                                 2000000,
@@ -98,14 +99,14 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
                                 relabel=False,
                                 model_step=model_step,
                                 replay_dir2=replay_dir2,
-                                obs_type=self.cfg.obs_type, 
+                                obs_type=self.cfg.obs_type,
                                 eval=True)
-    
-    states, actions, rewards, goal_state = replay_buffer.parse_dataset(goal_state=True)
+
+    states, actions, rewards = replay_buffer.parse_dataset()
     #only adding states and rewards in replay_buffer
-    tmp = np.hstack((states, goal_state, rewards))
-    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v', 'g_x', 'g_y', 'gp', 'gv','r'])
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
+    tmp = np.hstack((states, rewards))
+    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50,
                                    range=np.array(([-.29, .29],[-.29, .29])))
     plt.clf()
     fig, ax = plt.subplots(figsize=(10,6))
@@ -117,23 +118,10 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     else:
         plt.savefig(f"./{model_step}_proto_heatmap.png")
         wandb.save(f"./{model_step}_proto_heatmap.png")
-   
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 4], df.iloc[:, 5], bins=50, 
-                                   range=np.array(([-.29, .29],[-.29, .29])))
-    plt.clf()
-    fig, ax = plt.subplots(figsize=(10,6))
-    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-    ax.set_title(model_step)
-    if goal:
-        plt.savefig(f"./{model_step}_gc_goals.png")
-        wandb.save(f"./{model_step}_gc_goals.png")
-
-
-
 
     #percentage breakdown
     df=df*100
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
+    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20,
                                    range=np.array(([-29, 29],[-29, 29])))
     plt.clf()
 
@@ -160,8 +148,6 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     else:
         plt.savefig(f"./{self._global_step}_proto_reward.png")
         wandb.save(f"./{self._global_step}_proto_reward.png")
-        
-        
         
 class Workspace:
     def __init__(self, cfg):
@@ -424,22 +410,25 @@ class Workspace:
             df1 = df1.sort_values(by='distance')
             goal_array_ = []
             for x in range(len(df1)):
-                goal_array_.append(goal_array[df1.iloc[x,1]])
+                if self.cfg.bottom_left:
+                    if goal_array[df1.iloc[x,1]][0]<0 and goal_array[df1.iloc[x,1]][1]<0:
+                        goal_array_.append(goal_array[df1.iloc[x,1]])
+                else:
+                    goal_array_.append(goal_array[df1.iloc[x,1]])
             self.distance_goal = goal_array_
             self.goal_loaded=True
-            index=self.global_step//1000
-            idx = np.random.randint(index,min(index+30, 400))
+            index=self.global_step//20000
+            idx = np.random.randint(index,min(index+20, len(goal_array_)))
 
         else:
-            if self.global_step<500000:
-                index=self.global_step//1000
-                if index<400:
-                    idx = np.random.randint(index,min(index+30, 400))
+            if self.global_step<200000:
+                index=self.global_step//2000
+                if index < len(self.distance_goal):
+                    idx = np.random.randint(index,min(index+20, len(self.distance_goal)))
                 else:
-                    idx = np.random.randint(0,400)
+                    idx = np.random.randint(0, len(self.distance_goal))
             else:
-                idx = np.random.randint(0,400)
-
+                idx = np.random.randint(0, len(self.distance_goal))
         return self.distance_goal[idx]
 
 
@@ -612,7 +601,8 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
         self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2])
+                self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2]) 
+        
         time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
         
@@ -628,11 +618,9 @@ class Workspace:
             print('replay1')
         else:
             self.replay_storage1.add_goal(time_step1, meta, goal)
-
         metrics = None
         
         while train_until_step(self.global_step):
-            #self.train_video_recorder.init(self.train_env_goal, enabled=(episode_step == 0))
 
             if self.cfg.offline:
                 if eval_every_step(self.global_step) and self.global_step!=0:
@@ -710,22 +698,17 @@ class Workspace:
                     if self.cfg.curriculum:
                         goal_=self.sample_goal_distance()
                         goal_state = np.array([goal_[0], goal_[1]])
+                    
                     else:
+                        idx = np.random.randint(0,400)
                         goal_array = ndim_grid(2,20)
-                        idx = self.count
-                        goal = np.array([goal_array[idx][0], goal_array[idx][1]])
-                        self.count += 1
-                    
-                        if self.count == 400:
-                            self.count = 0
-                        goal_state = goal
-                    
+                        goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
 
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+                        self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                     time_step_no_goal = self.train_env_no_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1)
                     print('sampled goal', goal_state)
@@ -796,7 +779,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from pretrain_pixel_gc_only import Workspace as W
+    from ppgc_quadrant_goal import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
