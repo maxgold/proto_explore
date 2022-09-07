@@ -53,6 +53,7 @@ def get_state_embeddings(agent, states):
         s = F.normalize(s, dim=1, p=2)
     return s
 
+
 def heatmaps(self, env, model_step, replay_dir2, goal):
     if goal:
         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
@@ -71,23 +72,46 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
                                 replay_dir2=replay_dir2,
                                 obs_type=self.cfg.obs_type, 
                                 eval=True)
+   
+    if goal:
+        states, actions, rewards, goal_state = replay_buffer.parse_dataset(goal_state=True)
+    else:
+        states, actions, rewards = replay_buffer.parse_dataset()
     
-    states, actions, rewards = replay_buffer.parse_dataset()
     #only adding states and rewards in replay_buffer
-    tmp = np.hstack((states, rewards))
-    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+    if goal:
+        tmp = np.hstack((states, goal_state, rewards))
+        df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v', 'g_x', 'g_y', 'gp', 'gv','r'])
+    else:
+        tmp = np.hstack((states, rewards))
+        df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+
     heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
                                    range=np.array(([-.29, .29],[-.29, .29])))
     plt.clf()
+    
     fig, ax = plt.subplots(figsize=(10,6))
     sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
     ax.set_title(model_step)
+    
     if goal:
         plt.savefig(f"./{model_step}_gc_heatmap.png")
         wandb.save(f"./{model_step}_gc_heatmap.png")
     else:
         plt.savefig(f"./{model_step}_proto_heatmap.png")
         wandb.save(f"./{model_step}_proto_heatmap.png")
+    
+    if goal:
+        heatmap, _, _ = np.histogram2d(df.iloc[:, 4], df.iloc[:, 5], bins=50, 
+                                   range=np.array(([-.29, .29],[-.29, .29])))
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+    
+        plt.savefig(f"./{model_step}_gc_goals.png")
+        wandb.save(f"./{model_step}_gc_goals.png")
+
     #percentage breakdown
     df=df*100
     heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
@@ -211,16 +235,17 @@ class Workspace:
                                                     False,
                                                     cfg.obs_type,
                                                     0)
-        elif cfg.offline_online:
+        elif cfg.offline_online or cfg.hybrid:
             print('making it later')
         else:
+            print('regular or hybrid_gc loader')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
                                                     100000,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
-                                                    True, cfg.hybrid,cfg.obs_type,
+                                                    True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct)
 
         #& then put them in two different eps_fns
@@ -362,6 +387,7 @@ class Workspace:
  #           else:
  #               self.count_uniform = 1
  #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
+    
     def sample_goal_distance(self):
         if self.goal_loaded==False:
             goal_array = ndim_grid(2,20)
@@ -375,15 +401,21 @@ class Workspace:
                 goal_array_.append(goal_array[df1.iloc[x,1]])
             self.distance_goal = goal_array_
             self.goal_loaded=True
-            index=self.global_step//5000
+            index=self.global_step//1000
             idx = np.random.randint(index,min(index+30, 400))
-            
+
         else:
-            index=self.global_step//5000
-            idx = np.random.randint(index,min(index+30, 400))
-        
+            if self.global_step<500000:
+                index=self.global_step//1000
+                if index<400:
+                    idx = np.random.randint(index,min(index+30, 400))
+                else:
+                    idx = np.random.randint(0,400)
+            else:
+                idx = np.random.randint(0,400)
+
         return self.distance_goal[idx]
-        
+    
         
     def sample_goal_pixel(self, eval=False):
         replay_dir = self.work_dir / "buffer2" / "buffer_copy"
@@ -432,8 +464,8 @@ class Workspace:
             goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
-            self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None)
+            #self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+             #       self.cfg.action_repeat, seed=None, goal=None)
             self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=None)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -441,7 +473,11 @@ class Workspace:
 
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
+                print('time_step', time_step.observation['observations'])
+                self.eval_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step.observation['observations'][:2])
                 time_step_no_goal = self.eval_env_no_goal.reset()
+                print('time_step no goal', time_step_no_goal.observation['observations'])
                 #time_step_goal = self.eval_env_goal.reset()
                 
                 with self.eval_env_goal.physics.reset_context():
@@ -544,6 +580,8 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
+        self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2])
         time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
         with self.train_env_goal.physics.reset_context():
@@ -567,7 +605,7 @@ class Workspace:
         metrics = None
         while train_until_step(self.global_step):
             
-            if time_step1.last() and time_step2.last():
+            if (time_step1.last() and time_step2.last()) or episode_step==500:
                 print('last')
                 self._global_episode += 1
                 #self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -593,8 +631,8 @@ class Workspace:
                # meta = self.agent.init_meta()
 
                 if self.cfg.obs_type =='pixels':
-                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True)
-                    self.replay_storage2.add(time_step2, meta,True)
+                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
+                    self.replay_storage2.add(time_step2, meta,True, last=True)
                 else:
                     self.replay_storage.add(time_step, meta)
 
@@ -633,13 +671,19 @@ class Workspace:
                     goal_=self.sample_goal_distance()
                     goal_state = np.array([goal_[0], goal_[1]])
                 else:
-                    idx = np.random.randint(0,400)
                     goal_array = ndim_grid(2,20)
-                    goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+                    idx = self.count
+                    goal = np.array([goal_array[idx][0], goal_array[idx][1]])
+                    self.count += 1
+                    if self.count == 400:
+                        self.count = 0
+                    goal_state = goal
 
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
                 time_step1 = self.train_env1.reset()
+                self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                 time_step_no_goal = self.train_env_no_goal.reset()
                 time_step2 = self.train_env2.reset()
                 #time_step_goal = self.train_env_goal.reset()
@@ -680,8 +724,9 @@ class Workspace:
             time_step_no_goal = self.train_env_no_goal.step(action1)
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
-
-            print('reward', time_step1.reward)
+            
+            if time_step1.reward>.5:
+                print('reward', time_step1.reward)
             
             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
@@ -693,7 +738,7 @@ class Workspace:
             
             episode_step += 1
             
-            if time_step1.reward > 1.9 and self.cfg.test:
+            if time_step1.reward > 1.8 and self.cfg.test:
                 print('reached making new env')
                 current_state = time_step1.observation['observations'][:2]
 
@@ -707,9 +752,12 @@ class Workspace:
 
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
+                print('should reset to', current_state)
                 print('new env state', self.train_env1._env.physics.state())
                 time_step1 = self.train_env1.reset()
                 print('reset state', time_step1.observation['observations'])
+                self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
                 time_step_no_goal = self.train_env_no_goal.reset()
                 print('no goal reset', time_step_no_goal.observation['observations'])
                 time_step2 = self.train_env2.reset()
@@ -742,6 +790,23 @@ class Workspace:
                                                 obs_type=self.cfg.obs_type,
                                                 offline=True,
                                                 nstep=self.cfg.nstep)
+                    self.storage1=True
+                elif self.cfg.hybrid and self.cfg.offline_online==False and self.storage1==False:
+                    print('making hybrid buffer and offline_online=False')
+                    self.replay_loader1 = make_replay_buffer(self.eval_env,
+                                                self.work_dir/ "buffer1",
+                                                self.cfg.replay_buffer_gc,
+                                                self.cfg.batch_size_gc,
+                                                self.cfg.replay_buffer_num_workers,
+                                                self.cfg.discount,
+                                                goal=True,
+                                                relabel=False,
+                                                replay_dir2=self.work_dir/"buffer2"/"buffer_copy",
+                                                obs_type=self.cfg.obs_type,
+                                                offline=False,
+                                                nstep=self.cfg.nstep,
+                                                hybrid=True,
+                                                hybrid_pct=self.cfg.hybrid_pct)
                     self.storage1=True
 
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)

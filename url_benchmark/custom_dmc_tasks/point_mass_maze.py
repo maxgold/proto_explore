@@ -274,7 +274,7 @@ class MultiTaskPointMassMaze(base.Task):
         super().__init__(random=random)
         
         if init_state is None:
-            self._init_state = (-.15, .15)
+            self._init_state = (np.random.uniform(-.15, -.29), np.random.uniform(0.15, .29))
         else:
             self._init_state = init_state
 
