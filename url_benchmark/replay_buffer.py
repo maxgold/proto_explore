@@ -1118,11 +1118,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-<<<<<<< HEAD
-    storage, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal=False, hybrid=False, obs_type='state', storage2=False,actor1=False):
-=======
     storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False):
->>>>>>> e57f447075d42ecf2db1a20a62f4b33fcb57827c
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1134,13 +1130,9 @@ def make_replay_loader(
         goal=goal,
         hybrid=hybrid,
         obs_type = obs_type,
-<<<<<<< HEAD
-=======
         hybrid_pct=hybrid_pct,
-        actor1 = actor1,
         replay_dir2=replay_dir2,
         model_step=model_step,
->>>>>>> e57f447075d42ecf2db1a20a62f4b33fcb57827c
         fetch_every=1000,
         storage2=storage2,
         actor1=actor1,
