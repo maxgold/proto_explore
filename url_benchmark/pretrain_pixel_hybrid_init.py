@@ -647,7 +647,8 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
         self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
-                                                      self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+                                                      self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2])
+        time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
         with self.train_env_goal.physics.reset_context():
             time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
