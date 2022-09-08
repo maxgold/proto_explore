@@ -45,11 +45,11 @@ class Actor(nn.Module):
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
-        #if obs_type == 'pixels':
-        #    policy_layers += [
-        #        nn.Linear(hidden_dim, hidden_dim),
-        #        nn.ReLU(inplace=True)
-        #    ]
+        if obs_type == 'pixels':
+            policy_layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
         policy_layers += [nn.Linear(hidden_dim, action_dim)]
 
         self.policy = nn.Sequential(*policy_layers)
@@ -80,11 +80,11 @@ class Actor2(nn.Module):
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
-        #if obs_type == 'pixels':
-        #    policy_layers += [
-        #        nn.Linear(hidden_dim, hidden_dim),
-        #        nn.ReLU(inplace=True)
-        #    ]
+        if obs_type == 'pixels':
+            policy_layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
         policy_layers += [nn.Linear(hidden_dim, action_dim)]
 
         self.policy = nn.Sequential(*policy_layers)
@@ -124,11 +124,11 @@ class Critic(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-           # if obs_type == 'pixels':
-           #     q_layers += [
-           #         nn.Linear(hidden_dim, hidden_dim),
-           #         nn.ReLU(inplace=True)
-           #     ]
+            if obs_type == 'pixels':
+                q_layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(inplace=True)
+                ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
 
@@ -173,11 +173,11 @@ class Critic2(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-         #   if obs_type == 'pixels':
-         #       q_layers += [
-         #           nn.Linear(hidden_dim, hidden_dim),
-         #           nn.ReLU(inplace=True)
-         #       ]
+            if obs_type == 'pixels':
+                q_layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(inplace=True)
+                ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
 
@@ -241,7 +241,6 @@ class DDPGAgent:
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.solved_meta = None
-
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
@@ -317,8 +316,15 @@ class DDPGAgent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
+        
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]
@@ -327,7 +333,7 @@ class DDPGAgent:
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
-        #assert obs.shape[-1] == self.obs_shape[-1]
+        assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule, step)
 
         dist = self.actor(inpt, inputs2, stddev)
@@ -360,7 +366,6 @@ class DDPGAgent:
 
     def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
         metrics = dict()
-
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
             dist = self.actor(next_obs, goal, stddev)
@@ -377,6 +382,7 @@ class DDPGAgent:
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
+        
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
@@ -426,7 +432,7 @@ class DDPGAgent:
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
-
+        
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward()

@@ -1,12 +1,13 @@
 defaults:
   - agent: ddpg
-  - override hydra/launcher: joblib
+  - override hydra/launcher: submitit_slurm
 
 # mode
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
 task: point_mass_maze_reach_custom_goal
+task_no_goal: point_mass_maze_reach_no_goal
 obs_type: states # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 2 # set to 2 for pixels
@@ -16,15 +17,14 @@ num_train_frames: 2000010
 num_seed_frames: 4000
 # eval
 eval: False
-eval_every_frames: 50000
+eval_every_frames: 200000
 num_eval_episodes: 2
 # snapshot
 snapshots: [100000, 500000, 1000000, 2000000]
 snapshot_dir: ../../../models/${obs_type}/${domain}/${agent.name}/${seed}
 # replay buffer
-replay_buffer_size: 1000000
+replay_buffer_size: 500000
 replay_buffer_num_workers: 4
-batch_size: ${agent.batch_size}
 nstep: ${agent.nstep}
 update_encoder: true # should always be true for pre-training
 # misc
@@ -35,8 +35,27 @@ save_train_video: false
 use_tb: false
 use_wandb: false
 goal: false
-act1_every_step: 1
 hybrid: false
+hybrid_gc: false
+hybrid_pct: 5 #0-10
+batch_size: 1024
+batch_size_gc: 1024
+hidden_dim: 1024
+update_gc: 2
+replay_buffer_gc: 100000
+lr: .0001
+offline: False
+uniform: False
+second: False
+curriculum: False
+tmux_session: ???
+intr_coef: 0
+offline_online: False
+test: False
+init_state: False
+gcsl: False
+bottom_left: False
+init_value: 2
 # experiment
 experiment: exp
 
@@ -50,11 +69,11 @@ hydra:
   sweep:
     dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}
-  #launcher:
-  #    #  timeout_min: 4300
-  #    #cpus_per_task: 10
-  #  gpus_per_node: 1
-  #  tasks_per_node: 1
-  #  mem_gb: 160
-  #  nodes: 1
-  #  submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}/.slurm
+  launcher:
+    timeout_min: 4300
+    cpus_per_task: 16
+    gpus_per_node: 1
+    tasks_per_node: 1
+    mem_gb: 200
+    nodes: 1
+    submitit_folder: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_update${update_gc}_bs${batch_size_gc}_hidden${hidden_dim}_${experiment}/.slurm

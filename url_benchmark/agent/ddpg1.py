@@ -34,8 +34,7 @@ class Encoder(nn.Module):
 class Actor(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
-
-        #feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+#        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
         feature_dim = hidden_dim
         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
                                    nn.LayerNorm(feature_dim), nn.Tanh())
@@ -70,7 +69,7 @@ class Actor2(nn.Module):
     def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
-        #feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+ #       feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
         feature_dim = hidden_dim
         self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
                                    nn.LayerNorm(feature_dim), nn.Tanh())
@@ -318,8 +317,15 @@ class DDPG1Agent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int() 
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
+
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]

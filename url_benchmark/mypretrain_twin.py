@@ -166,7 +166,7 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                )
+                            )
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()

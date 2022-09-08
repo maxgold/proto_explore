@@ -15,7 +15,7 @@ import torch
 import wandb
 from dm_env import specs
 
-import dmc
+import dmc_copy as dmc
 import utils
 from logger import Logger
 from replay_buffer import ReplayBufferStorage, make_replay_loader

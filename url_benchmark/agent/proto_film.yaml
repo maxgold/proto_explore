@@ -15,12 +15,12 @@ update_every_steps: 2
 use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
-hidden_dim: 1024
+hidden_dim: ???
 feature_dim: 50
 stddev_schedule: 0.2
 stddev_clip: 0.3
 nstep: 3
-batch_size: 1024
+batch_size: ???
 init_critic: true
 pred_dim: 128
 proj_dim: 512
@@ -28,5 +28,8 @@ num_protos: 512
 tau: 0.1
 topk: 3
 queue_size: 2048
+update_gc: ???
+offline: ???
+gc_only: ???
 encoder_target_tau: 0.05
 update_encoder: ${update_encoder}
