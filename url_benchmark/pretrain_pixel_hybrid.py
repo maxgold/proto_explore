@@ -164,8 +164,8 @@ class Workspace:
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-        task = PRIMAL_TASKS[self.cfg.domain]
-        self.no_goal_task = 'point_mass_maze_reach_no_goal'
+        task = self.cfg.task
+        self.no_goal_task = self.cfg.task_no_goal
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]]) 
@@ -474,7 +474,7 @@ class Workspace:
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
                 print('time_step', time_step.observation['observations'])
-                self.eval_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step.observation['observations'][:2])
                 time_step_no_goal = self.eval_env_no_goal.reset()
                 print('time_step no goal', time_step_no_goal.observation['observations'])
@@ -580,7 +580,7 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
-        self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+        self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                 self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2])
         time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
@@ -673,16 +673,17 @@ class Workspace:
                 else:
                     goal_array = ndim_grid(2,20)
                     idx = self.count
+                    print('count', self.count)
                     goal = np.array([goal_array[idx][0], goal_array[idx][1]])
                     self.count += 1
-                    if self.count == 400:
+                    if self.count == len(goal_array):
                         self.count = 0
                     goal_state = goal
 
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
                 time_step1 = self.train_env1.reset()
-                self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                 self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                 time_step_no_goal = self.train_env_no_goal.reset()
                 time_step2 = self.train_env2.reset()
@@ -725,8 +726,6 @@ class Workspace:
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
             
-            if time_step1.reward>.5:
-                print('reward', time_step1.reward)
             
             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
@@ -756,7 +755,7 @@ class Workspace:
                 print('new env state', self.train_env1._env.physics.state())
                 time_step1 = self.train_env1.reset()
                 print('reset state', time_step1.observation['observations'])
-                self.train_env_no_goal = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
                 time_step_no_goal = self.train_env_no_goal.reset()
                 print('no goal reset', time_step_no_goal.observation['observations'])

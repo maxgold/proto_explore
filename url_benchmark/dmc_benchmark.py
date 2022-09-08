@@ -28,16 +28,17 @@ POINT_MASS_MAZE_TASKS = [
         'point_mass_maze_reach_top_left',
         'point_mass_maze_reach_top_right',
         'point_mass_maze_reach_bottom_left',
-        'point_mass_maze_reach_bottom_right']
+        'point_mass_maze_reach_bottom_right',
+        'point_mass_maze_reach_no_goal',
+        'point_mass_maze_reach_vertical',
+        'point_mass_maze_reach_horizontal',
+        'point_mass_maze_reach_vertical_no_goal',
+        'point_mass_maze_reach_horizontal_no_goal']
 
-POINT_MASS_TASKS = [
-        'point_mass_reach_hs',
-        'point_mass_reach_ud_hs']
-TASKS = WALKER_TASKS + QUADRUPED_TASKS + JACO_TASKS + POINT_MASS_MAZE_TASKS + POINT_MASS_TASKS
+TASKS = WALKER_TASKS + QUADRUPED_TASKS + JACO_TASKS + POINT_MASS_MAZE_TASKS
 
 PRIMAL_TASKS = {
     'walker': 'walker_stand',
     'jaco': 'jaco_reach_top_left',
     'quadruped': 'quadruped_walk',
-    'point_mass': 'point_mass_reach_ud_hs',
     'point_mass_maze': 'point_mass_maze_reach_top_left'}
