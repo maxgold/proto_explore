@@ -369,7 +369,7 @@ class Workspace:
         if init_state is None:
             init_state = [-.15,.15]
             
-        goal_array = ndim_grid(2,20)
+        goal_array = ndim_grid(2,10)
         elements_to_remove = self.reachable_state
         print('len of reachable state', len(self.reachable_state))
         if len(elements_to_remove)>0:
@@ -391,7 +391,7 @@ class Workspace:
         for x in range(len(df1)):
             goal_array_.append(goal_array[df1.iloc[x,1]])
         self.distance_goal = goal_array_
-        idx = np.random.randint(0,min(20, len(self.distance_goal)))
+        idx = np.random.randint(0,min(10, len(self.distance_goal)))
 
         return self.distance_goal[idx]
         
@@ -737,7 +737,7 @@ class Workspace:
                     for x in range(len(df1)):
                         goal_array_.append(self.reachable_state[df1.iloc[x,1]])
                     self.reachable_state = goal_array_
-
+                
 
             
             
@@ -747,7 +747,7 @@ class Workspace:
                 if len(self.reachable_state)>0 and self.cfg.init_state:
                     print('reachable states', self.reachable_state)
                     #lambda for exponential should be max 5 if all goals reached (e.g. 100 or 400)
-                    idx = min(int(np.random.exponential(max(len(int(self.reachable_state)/20),1))), len(self.reachable_state)-1)
+                    idx = min(int(np.random.exponential(max(int(len(self.reachable_state)/20),1))), len(self.reachable_state)-1)
                     print('expo',np.random.exponential(5))
                     init_state = self.reachable_state[idx]
                     
@@ -755,8 +755,8 @@ class Workspace:
                         goal_=self.sample_goal_distance(init_state)
                         goal_state = np.array([goal_[0], goal_[1]])
                     else:
-                        idx = np.random.randint(0,400)
-                        goal_array = ndim_grid(2,20)
+                        goal_array = ndim_grid(2,10)
+                        idx = np.random.randint(0,len(goal_array))
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                     #not changing initial state, just sampling goals using that 
@@ -837,8 +837,6 @@ class Workspace:
             time_step2 = self.train_env2.step(action2)
             episode_reward += time_step1.reward
             
-            if time_step1.reward>.5:
-                print('reward', time_step1.reward)
             
             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
@@ -848,10 +846,10 @@ class Workspace:
                 self.replay_storage2.add(time_step2, meta)
             
             
-            episode_step += 1
             
             if episode_reward >200 and self.cfg.curriculum:
                 print('reached making new env')
+                episode_reward=0
                 current_state = time_step1.observation['observations'][:2]
                 
                 goal_=self.sample_goal_distance(init_state=current_state)
@@ -870,6 +868,7 @@ class Workspace:
                 time_step2 = self.train_env2.reset()
                 #time_step_goal = self.train_env_goal.reset()
                 meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                self.sampled_goals.append(goal_state)
                 print('sampled goal', goal_state)
 
                 with self.train_env_goal.physics.reset_context():
@@ -923,8 +922,9 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
                 metrics = self.agent.update(self.replay_iter2, self.global_step)
             
+            episode_step += 1
             self._global_step += 1
-
+            
             if self._global_step%50000==0 and self._global_step!=0:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
