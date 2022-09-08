@@ -88,7 +88,7 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -101,6 +101,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
+    if cfg.name=='proto_intr':
+        cfg.intr_coef = intr_coef
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -168,7 +170,13 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                cfg.hidden_dim, cfg.batch_size, cfg.update_gc, cfg.lr, cfg.offline,False)
+                                cfg.hidden_dim,
+                                cfg.batch_size,
+                                cfg.update_gc,
+                                cfg.lr,
+                                cfg.offline,
+                                False,
+                                cfg.intr_coef) 
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
