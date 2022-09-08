@@ -101,7 +101,10 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
                                 obs_type=self.cfg.obs_type, 
                                 eval=True)
     
-    states, actions, rewards, goal_state = replay_buffer.parse_dataset(goal_state=True)
+    if self.cfg.offline:
+        states, actions, rewards = replay_buffer.parse_dataset()
+    else:
+        states, actions, rewards, goal_state = replay_buffer.parse_dataset(goal_state=True)
     #only adding states and rewards in replay_buffer
     tmp = np.hstack((states, goal_state, rewards))
     df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v', 'g_x', 'g_y', 'gp', 'gv','r'])
@@ -223,7 +226,7 @@ class Workspace:
                                 True, 
                                 cfg.intr_coef)
         
-        encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/encoder/2022.08.28/222511_proto1/encoder_proto1_900000.pth')
+        encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/encoder_proto_550000.pth')
         self.agent.init_encoder_from(encoder)
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -238,7 +241,7 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
       #  self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
       #                                            self.work_dir / 'buffer2')
-        self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.04/022144_proto/buffer2/buffer_copy/') 
+        self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/buffer2/buffer_copy/') 
 
         # create replay buffer
         if cfg.offline:
