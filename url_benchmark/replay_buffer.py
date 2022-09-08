@@ -491,7 +491,7 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        idx = np.random.randint(0, episode_len(episode)) + 1
         meta = []
         for spec in self._storage._meta_specs:
             meta.append(episode[spec.name][idx - 1])
@@ -499,16 +499,18 @@ class ReplayBuffer(IterableDataset):
         obs = episode["observation"][idx - 1]
 
         action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs = episode["observation"][idx]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
-
-        goal = episode["observation"][idx + self._nstep]
-        goal_state = episode["state"][idx + self._nstep]
-        for i in range(self._nstep):
-            step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
-            reward += discount * step_reward
-            discount *= episode["discount"][idx+i] * self._discount
+        
+        iz = np.random.randint(idx, episode_len(episode))+1
+        goal = episode["observation"][iz]
+        goal_state = episode["state"][iz]
+        reward = my_reward(action,episode["state"][idx] , goal_state)*2
+        #for i in range(self._nstep):
+        #    step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
+        #    reward += discount * step_reward
+        #    discount *= episode["discount"][idx+i] * self._discount
 
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
@@ -928,12 +930,46 @@ class OfflineReplayBuffer(IterableDataset):
         goal = goal.astype(int)
         obs = np.array(obs)
         return (obs, action, reward, discount, next_obs, goal)
+    
+    def _sample_goal_offline(self):
+        print('sampling offline')
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+
+        obs = episode["observation"][idx - 1]
+
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+
+        iz = np.random.randint(idx, episode_len(episode))+1
+        goal = episode["observation"][iz]
+        goal_state = episode["state"][iz]
+        reward = my_reward(action,episode["state"][idx] , goal_state)*2
+        #for i in range(self._nstep):
+        #    step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
+        #    reward += discount * step_reward
+        #    discount *= episode["discount"][idx+i] * self._discount
+
+        return (obs, action, reward, discount, next_obs, goal, *meta) 
                 
                 
     def __iter__(self):
         while True:
             if (self.offline and self.goal and self.pixels) or (self.hybrid and self.goal and self.pixels):
                 yield self._sample_goal_hybrid()
+            elif self.offline:
+                yield self._sample_goal_offline()
             elif self.pixels:
                 yield self._sample_pixel_goal()
             elif self.goal:
