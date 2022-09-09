@@ -226,6 +226,7 @@ class ReplayBuffer(IterableDataset):
     def __init__(
         self,
         storage,
+        storage2,
         max_size,
         num_workers,
         nstep,
@@ -1123,6 +1124,7 @@ def make_replay_loader(
 
     iterable = ReplayBuffer(
         storage,
+        storage2,
         max_size_per_worker,
         num_workers,
         nstep,
@@ -1131,11 +1133,10 @@ def make_replay_loader(
         hybrid=hybrid,
         obs_type = obs_type,
         hybrid_pct=hybrid_pct,
+        actor1 = actor1,
         replay_dir2=replay_dir2,
         model_step=model_step,
         fetch_every=1000,
-        storage2=storage2,
-        actor1=actor1,
         save_snapshot=save_snapshot,
         )
 

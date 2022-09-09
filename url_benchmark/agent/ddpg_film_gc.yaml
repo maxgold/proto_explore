@@ -19,6 +19,7 @@ hidden_dim: ???
 feature_dim: 50
 stddev_schedule: 0.2
 stddev_clip: 0.3
+switch_gc: ???
 nstep: 3
 batch_size: ??? # 256 for pixels
 init_critic: true

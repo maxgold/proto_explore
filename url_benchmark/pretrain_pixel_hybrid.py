@@ -28,7 +28,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef, switch_gc):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -41,6 +41,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
+    cfg.switch_gc = switch_gc
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
     return hydra.utils.instantiate(cfg)
@@ -202,7 +203,8 @@ class Workspace:
                                 cfg.lr,
                                 cfg.offline,
                                 False,
-                                cfg.intr_coef)
+                                cfg.intr_coef,
+                                cfg.switch_gc)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()

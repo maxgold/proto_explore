@@ -31,5 +31,6 @@ queue_size: 2048
 update_gc: ???
 offline: ???
 gc_only: ???
+switch_gc: ???
 encoder_target_tau: 0.05
 update_encoder: ${update_encoder}

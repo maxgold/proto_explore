@@ -56,6 +56,11 @@ init_state: False
 gcsl: False
 bottom_left: False
 init_value: 2
+switch_gc: 500000
+load_encoder: False
+film_gc: False
+feature_dim: 50
+
 # experiment
 experiment: exp
 

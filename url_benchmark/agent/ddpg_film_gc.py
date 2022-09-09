@@ -53,67 +53,38 @@ class FiLM(nn.Module):
 
         #processors (adaptation networks) & regularization lists for each of 
         #the output params
-        self.shared_layer1 = nn.Sequential(nn.Linear(goal_dim, feature_dim),
-            nn.ReLU())
-        self.shared_layer2 = nn.Sequential(
-            nn.Linear(goal_dim, hidden_dim),
-            nn.ReLU())
+        self.shared_layer1 = nn.Sequential(nn.Linear(goal_dim, feature_dim),nn.ReLU())
+        self.shared_layer2 = nn.Sequential(nn.Linear(goal_dim, hidden_dim),nn.ReLU())
 
         #trying residual instead of linear
-        self.gamma_1 = nn.Sequential(
-            DenseResidualLayer(feature_dim),
-            nn.ReLU(),
-            DenseResidualLayer(feature_dim),
-            nn.ReLU(),
-            DenseResidualLayer(feature_dim)
-        )
+        self.gamma_1 = nn.Identity()
 
-        self.gamma_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(feature_dim), 0, 0.001),
-                                                               requires_grad=True)
+        self.gamma_1_regularizers = torch.zeros(size=(feature_dim,))
 
-        self.gamma_2 = nn.Sequential(
-            DenseResidualLayer(hidden_dim),
-            nn.ReLU(),
-            DenseResidualLayer(hidden_dim),
-            nn.ReLU(),
-            DenseResidualLayer(hidden_dim)
-        )
+        self.gamma_2 = nn.Identity()
 
-        self.gamma_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
-                                                               requires_grad=True)
+        self.gamma_2_regularizers = torch.zeros(size=(hidden_dim,))
 
-        self.beta_1 = nn.Sequential(
-            DenseResidualLayer(feature_dim),
-            nn.ReLU(),
-            DenseResidualLayer(feature_dim),
-            nn.ReLU(),
-            DenseResidualLayer(feature_dim)
-        )
+        self.beta_1 = nn.Identity()
 
-        self.beta_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(feature_dim), 0, 0.001),
-                                                               requires_grad=True)
+        self.beta_1_regularizers = torch.zeros(size=(feature_dim,))
 
-        self.beta_2 = nn.Sequential(
-            DenseResidualLayer(hidden_dim),
-            nn.ReLU(),
-            DenseResidualLayer(hidden_dim),
-            nn.ReLU(),
-            DenseResidualLayer(hidden_dim)
-        )
+        self.beta_2 = nn.Identity()
 
-        self.beta_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
-                                                               requires_grad=True)
+        self.beta_2_regularizers = torch.zeros(size=(hidden_dim,))
 
-        self.apply(utils.weight_init)
+ 
 
     
     def forward(self, goal):
         x = self.shared_layer1(goal)
-        gamma1 = self.gamma_1(x).squeeze() * self.gamma_1_regularizers + torch.ones_like(self.gamma_1_regularizers)
-        beta1 = self.beta_1(x).squeeze() * self.beta_1_regularizers
+        gamma1 = self.gamma_1(x).squeeze() * self.gamma_1_regularizers.cuda() + torch.ones_like(self.gamma_1_regularizers).cuda()
+        beta1 = self.beta_1(x).squeeze() * self.beta_1_regularizers.cuda()
         x = self.shared_layer2(goal)
-        gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers + torch.ones_like(self.gamma_2_regularizers)
-        beta2 = self.beta_2(x).squeeze() * self.beta_2_regularizers
+        gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers.cuda() + torch.ones_like(self.gamma_2_regularizers).cuda()
+        beta2 = self.beta_2(x).squeeze() * self.beta_2_regularizers.cuda()
+        print('gaam1', gamma1)
+        print('b1', beta1)
         return (gamma1, beta1, gamma2, beta2)
     
     
@@ -243,6 +214,7 @@ class DDPGFilmGCAgent:
                  init_critic,
                  use_tb,
                  use_wandb,
+                 switch_gc,
                  meta_dim=0,
                 **kwargs):
         self.reward_free = reward_free
@@ -262,6 +234,7 @@ class DDPGFilmGCAgent:
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.solved_meta = None
+        self.switch_gc=switch_gc
 
         # models
         if obs_type == 'pixels':
@@ -297,7 +270,7 @@ class DDPGFilmGCAgent:
             self.encoder_opt = None
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        self.film_opt = torch.optim.Adam(self.film.parameters(), lr=lr)
+        #self.film_opt = torch.optim.Adam(self.film.parameters(), lr=lr)
         self.train()
         self.critic_target.train()
 
@@ -306,7 +279,7 @@ class DDPGFilmGCAgent:
         self.encoder.train(training)
         self.actor.train(training)
         self.critic.train(training)
-        self.film.train(training)
+        #self.film.train(training)
 
     def init_from(self, other):
         # copy parameters over
@@ -326,8 +299,15 @@ class DDPGFilmGCAgent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
+ 
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]
@@ -392,7 +372,8 @@ class DDPGFilmGCAgent:
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
-        self.film_opt.zero_grad(set_to_none=True)
+        if step > self.switch_gc:
+            self.film_opt.zero_grad(set_to_none=True)
 
         actor_loss.backward()
         self.actor_opt.step()
