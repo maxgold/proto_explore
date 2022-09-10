@@ -645,7 +645,8 @@ class OfflineReplayBuffer(IterableDataset):
         if self.hybrid and self.offline==False:
 
             eps_fns = eps_fns+eps_fns_off
-        #np.random.shuffle(eps_fns)
+        
+        np.random.shuffle(eps_fns)
 
         fetched_size = 0
         for eps_fn in eps_fns:

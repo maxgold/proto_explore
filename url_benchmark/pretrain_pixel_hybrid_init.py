@@ -635,6 +635,7 @@ class Workspace:
 
         
     def train(self):
+        import IPython as ipy; ipy.embed(colors='neutral')
         # predicates
         resample_goal_every = 500
         train_until_step = utils.Until(self.cfg.num_train_frames,

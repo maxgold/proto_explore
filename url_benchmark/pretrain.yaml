@@ -56,6 +56,9 @@ init_state: False
 gcsl: False
 bottom_left: False
 init_value: 2
+film_gc: False
+sample_proto: False
+switch_gc: False
 # experiment
 experiment: exp
 

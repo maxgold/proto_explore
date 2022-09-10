@@ -28,7 +28,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline, gc_only, intr_coef):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0, switch_gc=False, film_gc=False):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -41,6 +41,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
+    if film_gc:
+        cfg.switch_gc = switch_gc
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
     return hydra.utils.instantiate(cfg)
@@ -189,7 +191,8 @@ class Workspace:
 
         # create agent
         #import IPython as ipy; ipy.embed(colors='neutral')
-        self.agent = make_agent(cfg.obs_type,
+        if self.cfg.film_gc:
+            self.agent = make_agent(cfg.obs_type,
                                 self.train_env2.observation_spec(),
                                 self.train_env2.action_spec(),
                                 (9, 84, 84),
@@ -202,8 +205,24 @@ class Workspace:
                                 cfg.lr,
                                 cfg.offline,
                                 False,
-                                cfg.intr_coef)
-
+                                cfg.intr_coef,
+                                cfg.switch_gc,
+                                True)
+        else:
+            self.agent = make_agent(cfg.obs_type,
+                                self.train_env2.observation_spec(),
+                                self.train_env2.action_spec(),
+                                (9, 84, 84),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                True,
+                                cfg.agent,
+                                cfg.hidden_dim,
+                                cfg.batch_size,
+                                cfg.update_gc,
+                                cfg.lr,
+                                cfg.offline,
+                                False,
+                                cfg.intr_coef) 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -298,6 +317,7 @@ class Workspace:
         self.global_success_rate = []
         self.global_index=[]
         self.storage1=False
+        self.proto_goal = []
 
     @property
     def global_step(self):
@@ -336,12 +356,62 @@ class Workspace:
     #        idx = np.random.randint(0, num)
     #        return proto2d[idx,:].cpu().numpy()
     
-    def encoding_grid(self):
-        if self.loaded == False:
+#     def encoding_grid(self):
+#         if self.loaded == False:
+#             replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
+#             self.replay_buffer_intr = make_replay_offline(self.eval_env,
+#                                         replay_dir,
+#                                         self.replay_buffer_gc,
+#                                         self.cfg.batch_size,
+#                                         0,
+#                                         self.cfg.discount,
+#                                         goal=False,
+#                                         relabel=False,
+#                                         model_step = self.global_step,
+#                                         replay_dir2=False,
+#                                         obs_type = self.cfg.obs_type
+#                                         )
+#             self.loaded = True
+#             pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
+#             pix = pix.astype(np.float64)
+#             states = states.astype(np.float64)
+#             states = states.reshape(-1,4)
+#             grid = pix.reshape(9, 84, 84)
+#             grid = torch.tensor(grid).cuda().float()
+#             return grid, states
+#         else:
+#             pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
+#             pix = pix.astype(np.float64)
+#             states = states.astype(np.float64)
+#             states = states.reshape(-1,4)
+#             grid = pix.reshape(9, 84, 84)
+#             grid = torch.tensor(grid).cuda().float()
+#             return grid, states
+        
+        
+        
+        
+    def encode_proto(self):
+        if self.cfg.film_gc:
+            replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
+            self.replay_buffer_intr = make_replay_offline(self.eval_env,
+                                    replay_dir,
+                                    100000,
+                                    self.cfg.batch_size,
+                                    0,
+                                    self.cfg.discount,
+                                    goal=False,
+                                    relabel=False,
+                                    model_step = self.global_step,
+                                    replay_dir2=False,
+                                    obs_type = self.cfg.obs_type
+                                    )
+        else:
+            
             replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         replay_dir,
-                                        self.replay_buffer_gc,
+                                        100000,
                                         self.cfg.batch_size,
                                         0,
                                         self.cfg.discount,
@@ -351,22 +421,34 @@ class Workspace:
                                         replay_dir2=False,
                                         obs_type = self.cfg.obs_type
                                         )
-            self.loaded = True
-            pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
-            pix = pix.astype(np.float64)
-            states = states.astype(np.float64)
-            states = states.reshape(-1,4)
-            grid = pix.reshape(9, 84, 84)
-            grid = torch.tensor(grid).cuda().float()
-            return grid, states
-        else:
-            pix, states, actions = self.replay_buffer_intr._sample(eval_pixel=True)
-            pix = pix.astype(np.float64)
-            states = states.astype(np.float64)
-            states = states.reshape(-1,4)
-            grid = pix.reshape(9, 84, 84)
-            grid = torch.tensor(grid).cuda().float()
-            return grid, states
+            
+        state, actions, rewards = self.replay_buffer_intr.parse_dataset()
+        idx = np.random.randint(0, state.shape[0], size=1024)
+        state=state[idx]
+        state=state.reshape(1024,4)
+        print('state shape',state.shape)
+        obs = torch.empty(1024, 9, 84, 84)
+        states = torch.empty(1024, 4)
+        grid_embeddings = torch.empty(1024, 128)
+        meta = self.agent.init_meta()
+        for i in range(1024):
+            with torch.no_grad():
+                with self.eval_env_goal.physics.reset_context():
+                    time_step = self.eval_env_goal.physics.set_state(np.array([state[i][0], state[i][1], 0, 0]))
+                time_step = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                goal = torch.tensor(np.transpose(time_step.copy(), (2,0,1))).cuda()
+                obs[i] = torch.tile(goal, (1,3,1,1))
+                states[i] = torch.tensor(state[i,:]).cuda().float()
+#         import IPython as ipy; ipy.embed(colors='neutral')    
+        obs = obs.cuda().float()
+        grid_embeddings = get_state_embeddings(self.agent, obs)
+        protos = self.agent.protos.weight.data.detach().clone()
+        protos = F.normalize(protos, dim=1, p=2)
+        dist_mat = torch.cdist(protos, grid_embeddings)
+        closest_points = dist_mat.argmin(-1)
+        proto2d = states[closest_points.cpu(), :2]
+        return states
+
         
         
 
@@ -451,6 +533,16 @@ class Workspace:
 
 
     def eval(self):
+        self.proto_goal = self.encode_proto()
+        num = len(self.proto_goal)
+#         idx = np.random.randint(0, num,size=(50,))
+#         proto2d = proto2d[idx, :]
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.scatter(self.proto_goal[:,0], self.proto_goal[:,1])
+        plt.savefig(f"./prototypes_{self.global_step}.png")
+        wandb.save(f"./prototypes_{self.global_step}.png")
+        
         heatmaps(self, self.eval_env, self.global_step, False, True)
         heatmaps(self, self.eval_env, self.global_step, False, False)
         
@@ -670,15 +762,31 @@ class Workspace:
                 if self.cfg.curriculum:
                     goal_=self.sample_goal_distance()
                     goal_state = np.array([goal_[0], goal_[1]])
+                    
+                elif self.cfg.sample_proto:
+                    if (self.cfg.num_seed_frames==self.global_step) or (self.global_step < 100000 and self.global_step%2000==0) or (300000>self.global_step >100000 and self.global_step%50000==0):
+                        self.proto_goal = self.encode_proto()
+                        print('proto_goal', self.proto_goal)
+                        idx = np.random.randint(0, self.proto_goal.shape[0])
+                        goal_state = np.array([self.proto_goal[idx][0], self.proto_goal[idx][1]])
+                    elif len(self.proto_goal)>0:
+                        idx = np.random.randint(0, self.proto_goal.shape[0])
+                        goal_state = np.array([self.proto_goal[idx][0], self.proto_goal[idx][1]])
+                    else:
+                        print('havent sampled prototypes yet, sampling randomly')
+                        goal_array = ndim_grid(2,20)
+                        idx = np.random.randint(0,len(goal_array))
+                        goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+
+                    
                 else:
                     goal_array = ndim_grid(2,20)
                     idx = self.count
                     print('count', self.count)
-                    goal = np.array([goal_array[idx][0], goal_array[idx][1]])
                     self.count += 1
                     if self.count == len(goal_array):
                         self.count = 0
-                    goal_state = goal
+                    goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)

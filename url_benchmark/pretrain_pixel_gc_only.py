@@ -226,7 +226,7 @@ class Workspace:
                                 True, 
                                 cfg.intr_coef)
         
-        encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/encoder_proto_550000.pth')
+        encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/encoder/encoder_proto_550000.pth')
         self.agent.init_encoder_from(encoder)
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -241,7 +241,7 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
       #  self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
       #                                            self.work_dir / 'buffer2')
-        self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/buffer2/buffer_copy/') 
+        self.replay_goal_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/buffer2/buffer_copy/') 
 
         # create replay buffer
         if cfg.offline:
@@ -519,7 +519,8 @@ class Workspace:
             save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
 
     def eval(self):
-        heatmaps(self, self.eval_env, self.global_step, False, True)
+        if self.cfg.offline==False:
+            heatmaps(self, self.eval_env, self.global_step, False, True)
 
         goal_array = ndim_grid(2,10)
         success=0
