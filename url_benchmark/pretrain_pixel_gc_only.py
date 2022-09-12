@@ -44,7 +44,7 @@ from dmc_benchmark import PRIMAL_TASKS
 #         out += identity
 #         return out
 
-def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000):
+def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -61,6 +61,7 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
         cfg.switch_gc = switch_gc
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
+    cfg.load_protos = load_protos
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -239,10 +240,10 @@ class Workspace:
                                 cfg.update_gc,
                                 cfg.lr,
                                 cfg.offline,
-                                False,
-                                cfg.intr_coef,
-                                cfg.switch_gc,
-                                True)
+                                gc_only=True,
+                                intr_coef=cfg.intr_coef,
+                                switch_gc=cfg.switch_gc,
+                                )
         else:
             self.agent = make_agent(self,
                                 cfg.obs_type,
@@ -257,10 +258,11 @@ class Workspace:
                                 cfg.update_gc,
                                 cfg.lr,
                                 cfg.offline,
-                                False,
-                                cfg.intr_coef) 
+                                gc_only=True,
+                                intr_coef=cfg.intr_coef,
+                                load_protos=True) 
         
-        if self.cfg.load_encoder:
+        if self.cfg.load_encoder and self.cfg.load_proto==False:
             encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
@@ -430,13 +432,13 @@ class Workspace:
             replay_dir = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/'
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         Path(replay_dir),
-                                        100000,
+                                        2000000,
                                         self.cfg.batch_size,
                                         0,
                                         self.cfg.discount,
                                         goal=False,
                                         relabel=False,
-                                        model_step = self.global_step,
+                                        model_step =2000000,
                                         replay_dir2=False,
                                         obs_type = self.cfg.obs_type
                                         )
@@ -790,6 +792,7 @@ class Workspace:
                                 goal_array = ndim_grid(2,20)
                                 idx = np.random.randint(0,len(goal_array))
                                 goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+                        #if self.cfg.load_proto
                         else:
                             if self.loaded==False:
                                 self.proto_goal = self.encode_proto()
@@ -806,6 +809,8 @@ class Workspace:
                                 idx = min(int(np.random.exponential(max(int(len(self.proto_goal)/5),1))), len(self.proto_goal)-1)
                                 goal_state = np.array([self.proto_goal[idx][0], self.proto_goal[idx][1]])
                             else:
+                                if self.global_step%50000==0:
+                                    self.loaded=False
                                 dist_goal = cdist(np.array([[-.15,.15]]), np.array(self.proto_goal), 'euclidean')
                                 #dist_goal = cdist(np.array([self.proto_goal]).reshape(-1,1), np.array([[-.15,.15,0,0]]),'euclidean')
 
