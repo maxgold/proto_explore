@@ -432,13 +432,13 @@ class Workspace:
             replay_dir = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/'
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         Path(replay_dir),
-                                        2000000,
+                                        100000,
                                         self.cfg.batch_size,
                                         0,
                                         self.cfg.discount,
                                         goal=False,
                                         relabel=False,
-                                        model_step =2000000,
+                                        model_step =max(3000,self.global_step),
                                         replay_dir2=False,
                                         obs_type = self.cfg.obs_type
                                         )
