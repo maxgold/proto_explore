@@ -30,7 +30,21 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=5000):
+class DenseResidualLayer(nn.Module):
+
+    def __init__(self, dim):
+        super(DenseResidualLayer, self).__init__()
+        self.linear = nn.Linear(dim, dim)
+
+        self.apply(utils.weight_init)
+
+    def forward(self, x):
+        identity = x
+        out = self.linear(x)
+        out += identity
+        return out
+
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -526,7 +540,7 @@ class Workspace:
     def eval(self):
         heatmaps(self, self.eval_env, self.global_step, False, True)
 
-        goal_array = ndim_grid(2,2)
+        goal_array = ndim_grid(2,10)
         success=0
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
 
@@ -789,52 +803,50 @@ class Workspace:
 
                     #trying residual instead of linear
                     self.agent.film.gamma_1 = nn.Sequential(
-                        DenseResidualLayer(self.cfg.feature_dim),
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.feature_dim),
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.feature_dim)
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                     )
 
-                    self.agent.film.gamma_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.feature_dim), 0, 0.001),
-                                                                           requires_grad=True)
+                    self.agent.film.gamma_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.feature_dim), 0, 0.001),requires_grad=True)
 
                     self.agent.film.gamma_2 = nn.Sequential(
-                        DenseResidualLayer(self.cfg.hidden_dim),
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.hidden_dim),
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.hidden_dim)
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
                     )
 
-                    self.agent.film.gamma_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.hidden_dim), 0, 0.001),
-                                                                           requires_grad=True)
+                    self.agent.film.gamma_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.hidden_dim), 0, 0.001),requires_grad=True)
 
                     self.agent.film.beta_1 = nn.Sequential(
-                        DenseResidualLayer(self.cfg.feature_dim),
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.feature_dim),
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.feature_dim)
+                        nn.Linear(self.cfg.feature_dim,self.cfg.feature_dim),
                     )
 
-                    self.agent.film.beta_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.feature_dim), 0, 0.001),
-                                                                           requires_grad=True)
+                    self.agent.film.beta_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.feature_dim), 0, 0.001),requires_grad=True)
 
                     self.agent.film.beta_2 = nn.Sequential(
-                        DenseResidualLayer(self.cfg.hidden_dim),
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.hidden_dim),
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
                         nn.ReLU(),
-                        DenseResidualLayer(self.cfg.hidden_dim)
-                    )
+                        nn.Linear(self.cfg.hidden_dim, self.cfg.hidden_dim),
+                        )
 
-                    self.agent.film.beta_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.hidden_dim), 0, 0.001),
-                                                                           requires_grad=True)
+                    self.agent.film.beta_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(self.cfg.hidden_dim), 0, 0.001),requires_grad=True)
                     
                     self.agent.film.apply(utils.weight_init)
+                    #add in dense risdual layer's gradient
+
                     self.agent.film_opt = torch.optim.Adam(self.agent.film.parameters(), lr=self.cfg.lr) 
-                    self.agent.film.train(training=True)
+                    self.agent.film.train()
             
             if self._global_step%50000==0 and self._global_step!=0:
                 print('saving agent')

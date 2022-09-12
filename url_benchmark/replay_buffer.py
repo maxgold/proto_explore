@@ -1,3 +1,5 @@
+import pandas as pd
+import seaborn as sns; sns.set_theme()
 import datetime
 import io
 import random
@@ -34,6 +36,9 @@ def load_episode(fn, eval=False):
             if 'goal_state' in episode.keys():
                 keys = ['state', 'reward', 'action', 'goal_state']
             
+                episode = {k: episode[k] for k in keys}
+            elif 'goal' in episode.keys():
+                keys = ['observation', 'reward', 'action', 'goal']
                 episode = {k: episode[k] for k in keys}
             else:
                 keys = ['state', 'reward', 'action']
@@ -417,7 +422,8 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx]
-            goal = np.tile(goal,(3,1,1))
+            if self.pixels:
+                goal = np.tile(goal,(3,1,1))
             #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
@@ -449,7 +455,8 @@ class ReplayBuffer(IterableDataset):
         key = np.random.randint(0,10)
         if key > self.hybrid_pct:
             goal = episode["goal"][idx-1]
-            goal = np.tile(goal,(3,1,1))
+            if self.pixels:
+                goal = np.tile(goal,(3,1,1))
 
             for i in range(1):
                 step_reward = episode["reward"][idx + i]
@@ -894,7 +901,8 @@ class OfflineReplayBuffer(IterableDataset):
 
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
-            goal = np.tile(goal,(3,1,1))
+            if self.pixels:
+                goal = np.tile(goal,(3,1,1))
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
@@ -994,8 +1002,10 @@ class OfflineReplayBuffer(IterableDataset):
                     actions.append(episode["action"][idx][None])
                     rewards.append(episode["reward"][idx][None])
                     
-                    if goal_state:
+                    if goal_state and "goal_state" in episode.keys():
                         goal_states.append((episode["goal_state"][idx][None]))
+                    elif goal_state and "goal" in episode.keys():
+                        goal_states.append((episode["goal"][idx][None]))
             
             if goal_state:
                 return (np.concatenate(states,0),

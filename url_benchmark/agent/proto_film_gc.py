@@ -134,7 +134,6 @@ class ProtoFilmGCAgent(DDPGFilmGCAgent):
 
         # normalize prototypes
         self.normalize_protos()
-
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)

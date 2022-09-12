@@ -85,14 +85,19 @@ def visualize_prototypes_visited(agent, work_dir, cfg, env):
         return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, concurrent):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, lr,offline, gc_only, batch_size, update_gc,hidden_dim):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
-    cfg.concurrent = concurrent
+    cfg.lr = lr
+    cfg.offline = offline
+    cfg.gc_only = gc_only
+    cfg.batch_size = batch_size
+    cfg.update_gc = update_gc
+    cfg.hidden_dim = hidden_dim
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -160,7 +165,12 @@ class Workspace:
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.goal,
                                 cfg.agent,
-                                cfg.concurrent)
+                                cfg.lr,
+                                cfg.offline,
+                                False,
+                                cfg.batch_size,
+                                cfg.update_gc,
+                                cfg.hidden_dim)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -176,11 +186,13 @@ class Workspace:
 
         # create replay buffer
         self.replay_loader1  = make_replay_loader(self.replay_storage,
+                                                False,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount, True)
         self.replay_loader2  = make_replay_loader(self.replay_storage,
+                                                False,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
@@ -455,14 +467,14 @@ class Workspace:
                     self.global_step +=1
                         
                 else:
-                    if self.global_step%100000==0 and self.global_step!=0:
-                        proto=self.agent
-                        model = ''
-                        self.eval_goal(proto, model)
-                    else:
-                        self.logger.log('eval_total_time', self.timer.total_time(),
-                                    self.global_frame)
-                        self.eval()
+              #      if self.global_step%100000==0 and self.global_step!=0:
+              #          proto=self.agent
+              #          model = ''
+              #          self.eval_goal(proto, model)
+              #      else:
+              #          self.logger.log('eval_total_time', self.timer.total_time(),
+              #                      self.global_frame)
+                    self.eval()
 
             meta = self.agent.update_meta(meta, self._global_step, time_step)
             if episode_step % resample_goal_every == 0:

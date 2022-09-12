@@ -73,7 +73,7 @@ class FiLM(nn.Module):
 
         self.beta_2_regularizers = torch.zeros(size=(hidden_dim,))
 
- 
+        self.apply(utils.weight_init) 
 
     
     def forward(self, goal):
@@ -83,8 +83,7 @@ class FiLM(nn.Module):
         x = self.shared_layer2(goal)
         gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers.cuda() + torch.ones_like(self.gamma_2_regularizers).cuda()
         beta2 = self.beta_2(x).squeeze() * self.beta_2_regularizers.cuda()
-        print('gaam1', gamma1)
-        print('b1', beta1)
+        print(gamma1)
         return (gamma1, beta1, gamma2, beta2)
     
     
@@ -129,6 +128,7 @@ class Actor(nn.Module):
         x = self.relu(x)
         x = self.fc4(x)
         mu = torch.tanh(x)
+        
         std = torch.ones_like(mu) * std
 
         dist = utils.TruncatedNormal(mu, std)
@@ -183,7 +183,6 @@ class Critic(nn.Module):
         
         h = self.trunk(inpt)
         h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
-
         q1 = self.Q1(h)
         q2 = self.Q2(h)
 
@@ -257,6 +256,7 @@ class DDPGFilmGCAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
+#        self.dense = DenseResidualLayer(
         
 
         self.film = FiLM(self.goal_dim, feature_dim, hidden_dim).to(device)
@@ -268,9 +268,9 @@ class DDPGFilmGCAgent:
                                                 lr=lr)
         else:
             self.encoder_opt = None
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
+        self.actor_opt = torch.optim.Adam(utils.chain(self.actor.parameters(), self.film.parameters()), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        #self.film_opt = torch.optim.Adam(self.film.parameters(), lr=lr)
+        self.film_opt = torch.optim.Adam(self.film.parameters(), lr=lr)
         self.train()
         self.critic_target.train()
 
@@ -279,7 +279,7 @@ class DDPGFilmGCAgent:
         self.encoder.train(training)
         self.actor.train(training)
         self.critic.train(training)
-        #self.film.train(training)
+        self.film.train(training)
 
     def init_from(self, other):
         # copy parameters over
@@ -350,13 +350,13 @@ class DDPGFilmGCAgent:
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
-            #self.film_opt.zero_grad(set_to_none=True)
+            self.film_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
         if self.encoder_opt is not None:
             self.encoder_opt.step()
-            #self.film_opt.step()
+            self.film_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, step):
@@ -372,14 +372,15 @@ class DDPGFilmGCAgent:
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
-        if step > self.switch_gc:
-            self.film_opt.zero_grad(set_to_none=True)
+        #if step > self.switch_gc:
+        self.film_opt.zero_grad(set_to_none=True)
 
         actor_loss.backward()
         self.actor_opt.step()
-        if step > self.switch_gc:
-            self.film_opt.step()
-        
+        #if step > self.switch_gc:
+        #    print('optimizing film')
+        self.film_opt.step()
+        #    print(self.film.parameters())
         if self.use_tb or self.use_wandb:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()
