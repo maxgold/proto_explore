@@ -97,6 +97,9 @@ class ProtoAgent(DDPGAgent):
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
+    
+    def init_protos_from(self, protos):
+        utils.hard_update_params(protos.protos, self.protos)
 
     def normalize_protos(self):
         C = self.protos.weight.data.clone()

@@ -57,8 +57,10 @@ gcsl: False
 bottom_left: False
 init_value: 2
 film_gc: False
-sample_proto: False
+sample_proto: ???
 switch_gc: False
+load_encoder: ???
+load_proto: ???
 # experiment
 experiment: exp
 
