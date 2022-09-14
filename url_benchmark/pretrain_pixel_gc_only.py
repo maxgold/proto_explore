@@ -481,8 +481,13 @@ class Workspace:
         protos = self.agent.protos.weight.data.detach().clone()
         protos = F.normalize(protos, dim=1, p=2)
         dist_mat = torch.cdist(protos, grid_embeddings)
+        dist_np = dist_mat.cpu().numpy()
+        dist_df = pd.DataFrame(dist_np)
+        dist_df.to_csv('./dist_{}.csv'.format(self.global_step), index=False)
         closest_points = dist_mat.argmin(-1)
         proto2d = states[closest_points.cpu(), :2]
+        states = pd.DataFrame(states)
+        states.to_csv('./states_{}.csv'.format(self.global_step), index=False) 
         return proto2d
     
 

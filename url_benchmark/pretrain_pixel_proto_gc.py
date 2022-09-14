@@ -31,7 +31,8 @@ from dmc_benchmark import PRIMAL_TASKS
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal, cfg, 
                 hidden_dim, batch_size,update_gc, lr,gc_only,offline, load_protos, task, frame_stack, action_repeat=2, 
                replay_buffer_num_workers=4, discount=.99, reward_scores=False, 
-               reward_euclid=True, num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', work_dir=None,goal_queue_size=10):
+               reward_euclid=True, num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
+               work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -56,6 +57,9 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.task_no_goal = task_no_goal
     cfg.work_dir = work_dir
     cfg.goal_queue_size = goal_queue_size
+    cfg.tmux_session = tmux_session
+    cfg.eval_every_frames = eval_every_frames
+    cfg.seed = seed
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -67,10 +71,7 @@ def get_state_embeddings(agent, states):
     return s
 
 def heatmaps(self, env, model_step, replay_dir2, goal):
-    if goal:
-        replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
-    else:
-        replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
+    replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
         
     replay_buffer = make_replay_buffer(env,
                                 Path(replay_dir),
@@ -100,13 +101,11 @@ def heatmaps(self, env, model_step, replay_dir2, goal):
     heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
                                    range=np.array(([-29, 29],[-29, 29])))
     plt.clf()
-
     fig, ax = plt.subplots(figsize=(10,10))
     labels = np.round(heatmap.T/heatmap.sum()*100, 1)
     sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
     plt.savefig(f"./{self._global_step}_heatmap_pct.png")
-
-    
+ 
     #rewards seen thus far 
     df = df.astype(int)
     result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
@@ -134,6 +133,7 @@ class Workspace:
             ])
             wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
 
+        self.logger = Logger(self.work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
         self.train_env1 = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
@@ -168,7 +168,10 @@ class Workspace:
                                 num_seed_frames = cfg.num_seed_frames,
                                 task_no_goal=cfg.task_no_goal,
                                 work_dir = self.work_dir,
-                                goal_queue_size=cfg.goal_queue_size)
+                                goal_queue_size=cfg.goal_queue_size,
+                                tmux_session=cfg.tmux_session,
+                                eval_every_frames=cfg.eval_every_frames,
+                                seed=cfg.seed)
 
         if self.cfg.load_encoder:
             encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
@@ -308,7 +311,6 @@ class Workspace:
 
     def eval(self):
         heatmaps(self, self.eval_env, self.global_step, False, True)
-        heatmaps(self, self.eval_env, self.global_step, False, False)
 
         for i in range(400):
             step, episode, total_reward = 0, 0, 0
@@ -390,7 +392,8 @@ class Workspace:
         resample_goal_every = 500
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
-
+        seed_until_step = utils.Until(self.cfg.num_seed_frames,
+                                                      self.cfg.action_repeat)
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
 
@@ -407,6 +410,7 @@ class Workspace:
             self.agent.roll_out(self.global_step)
             
             self._global_step += 1
+
 
             #if self._global_step%50000==0 and self._global_step!=0:
             #    print('saving agent')
