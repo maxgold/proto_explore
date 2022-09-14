@@ -62,6 +62,7 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
     cfg.load_protos = load_protos
+    cfg.work_dir = self.work_dir
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -432,13 +433,13 @@ class Workspace:
             replay_dir = '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/buffer2/buffer_copy/'
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         Path(replay_dir),
-                                        2000000,
+                                        100000,
                                         self.cfg.batch_size,
                                         0,
                                         self.cfg.discount,
                                         goal=False,
                                         relabel=False,
-                                        model_step = 2000000,
+                                        model_step =max(3000,self.global_step),
                                         replay_dir2=False,
                                         obs_type = self.cfg.obs_type
                                         )
@@ -526,8 +527,13 @@ class Workspace:
             protos = self.agent.protos.weight.data.detach().clone()
             protos = F.normalize(protos, dim=1, p=2)
             dist_mat = torch.cdist(protos, grid_embeddings)
+            dist_np = dist_mat.cpu().numpy()
+            dist_df = pd.DataFrame(dist_np)	
+            dist_df.to_csv('./dist_{}.csv'.format(self.global_step), index=False)
             closest_points = dist_mat.argmin(-1)
             proto2d = states[closest_points.cpu(), :2]
+            states = pd.DataFrame(states)
+            states.to_csv('./states_{}.csv'.format(self.global_step), index=False)
             return proto2d
     
 

@@ -229,6 +229,7 @@ class DDPGAgent:
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
+        print('lr', lr)
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.critic2_target_tau = critic2_target_tau

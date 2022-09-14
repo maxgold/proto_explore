@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import distributions as pyd
 from torch import jit
-
+import pandas as pd
 import utils
 from agent.ddpg import DDPGAgent
 
@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,load_protos,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,load_protos, work_dir,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -55,6 +55,7 @@ class ProtoAgent(DDPGAgent):
         self.offline = offline
         self.gc_only = gc_only
         self.load_protos = load_protos
+        self.work_dir = work_dir
 
         # models
         if self.gc_only==False:
@@ -138,6 +139,13 @@ class ProtoAgent(DDPGAgent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
+
+        #saving dist to see distribution for intrinsic reward
+        if step%1000 and step<300000:
+            import IPython as ipy; ipy.embed(colors='neutral')
+            dist_np = z_to_q
+            dist_df = pd.DataFrame(dist_np.cpu())
+            dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
     def update_proto(self, obs, next_obs, step):
