@@ -61,6 +61,10 @@ sample_proto: ???
 switch_gc: False
 load_encoder: ???
 load_proto: ???
+reward_scores: False
+reward_euclid: True
+goal_queue_size: 10
+
 # experiment
 experiment: exp
 

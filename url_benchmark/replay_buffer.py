@@ -160,7 +160,7 @@ class ReplayBufferStorage:
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode_goal['goal']
             if pixels:
-               episode['goal'] = np.array(value).astype(int) 
+                episode['goal'] = np.array(value).astype(int) 
             else:
                 episode['goal'] = np.array(value, np.float64)
             if pixels:
@@ -169,6 +169,59 @@ class ReplayBufferStorage:
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
             print('storing episode, w/ goal')
+            
+            
+    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False):
+        for key, value in meta.items():
+            self._current_episode_goal[key].append(value)
+        for spec in self._data_specs:
+            if spec.name=='observation':
+                              #continue updating code here 
+                value1 = np.array([z]).reshape((-1,))
+                self._current_episode_goal['observation'].append(value1)
+                value2 = time_step[spec.name]
+                self._current_episode_goal['state'].append(value2['observations'])
+            elif spec.name=='reward':
+                value = np.array([reward]).reshape((-1,))
+                self._current_episode_goal['reward'].append(value)
+            else:
+                value = time_step[spec.name]
+                if np.isscalar(value):
+                    value = np.full(spec.shape, value, spec.dtype)
+                assert spec.shape == value.shape and spec.dtype == value.dtype
+                self._current_episode_goal[spec.name].append(value)
+        
+        goal = np.array([goal]).reshape((-1,))
+        self._current_episode_goal['goal'].append(goal)
+
+        if time_step.last() or last:
+            print('replay last')
+            episode = dict()
+            for spec in self._data_specs:
+                if spec.name=='observation':
+                    #continue updating code here 
+                    value1 = self._current_episode_goal['observation']
+                    value2 = self._current_episode_goal['state']
+                    episode['observation'] = np.array(value1, 'float32')
+                    episode['state'] = np.array(value2, 'float32')
+                elif spec.name=='reward':
+                    value = self._current_episode_goal['reward']
+                    episode['reward']= np.array(value, 'float32')
+                else:
+                    value = self._current_episode_goal[spec.name]
+                    episode[spec.name] = np.array(value, spec.dtype)
+
+            for spec in self._meta_specs:
+                value = self._current_episode_goal[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+            
+            value = self._current_episode_goal['goal']
+            episode['goal'] = np.array(value)
+
+            self._current_episode_goal = defaultdict(list)
+            self._store_episode(episode, actor1=True)
+            print('storing episode, w/ goal')
+         
 
     def add_q(self, time_step, meta, q, task):
         for key, value in meta.items():
@@ -239,7 +292,8 @@ class ReplayBuffer(IterableDataset):
         hybrid_pct,
         actor1=False,
         replay_dir2=False,
-        model_step=False):
+        model_step=False,
+        goal_proto=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -262,6 +316,7 @@ class ReplayBuffer(IterableDataset):
         self.last=-1
         self.iz=1
         self._replay_dir2=replay_dir2
+        self.goal_proto = goal_proto
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -292,7 +347,6 @@ class ReplayBuffer(IterableDataset):
         self._episode_fns.sort()
         self._episodes[eps_fn] = episode
         self._size += eps_len
-
         if not self._save_snapshot:
             eps_fn.unlink(missing_ok=True)
         
@@ -417,7 +471,7 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx]
-            if self.pixels:
+            if self.pixels and self.goal_proto==False:
                 goal = np.tile(goal,(3,1,1))
             #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
@@ -1121,7 +1175,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1138,6 +1192,7 @@ def make_replay_loader(
         actor1 = actor1,
         replay_dir2=replay_dir2,
         model_step=model_step,
+        goal_proto=goal_proto,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )
