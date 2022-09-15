@@ -434,7 +434,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 self.logger.log_metrics(self.metrics, global_step*2, ty='train')
 
             idx = None
-            if (self.reward_scores and self.episode_reward > 10) or (self.reward_euclid and self.reward>-.1):
+            if (self.reward_scores and self.episode_reward > 100) or (self.reward_euclid and self.reward>-.1):
                 self.episode_step, self.episode_reward = 0, 0
                 print('sampling new goal', self.step)
                 #import IPython as ipy; ipy.embed(colors='neutral')   
@@ -557,7 +557,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             idx = np.arange(1,50,5)
             df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
             print('ix', ix)
-            for z in idx:
+            for i, z in enumerate(idx):
                 print('_', _.shape)
                 iz = _[:,-z]
                 goal = protos[iz, :]
@@ -591,13 +591,14 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     episode += 1
                     self.video_recorder.save(f'{global_step}_{ix}_{z}th_proto.mp4')
                     print('saving')
-                    print(str(self.work_dir)+'/eval_{}_{}_{}.csv'.format(global_step, ix, z))
-                    save(str(self.work_dir)+'/eval_{}_{}_{}.csv'.format(global_step, ix, z), [[reached, total_reward, init_state, z]])
-                df.loc[ix, 'x'] = reached[0]
-                df.loc[ix, 'y'] = reached[1]
-                df.loc[ix, 'r'] = total_reward
+                    print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix))
+                    save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix), [[reached, total_reward, init, z]])
+                df.loc[i, 'x'] = reached[0]
+                df.loc[i, 'y'] = reached[1]
+                df.loc[i, 'r'] = total_reward
                 
             result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+            print(result)
             plt.clf()
             fig, ax = plt.subplots()
             sns.heatmap(result, cmap="Blues_r").invert_yaxis()
