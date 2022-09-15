@@ -543,7 +543,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             eval_until_episode = utils.Until(2)
             meta = self.init_meta()
             time_step = self.eval_env.reset()
-
+            reached=np.array([0.,0.])
             with torch.no_grad():
                 obs = time_step.observation['pixels']
                 obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
