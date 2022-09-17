@@ -165,7 +165,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                 self.batch_size,
                                                 self.replay_buffer_num_workers,
                                                 False, 3, self.discount,
-                                                True, False,self.obs_type, goal_proto=True)
+                                                True, False,self.obs_type, goal_proto=True,
+                                                agent=self)
         
         self._replay_iter1 = None
         self.timer = utils.Timer()
