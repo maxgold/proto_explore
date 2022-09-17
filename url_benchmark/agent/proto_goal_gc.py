@@ -78,7 +78,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.work_dir = work_dir
         self.seed_until_step = utils.Until(self.num_seed_frames,self.action_repeat)
         self.goal_queue_size = goal_queue_size
-        self.goal_topk = np.random.randint(0,100)
+        self.goal_topk = np.random.randint(3,10)
         self.load_protos = load_protos
         self.tmux_session = tmux_session
         self.eval_every_frames=eval_every_frames
@@ -322,10 +322,13 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.z = F.normalize(self.z, dim=1, p=2)
 #                     scores_z = self.protos(self.z)
                     self.reward =torch.as_tensor(0)
-                self.gaol_topk = np.random.randint(0,10)
+                self.gaol_topk = np.random.randint(1,10)
                 z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
+                print('z_to_proto', z_to_proto.shape)
+                print('goal_topk', self.goal_topk)
                 all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
-                rand = np.random.randint(1,10)
+                rand = min(np.random.randint(1,10), self.goal_topk)
+                print('_', _.shape)
                 idx = _[:,-rand]
                 
                 self.goal = protos[idx]
@@ -467,7 +470,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
             
             if self.eval_every_step(global_step) and global_step!=0:
-                self.eval(global_step)
+                self.eval_all_proto(global_step)
+                #self.eval(global_step)
 
             self.episode_step += 1
             self.step +=1
@@ -558,7 +562,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             idx = np.arange(1,50,5)
             df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
             print('ix', ix)
-            for z in idx:
+            for i, z in enumerate(idx):
                 print('_', _.shape)
                 iz = _[:,-z]
                 goal = protos[iz, :]
@@ -567,7 +571,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     time_step = self.eval_env.reset()
                     self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                     while not time_step.last():
-                        with torch.no_grad():
+                        with torch.no_grad(),utils.eval_mode(self):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
                             obs = self.predictor(obs)
@@ -592,19 +596,93 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     episode += 1
                     self.video_recorder.save(f'{global_step}_{ix}_{z}th_proto.mp4')
                     print('saving')
-                    print(str(self.work_dir)+'/eval_{}_{}_{}.csv'.format(global_step, ix, z))
-                    save(str(self.work_dir)+'/eval_{}_{}_{}.csv'.format(global_step, ix, z), [[reached, total_reward, init_state, z]])
-                df.loc[ix, 'x'] = reached[0]
-                df.loc[ix, 'y'] = reached[1]
-                df.loc[ix, 'r'] = total_reward
+                    print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix))
+                    save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix), [[reached, total_reward, init, z]])
+                df.loc[i, 'x'] = reached[0]
+                df.loc[i, 'y'] = reached[1]
+                df.loc[i, 'r'] = total_reward
                 
             result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+            print(result)
             plt.clf()
             fig, ax = plt.subplots()
             sns.heatmap(result, cmap="Blues_r").invert_yaxis()
             plt.savefig(f"./{global_step}_{init.round(2)}_heatmap.png")
             wandb.save(f"./{global_step}_{init.round(2)}_heatmap.png")       
             
+            
+            
+            
+    def eval_all_proto(self, global_step):
+        
+        self.heatmaps(self.eval_env, global_step, False, True)
+        protos = self.protos.weight.data.detach().clone()
+        
+        for ix in range(protos.shape[0]):
+            step, episode, total_reward = 0, 0, 0
+            init = [-.15, .15]
+            init_state = (init[0], init[1])
+            self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                    self.action_repeat, seed=None, goal=None, init_state=init_state)
+            
+            eval_until_episode = utils.Until(2)
+            meta = self.init_meta()
+            time_step = self.eval_env.reset()
+            reached=np.array([0.,0.])
+            df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
+            goal = protos[ix][None, :]
+            step, episode, total_reward = 0, 0, 0
+            
+            while eval_until_episode(episode):
+                time_step = self.eval_env.reset()
+                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                
+                while not time_step.last():
+                    with torch.no_grad(), utils.eval_mode(self):
+                        obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
+                        obs = self.encoder(obs)
+                        obs = self.predictor(obs)
+                        obs = self.projector(obs)
+                        obs = F.normalize(obs, dim=1, p=2)
+                        action = self.act(obs,
+                                            goal,
+                                            meta,
+                                            global_step,
+                                            eval_mode=True)
+                        
+                    time_step = self.eval_env.step(action)
+                    self.video_recorder.record(self.eval_env)
+                    obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                    dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
+                    
+                    if torch.all(goal.eq(protos[dists_idx])):
+                        reward=1
+                        reached = time_step.observation['observations']
+                        print('saving')
+                        print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix))
+                        save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix), [[time_step.observation['observations'][:2], total_reward, init, ix]])
+                        
+                    else:
+                        reward=0
+                        
+                    total_reward += reward
+                    step += 1
+                episode += 1
+                
+                self.video_recorder.save(f'{global_step}_{ix}th_proto.mp4')
+                df.loc[ix, 'x'] = reached[0]
+                df.loc[ix, 'y'] = reached[1]
+                df.loc[ix, 'r'] = total_reward
+            
+            #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+            #print(result)
+            #plt.clf()
+            #fig, ax = plt.subplots()
+            #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+            #plt.savefig(f"./{global_step}_{ix}_heatmap.png")
+            #wandb.save(f"./{global_step}_{ix}_heatmap.png")
+            
+
     def update(self, replay_iter, step, actor1=False):
         metrics = dict()
 
@@ -636,7 +714,6 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
        #         goal = self.aug(goal)
            
         if actor1==False:
-
             if self.reward_free and step<300000:
                 metrics.update(self.update_proto(obs, next_obs, step))
                 with torch.no_grad():
