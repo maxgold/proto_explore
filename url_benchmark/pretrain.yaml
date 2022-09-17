@@ -56,10 +56,14 @@ init_state: False
 gcsl: False
 bottom_left: False
 init_value: 2
-switch_gc: 500000
-load_encoder: False
 film_gc: False
-feature_dim: 50
+sample_proto: ???
+switch_gc: False
+load_encoder: ???
+load_proto: ???
+reward_scores: False
+reward_euclid: True
+goal_queue_size: 10
 
 # experiment
 experiment: exp

@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,load_protos,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -54,6 +54,7 @@ class ProtoAgent(DDPGAgent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
+        self.load_protos = load_protos
 
         # models
         if self.gc_only==False:
@@ -84,6 +85,12 @@ class ProtoAgent(DDPGAgent):
             self.predictor.train()
             self.projector.train()
             self.protos.train()
+        
+        elif self.load_protos:
+            self.protos = nn.Linear(pred_dim, num_protos,
+                                                    bias=False).to(self.device)
+            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.projector = Projector(pred_dim, proj_dim).to(self.device)
 
     def init_from(self, other):
         # copy parameters over
@@ -97,7 +104,12 @@ class ProtoAgent(DDPGAgent):
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
-
+    
+    def init_protos_from(self, protos):
+        utils.hard_update_params(protos.protos, self.protos)
+        utils.hard_update_params(protos.predictor, self.predictor)
+        utils.hard_update_params(protos.projector, self.projector)
+        utils.hard_update_params(protos.encoder, self.encoder)
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)

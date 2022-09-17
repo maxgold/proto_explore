@@ -1,17 +1,17 @@
 # @package agent
-_target_: agent.proto.ProtoAgent
-name: proto
+_target_: agent.proto_goal_gc.ProtoGoalGCAgent
+name: proto_goal_gc
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
 action_shape: ??? # to be specified later
 goal_shape: ???
 goal: false
-update_every_steps: 10
+update_every_steps: 2
 device: ${device}
-lr: ???
 critic_target_tau: .01
 critic2_target_tau: .01
+pred_dim2: 128
 use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
@@ -20,7 +20,6 @@ feature_dim: 50
 stddev_schedule: 0.2
 stddev_clip: 0.3
 nstep: 3
-batch_size: ???
 init_critic: true
 pred_dim: 128
 proj_dim: 512
@@ -29,8 +28,24 @@ tau: 0.1
 topk: 3
 queue_size: 2048
 encoder_target_tau: .05
+lr: ???
+batch_size: ???
 update_gc: ???
 gc_only: ???
 offline: ???
 load_protos: ???
 update_encoder: ${update_encoder}
+task: ???
+frame_stack: ???
+action_repeat: ??? 
+replay_buffer_num_workers: ???
+discount: ??? 
+reward_scores: ??? 
+reward_euclid: ??? 
+num_seed_frames: ??? 
+task_no_goal: ???
+work_dir: ??? 
+goal_queue_size: ???
+tmux_session: ???
+eval_every_frames: ???
+seed: ???

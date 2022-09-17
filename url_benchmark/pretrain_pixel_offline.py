@@ -212,7 +212,7 @@ class Workspace:
                                                     self.work_dir / "buffer2" /"buffer_copy",
                                                     cfg.replay_buffer_size,
                                                     cfg.batch_size_gc,
-                                                    cfg.replay_buffer_num_workers,
+                                                    1,
                                                     self.cfg.discount,
                                                     goal=False,
                                                     relabel=False,
