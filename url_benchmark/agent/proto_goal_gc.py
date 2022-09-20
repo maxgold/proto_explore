@@ -466,7 +466,9 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     print('goal2', self.goal.shape)       
                 self.goal = protos[idx][None,:]
                 #resample proto goal based on most recent k number of sampled goals(far from them) but close to current observaiton
-
+                ptr = self.goal_queue_ptr
+                self.goal_queue[ptr] = self.goal
+                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
             
             if self.eval_every_step(global_step) and global_step!=0:
                 self.eval_all_proto(global_step)
@@ -619,7 +621,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [-.15, .15]
+            init = [.15, -.15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
