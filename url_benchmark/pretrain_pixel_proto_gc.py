@@ -174,10 +174,10 @@ class Workspace:
                                 seed=cfg.seed)
 
         if self.cfg.load_encoder:
-            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
-            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            proto  = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
         self.video_recorder = VideoRecorder(
@@ -407,15 +407,19 @@ class Workspace:
             #    print('trying to evaluate')
             #    self.eval()              
 
-            self.agent.roll_out(self.global_step)
+            self.agent.roll_out(self.global_step, self.cfg.curriculum)
             
             self._global_step += 1
 
 
-            #if self._global_step%50000==0 and self._global_step!=0:
-            #    print('saving agent')
-            #    path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-            #    torch.save(self.agent, path)
+            if self._global_step%50000==0 and self._global_step!=0:
+                print('saving agent')
+                path = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.encoder, path)
+                path = os.path.join(self.work_dir, 'critic1_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.critic, path)
+                path = os.path.join(self.work_dir, 'actor1_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.actor, path)
 
 
     def save_snapshot(self):

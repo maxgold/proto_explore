@@ -628,6 +628,7 @@ class OfflineReplayBuffer(IterableDataset):
         goal=False,
         vae=False,
         model_step=False,
+        model_step_lb = False,
         replay_dir2=False,
         obs_type='state',
         hybrid=False,
@@ -656,6 +657,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._goal_array = False
         self.obs = []
         self.model_step = int(int(model_step)/500)
+        self.model_step_lb = int(int(model_step_lb)/500)
         self.offline = offline
         self.hybrid = hybrid
         self.hybrid_pct = hybrid_pct
@@ -706,7 +708,9 @@ class OfflineReplayBuffer(IterableDataset):
         for x in tmp_fns:
             tmp_fns_.append(str(x))
             tmp_fns2.append(x)
-        if self.model_step:
+        if self.model_step and self.model_step_lb:
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (self.model_step_lb<=int(re.findall('\d+', x)[-2]) < self.model_step)]
+        elif self.model_step:
             eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
         else:
             eps_fns = tmp_fns
@@ -1113,6 +1117,7 @@ def make_replay_buffer(
     vae=False,
     relabel=False,
     model_step=False,
+    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1133,6 +1138,7 @@ def make_replay_buffer(
         goal=goal,
         vae=vae,
         model_step=model_step,
+        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
 	offline=offline,
@@ -1167,6 +1173,7 @@ def make_replay_offline(
     vae=False,
     relabel=False,
     model_step=False,
+    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1187,6 +1194,7 @@ def make_replay_offline(
         goal=goal,
         vae=vae,
         model_step=model_step,
+        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
         offline=offline,

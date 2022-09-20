@@ -89,7 +89,10 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.goal=None
         self.step=0
         self._global_episode=0
+        self.constant_init_dist = False
         print('lr', self.lr)
+        
+        
 
         # models
         if self.gc_only==False:
@@ -137,6 +140,10 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
         self.goal_queue = torch.zeros(self.goal_queue_size, pred_dim, device=self.device)
         self.goal_queue_ptr = 0 
+        self.count = 0
+        self.constant_init_env = False
+        self.cut_off = 500000
+        self.ts_init = None
         
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
@@ -146,6 +153,23 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
         self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                                    self.action_repeat, seed=None, goal=self.first_goal)
+        
+        self.eval_env_goal = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                                                   self.action_repeat, seed=None, goal=self.first_goal)
+        
+        init_state = [-.15, .15]
+        with torch.no_grad():
+            with self.eval_env_goal.physics.reset_context():
+                self.time_step_init = self.eval_env_goal.physics.set_state(np.array([init_state[0], init_state[1], 0, 0]))
+                
+            self.time_step_init = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+            
+            self.time_step_init = np.transpose(self.time_step_init, (2,0,1))
+            
+        
+        
+        
+        
         # get meta specs
         self.meta_specs = self.get_meta_specs()
         # create replay buffer
@@ -165,8 +189,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                 self.batch_size,
                                                 self.replay_buffer_num_workers,
                                                 False, 3, self.discount,
-                                                True, False,self.obs_type, goal_proto=True,
-                                                agent=self)
+                                                True, False,self.obs_type, goal_proto=True)
         
         self._replay_iter1 = None
         self.timer = utils.Timer()
@@ -266,7 +289,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
         return metrics
     
-    def roll_out(self, global_step):
+    def roll_out(self, global_step, curriculum):
         if self.first:
             self.first=False
             self.episode_step, self.episode_reward = 0, 0
@@ -301,16 +324,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 print('goal not reach, resample', self.step)
                 self.episode_step=0
                 self.episode_reward=0
-		#sample proto 
-                #sample a prototype close to current obs.
-                #self.replay_storage1.add_proto_goal(self.time_step1, self.z.cpu().numpy(), self.meta, 
-                #                                    self.goal.cpu().numpy(), self.reward.cpu().numpy())
-                #self.train_env1=dmc.make(self.task_no_goal, self.obs_type, self.frame_stack, 
-                #                        self.action_repeat, seed=None, goal=None, 
-                #                        init_state=(self.time_step1.observation['observations'][0], 
-                #                        self.time_step1.observation['observations'][1]))
-                #
-                #self.time_step1 = self.train_env1.reset()
+                
                 protos = self.protos.weight.data.detach().clone()
                 
                 with torch.no_grad():
@@ -322,44 +336,86 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.z = F.normalize(self.z, dim=1, p=2)
 #                     scores_z = self.protos(self.z)
                     self.reward =torch.as_tensor(0)
-                self.gaol_topk = np.random.randint(1,10)
-                z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
-                print('z_to_proto', z_to_proto.shape)
-                print('goal_topk', self.goal_topk)
-                all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
-                rand = min(np.random.randint(1,10), self.goal_topk)
-                print('_', _.shape)
-                idx = _[:,-rand]
-                
-                self.goal = protos[idx]
+    
+                if global_step < self.cut_off:
+                    self.gaol_topk = np.random.randint(1,10)
+                    z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
+                    print('z_to_proto', z_to_proto.shape)
+                    print('goal_topk', self.goal_topk)
+                    all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
+                    rand = min(np.random.randint(1,10), self.goal_topk)
+                    print('_', _.shape)
+                    idx = _[:,-rand]
+                    self.goal = protos[idx]
+                    print('goal', self.goal.shape)
+                 
+                else:
+                    print('const init')
+                    if self.count==512:
+                        self.count=0
+                    if curriculum and self.constant_init_dist == False:
+                        if self.ts_init is None:
+                            with torch.no_grad():
+                                ts_init = self.time_step_init
+                                ts_init = torch.as_tensor(obs, device=self.device)
+                                ts_init = self.encoder(ts_init)
+                                ts_init = self.predictor(ts_init)
+                                ts_init = self.projector(ts_init)
+                                self.ts_init = F.normalize(ts_init, dim=1, p=2)
+                                                     
+                            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+                            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                            print('_1', self.init_to_proto.shape)
+                            print('idx', self.init_to_proto[:,self.count].shape)
+                            print('goal', protos[self.init_to_proto[self.count]].shape)
+                            self.goal = protos[self.init_to_proto[:,self.count]]
+                            self.count+=1
+                            self.constant_init_dist = True
+                            print('goal2', self.goal.shape)
+                            
+                        else:
+                            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+                            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                            print('_1', self.init_to_proto.shape)
+                            self.goal = protos[self.init_to_proto[:,self.count]]
+                            self.count+=1
+                            self.constant_init_dist = True
+                            print('goal3', self.goal.shape)
+                            
+                    
+                    elif curriculum and self.constant_init_dist:
+                        self.goal = protos[self.init_to_proto[:,self.count]]
+                        self.count+=1
+                        print('goal4', self.goal.shape)
+                    
+                    else:
+                        idx = np.random.randint(0, protos.shape[0])
+                        print('idx', idx)
+                        self.goal = protos[idx][None,:]
+                        print('goal5', self.goal.shape)
+                        
                 ptr = self.goal_queue_ptr
+                print('goal queue', self.goal_queue.shape)
+                print('ptr', ptr)
+                print('goal6', self.goal.shape)
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
-
-                #if self.metrics is not None:
-                #    # log stats
-                #    self._global_episode += 1
-                #    elapsed_time, total_time = self.timer.reset()
-                #    episode_frame = self.episode_step * self.action_repeat
-                #    with self.logger.log_and_dump_ctx(global_step*2,ty='train') as log:
-                #        log('fps', self.step / elapsed_time)
-                #        log('total_time', total_time)
-                #        log('episode_reward', self.episode_reward)
-                #        log('episode_length', self.step)
-                #        log('episode', self._global_episode)
-                #        log('buffer_size', len(self.replay_storage1))
-                #        log('step', global_step)
-            
-            
 
             if self.step==500 or self.time_step1.last():
                 print('step=500, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
-                self.train_env1=dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                if global_step < self.cut_off:
+                    self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None, 
-					init_state=(self.time_step1.observation['observations'][0], 
-					self.time_step1.observation['observations'][1]))
+                                             init_state=(self.time_step1.observation['observations'][0], self.time_step1.observation['observations'][1]))
+                else:
+                    print('make constant ini env')
+                    if self.constant_init_env==False:
+                        self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                                         self.action_repeat, seed=None, goal=None,init_state=(-.15, .15))
+                        self.constant_init_env=True
+                    
                 self.time_step1 = self.train_env1.reset()
                 protos = self.protos.weight.data.detach().clone()
 
@@ -438,7 +494,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 self.logger.log_metrics(self.metrics, global_step*2, ty='train')
 
             idx = None
-            if (self.reward_scores and self.episode_reward > 10) or (self.reward_euclid and self.reward>-.1):
+            if (self.reward_scores and self.episode_reward > 10) and global_step<self.cut_off:
                 self.episode_step, self.episode_reward = 0, 0
                 print('sampling new goal', self.step)
                 #import IPython as ipy; ipy.embed(colors='neutral')   
@@ -467,17 +523,55 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     print('goal2', self.goal.shape)       
                 self.goal = protos[idx][None,:]
                 #resample proto goal based on most recent k number of sampled goals(far from them) but close to current observaiton
+                ptr = self.goal_queue_ptr
+                self.goal_queue[ptr] = self.goal
+                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+                
+            elif (self.episode_reward > 10) and global_step >=self.cut_off:
+                self.episode_step, self.episode_reward = 0, 0
+                if self.count==512:
+                    self.count=0
+                protos = self.protos.weight.data.detach().clone()
+                if curriculum and self.ts_init is None:
+                    with torch.no_grad():
+                        ts_init = self.time_step_init
+                        ts_init = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+                        ts_init = self.encoder(ts_init)
+                        ts_init = self.predictor(ts_init)
+                        ts_init = self.projector(ts_init)
+                        self.ts_init = F.normalize(ts_init, dim=1, p=2)
 
-            
+                    z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+                    all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    print('_1', self.init_to_proto.shape)
+                    self.goal = protos[self.init_to_proto[:,self.count]]
+                    self.count+=1
+
+                elif curriculum and self.ts_init is not None:
+                    print('cutoff const init')
+                    self.goal = protos[self.init_to_proto[:,self.count]]
+                    self.count+=1
+
+                else:
+                    idx = np.random.randint(0, protos.shape[0])
+                    print('idx', idx)
+                    self.goal = protos[idx][None,:]
+                    
+        #        ptr = self.goal_queue_ptr
+        #        self.goal_queue[ptr] = self.goal
+        #        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+                       
             if self.eval_every_step(global_step) and global_step!=0:
-                self.eval_all_proto(global_step)
+                if global_step < self.cut_off:
+                    self.eval(global_step)
+                else:
+                    self.eval_all_proto(global_step)
                 #self.eval(global_step)
-
             self.episode_step += 1
             self.step +=1
+            
 
-
-    def heatmaps(self, env, model_step, replay_dir2, goal):
+    def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False):
         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
 
         replay_buffer = make_replay_offline(env,
@@ -489,6 +583,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                     goal=goal,
                                     relabel=False,
                                     model_step=model_step,
+                                    model_step_lb=model_step_lb,
                                     replay_dir2=False,
                                     obs_type=self.obs_type, 
                                     eval=True)
@@ -536,12 +631,17 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
     def eval(self, global_step):
         
-        self.heatmaps(self.eval_env, global_step, False, True)
+        if global_step<=self.cut_off:
+            self.heatmaps(self.eval_env, global_step, False, True)
+        else:
+            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
         
+
         for ix in range(10):
             step, episode, total_reward = 0, 0, 0
-            init = np.random.uniform((-0.29, .29),size=2)
+            #init = np.random.uniform((-0.29, .29),size=2)
+            init = np.array([-.15, .15])
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
@@ -607,15 +707,19 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             plt.clf()
             fig, ax = plt.subplots()
             sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-            plt.savefig(f"./{global_step}_{init.round(2)}_heatmap.png")
-            wandb.save(f"./{global_step}_{init.round(2)}_heatmap.png")       
+            plt.savefig(f"./{global_step}_{init}_heatmap.png")
+            wandb.save(f"./{global_step}_{init}_heatmap.png")       
             
             
             
             
     def eval_all_proto(self, global_step):
-        
-        self.heatmaps(self.eval_env, global_step, False, True)
+
+        if global_step<=self.cut_off:
+            self.heatmaps(self.eval_env, global_step, False, True)
+        else:
+            self.heatmaps(self.eval_env, global_step, False, True, model_step_lb=self.cut_off)
+
         protos = self.protos.weight.data.detach().clone()
         
         for ix in range(protos.shape[0]):
