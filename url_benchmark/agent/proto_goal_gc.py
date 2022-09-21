@@ -193,7 +193,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         self._replay_iter1 = None
         self.timer = utils.Timer()
-        
+         
         self.video_recorder = VideoRecorder(
                                         self.work_dir,
                                         camera_id=0,
@@ -402,6 +402,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
             if self.step==500 or self.time_step1.last():
+                import IPython as ipy; ipy.embed(colors='neutral')
                 print('step=500, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
@@ -724,7 +725,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [-.15, .15]
+            init = [.15, -.15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
