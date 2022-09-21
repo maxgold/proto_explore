@@ -6,6 +6,7 @@ import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
+os.environ['HYDRA_FULL_ERROR']='1'
 import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import torch.nn.functional as F

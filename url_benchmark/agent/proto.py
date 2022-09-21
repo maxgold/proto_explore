@@ -141,11 +141,11 @@ class ProtoAgent(DDPGAgent):
         reward = dist
 
         #saving dist to see distribution for intrinsic reward
-        if step%1000 and step<300000:
-            import IPython as ipy; ipy.embed(colors='neutral')
-            dist_np = z_to_q
-            dist_df = pd.DataFrame(dist_np.cpu())
-            dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
+        #if step%1000 and step<300000:
+        #    import IPython as ipy; ipy.embed(colors='neutral')
+        #    dist_np = z_to_q
+        #    dist_df = pd.DataFrame(dist_np.cpu())
+        #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
     def update_proto(self, obs, next_obs, step):

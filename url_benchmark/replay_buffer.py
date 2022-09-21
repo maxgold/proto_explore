@@ -293,7 +293,8 @@ class ReplayBuffer(IterableDataset):
         actor1=False,
         replay_dir2=False,
         model_step=False,
-        goal_proto=False):
+        goal_proto=False,
+        agent=None):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -317,6 +318,7 @@ class ReplayBuffer(IterableDataset):
         self.iz=1
         self._replay_dir2=replay_dir2
         self.goal_proto = goal_proto
+        self.agent = agent
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -511,8 +513,8 @@ class ReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
 
-        elif key <= self.hybrid_pct:
-            idx = np.random.randint(0,250)
+        elif key <= self.hybrid_pct and self.goal_proto==False:
+            idx = np.random.randint(250,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
@@ -523,6 +525,34 @@ class ReplayBuffer(IterableDataset):
                 step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
+                
+        elif key <= self.hybrid_pct and self.goal_proto:
+            idx = np.random.randint(250,episode_len(episode))
+            obs = episode["observation"][idx-1]
+            action = episode["action"][idx]
+            next_obs = episode['observation'][idx]
+            idx_goal = np.random.randint(idx,episode_len(episode))
+            z = episode["observation"][idx_goal]
+            protos = self.agent.protos.weight.data.detach().clone()
+            z_to_proto = torch.norm(z[:, None, :] - protos[None, :, :], dim=2, p=2)
+            all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
+            goal = protos[_]
+            goal = episode["observation"][idx_goal]
+            goal_state = episode["state"][idx_goal]
+            
+            for i in range(1):
+
+                obs_to_proto = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                dists, dists_idx = torch.topk(obs_to_proto, 1, dim=1, largest=False)
+                if torch.all(goal.eq(protos[dists_idx])):
+                    self.reward=torch.as_tensor(1)
+                else:
+                    self.reward=torch.as_tensor(0)
+                    
+                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                reward += discount * step_reward
+                discount *= episode["discount"][idx+i] * self._discount
+            
         else:
             print('sth went wrong in replay buffer')
         
@@ -1175,7 +1205,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1193,6 +1223,7 @@ def make_replay_loader(
         replay_dir2=replay_dir2,
         model_step=model_step,
         goal_proto=goal_proto,
+        agent=agent,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )

@@ -17,10 +17,8 @@ from dm_env import specs
 import pandas as pd
 import dmc
 import utils
-from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
 import matplotlib.pyplot as plt
-import seaborn as sns; sns.set_theme()
 from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
@@ -126,14 +124,14 @@ class Workspace:
         self.device = torch.device(cfg.device)
 
         # create logger
-        if cfg.use_wandb:
-            exp_name = '_'.join([
-                cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
-                str(cfg.seed)
-            ])
-            wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
+        #if cfg.use_wandb:
+        #    exp_name = '_'.join([
+        #        cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
+        #        str(cfg.seed)
+        #    ])
+        #    wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
 
-        self.logger = Logger(self.work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
+#        self.logger = Logger(self.work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
 
         self.train_env1 = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
