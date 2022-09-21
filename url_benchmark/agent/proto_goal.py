@@ -9,7 +9,7 @@ from torch import distributions as pyd
 from torch import jit
 from dm_env import specs
 import utils
-from agent.ddpg_goal_gc import DDPGGoalGCAgent
+from agent.ddpg_goal import DDPGGoalAgent
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
 import dmc
 import seaborn as sns; sns.set_theme()
@@ -49,7 +49,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoGoalGCAgent(DDPGGoalGCAgent):
+class ProtoGoalAgent(DDPGGoalAgent):
     def __init__(self, pred_dim,proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder,update_gc, gc_only, 
                  offline, load_protos, task, frame_stack, action_repeat, replay_buffer_num_workers,
@@ -132,9 +132,9 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.logger = Logger(self.work_dir, use_tb=self.use_tb, use_wandb=self.use_wandb)
         work_path = str(os.getcwd().split('/')[-2])+'/'+str(os.getcwd().split('/')[-1])
         exp_name = '_'.join([
-                'exp', 'proto_goal_gc', 'pmm', self.obs_type, str(self.seed), str(self.tmux_session),work_path
+                'exp', 'proto_goal', 'pmm', self.obs_type, str(self.seed), str(self.tmux_session),work_path
             ])
-        wandb.init(project="urlb", group='proto_goal_gc', name=exp_name) 
+        wandb.init(project="urlb", group='proto_goal', name=exp_name) 
 
         self._global_episode = 0
 
@@ -144,11 +144,15 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.constant_init_env = False
         self.cut_off = 500000
         self.ts_init = None
+        self.z = None
+        self.obs2 = None
         
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                                   self.action_repeat, seed=None, goal=self.first_goal)
+        self.train_env2 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                    self.action_repeat, seed=None, goal=self.first_goal)
 
         self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
@@ -181,6 +185,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(self.data_specs, self.meta_specs,
                                                   self.work_dir / 'buffer1')
+        self.replay_storage2 = ReplayBufferStorage(self.data_specs, self.meta_specs,
+                                                  self.work_dir / 'buffer2')
 
         # create replay buffer
         self.replay_loader1 = make_replay_loader(self.replay_storage1,
@@ -191,13 +197,23 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                 False, 3, self.discount,
                                                 True, False,self.obs_type, goal_proto=True)
         
+        self.replay_loader2 = make_replay_loader(self.replay_storage2,
+                                                False,
+                                                1000000,
+                                                self.batch_size,
+                                                self.replay_buffer_num_workers,
+                                                False, 3, self.discount,
+                                                False, False,self.obs_type)
+        
         self._replay_iter1 = None
+        self._replay_iter2 = None
         self.timer = utils.Timer()
          
         self.video_recorder = VideoRecorder(
                                         self.work_dir,
                                         camera_id=0,
                                         use_wandb=True)
+    
     @property
     def replay_iter1(self):
         if self._replay_iter1 is None:
@@ -294,6 +310,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             self.first=False
             self.episode_step, self.episode_reward = 0, 0
             self.time_step1 = self.train_env1.reset()
+            self.time_step2 = self.train_env2.reset()
             self.meta = self.init_meta()
             self.metrics = None
 
@@ -313,9 +330,12 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 self.z = F.normalize(self.z, dim=1, p=2)
 #                 scores_z = self.protos(self.z)
                 self.reward =torch.as_tensor(0)
-                
+            
+            self.obs2 = self.time_step2.observation['pixels']
+            
             self.replay_storage1.add_proto_goal(self.time_step1, self.z.cpu().numpy(), self.meta, 
                     self.goal.cpu().numpy(), self.reward, last=False)
+            self.replay_storage2.add(self.time_step2, self.meta, True)
             
         else:
             
@@ -336,6 +356,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.z = F.normalize(self.z, dim=1, p=2)
 #                     scores_z = self.protos(self.z)
                     self.reward =torch.as_tensor(0)
+                
+                self.obs2 = self.time_step2.observation['pixels']
     
                 if global_step < self.cut_off:
                     self.gaol_topk = np.random.randint(1,10)
@@ -406,10 +428,12 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 print('step=500, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
+                self.replay_storage2.add(self.time_step2,self.meta, True)
                 if global_step < self.cut_off:
                     self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None, 
                                              init_state=(self.time_step1.observation['observations'][0], self.time_step1.observation['observations'][1]))
+                    
                 else:
                     print('make constant ini env')
                     if self.constant_init_env==False:
@@ -418,6 +442,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                         self.constant_init_env=True
                     
                 self.time_step1 = self.train_env1.reset()
+                self.time_step2 = self.train_env2.reset()
                 protos = self.protos.weight.data.detach().clone()
 
                 with torch.no_grad():
@@ -429,8 +454,12 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.z = F.normalize(self.z, dim=1, p=2)
 #                     scores_z = self.protos(self.z)
                     self.reward =torch.as_tensor(0)
+                
+                self.obs2 = self.time_step2.observation['pixels']
 
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
+                    
+                self.replay_storage2.add(self.time_step2, self.meta, True)
 
                 if self.metrics is not None:
                     # log stats
@@ -458,9 +487,14 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                    self.meta, 
                                    global_step, 
                                    eval_mode=False)
+                action2 = self.act2(self.obs2, 
+                                   self.meta, 
+                                   global_step, 
+                                   eval_mode=False)
             
             # take env step
             self.time_step1 = self.train_env1.step(action1)
+            self.time_step2 = self.train_env2.step(action2)
             
             with torch.no_grad():
                 obs = self.time_step1.observation['pixels']
@@ -470,6 +504,9 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 self.z = self.projector(self.z)
                 self.z = F.normalize(self.z, dim=1, p=2)
                 #scores_z = self.protos(self.z)
+                
+
+            self.obs2 = self.time_step2.observation['pixels']
             
             if self.reward_scores:
                 protos = self.protos.weight.data.detach().clone()
@@ -487,12 +524,14 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             
             self.episode_reward += self.reward 
 
-            if self.step!=500 and self.time_step1.last()==False:
+            if self.step!=500 and self.time_step1.last()==False and self.time_step2.last()==False:
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
+                self.replay_storage2.add(self.time_step2, self.meta, True)
 
             if not self.seed_until_step(global_step):
                 self.metrics = self.update(self.replay_iter1, global_step, actor1=True)
                 self.logger.log_metrics(self.metrics, global_step*2, ty='train')
+                self.metrics = self.update(self.replay_iter2, global_step, actor1=False)
 
             idx = None
             if (self.reward_scores and self.episode_reward > 10) and global_step<self.cut_off:
@@ -871,9 +910,9 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
 
           #  if not self.update_encoder:
             
-            #obs = obs.detach()
-            #next_obs = next_obs.detach()
-            #goal=goal.detach()
+            obs = obs.detach()
+            next_obs = next_obs.detach()
+             #   goal=goal.detach()
         
             # update critic
             metrics.update(

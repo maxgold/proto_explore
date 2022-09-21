@@ -155,7 +155,7 @@ class Workspace:
                                 cfg.batch_size,
                                 cfg.update_gc,
                                 cfg.lr,
-                                True,
+                                False,
                                 cfg.offline,
                                 cfg.load_proto,
                                 cfg.task,
@@ -434,7 +434,7 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
-    from pretrain_pixel_proto_gc import Workspace as W
+    from pretrain_pixel_proto_goal import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
