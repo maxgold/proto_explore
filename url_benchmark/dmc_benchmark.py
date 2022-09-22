@@ -25,6 +25,7 @@ JACO_TASKS = [
     'jaco_reach_bottom_right',
 ]
 POINT_MASS_MAZE_TASKS = [
+        'point_mass_maze_reach_custom_goal'
         'point_mass_maze_reach_top_left',
         'point_mass_maze_reach_top_right',
         'point_mass_maze_reach_bottom_left',

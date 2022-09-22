@@ -405,15 +405,19 @@ class Workspace:
             #    print('trying to evaluate')
             #    self.eval()              
 
-            self.agent.roll_out(self.global_step)
+            self.agent.roll_out(self.global_step, self.cfg.curriculum)
             
             self._global_step += 1
 
 
-            #if self._global_step%50000==0 and self._global_step!=0:
-            #    print('saving agent')
-            #    path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-            #    torch.save(self.agent, path)
+            if self._global_step%50000==0 and self._global_step!=0:
+                print('saving agent')
+                path = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.encoder, path)
+                path = os.path.join(self.work_dir, 'critic1_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.critic, path)
+                path = os.path.join(self.work_dir, 'actor1_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent.actor, path)
 
 
     def save_snapshot(self):

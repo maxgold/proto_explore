@@ -173,7 +173,10 @@ class Workspace:
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
         meta = self.agent.init_meta()
-        self.replay_storage.add(time_step, meta)
+        if self.cfg.obs_type=='pixels':
+            self.replay_storage.add(time_step, meta, True)
+        else:
+            self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         while train_until_step(self.global_step):
@@ -198,7 +201,11 @@ class Workspace:
                 # reset env
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
-                self.replay_storage.add(time_step, meta)
+                if self.cfg.obs_type=='pixels':
+
+                    self.replay_storage.add(time_step, meta, True)
+                else: 
+                    self.replay_storage.add(time_step, meta)
                 self.train_video_recorder.init(time_step.observation)
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
@@ -223,7 +230,7 @@ class Workspace:
                                             self.global_step, 
                                             eval_mode=False)
                 else:
-                    action = self.agent.act(time_step.observation,
+                    action = self.agent.act2(time_step.observation,
                                         meta,
                                         self.global_step,
                                         eval_mode=False)
@@ -232,7 +239,7 @@ class Workspace:
             if not seed_until_step(self.global_step):
                 print('global step', self.global_step)
                 print('seed until', seed_until_step(self.global_step))
-                metrics = self.agent.update(self.replay_iter, self.global_step, goal)
+                metrics = self.agent.update(self.replay_iter, self.global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent
@@ -242,7 +249,10 @@ class Workspace:
             # take env step
             time_step = self.train_env.step(action)
             episode_reward += time_step.reward
-            self.replay_storage.add(time_step, meta)
+            if  self.cfg.obs_type=='pixels':
+                self.replay_storage.add(time_step, meta, True)
+            else:
+                self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1
             self._global_step += 1

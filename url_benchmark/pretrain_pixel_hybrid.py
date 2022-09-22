@@ -6,6 +6,8 @@ import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
+os.environ['HYDRA_FULL_ERROR']='1'
+
 import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import torch.nn.functional as F
@@ -470,10 +472,15 @@ class Workspace:
  #               self.count_uniform = 1
  #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
     
-    def sample_goal_distance(self):
+    def sample_goal_distance(self, init_state=None):
         if self.goal_loaded==False:
             goal_array = ndim_grid(2,20)
-            dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')
+            if init_state is None:
+                dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')
+            else:
+                dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
+                
+                
             df1 = pd.DataFrame()
             df1['distance'] = dist_goal.reshape((400,))
             df1['index'] = df1.index
@@ -845,12 +852,13 @@ class Workspace:
             
             episode_step += 1
             
-            if time_step1.reward > 1.8 and self.cfg.test:
+            if episode_reward > 100 and self.cfg.const_init==False:
                 print('reached making new env')
+                episode_reward=0
                 current_state = time_step1.observation['observations'][:2]
 
                 if self.cfg.curriculum:
-                    goal_=self.sample_goal_distance()
+                    goal_=self.sample_goal_distance(current_state)
                     goal_state = np.array([goal_[0], goal_[1]])
                 else:
                     idx = np.random.randint(0,400)

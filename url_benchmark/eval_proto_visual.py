@@ -625,7 +625,9 @@ class Workspace:
 
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
+    
     from eval_proto_visual import Workspace as W
+    
     root_dir = Path.cwd()
     agents = glob.glob(str(cfg.path)+'/*pth')
     agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/*pth')

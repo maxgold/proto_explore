@@ -54,9 +54,10 @@ class ProtoFilmGCAgent(DDPGFilmGCAgent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
+        self.switch_gc = 500000 
 
         # models
-        if self.offline==False and self.gc_only==False:
+        if self.offline==False:
             self.encoder_target = deepcopy(self.encoder)
             
             self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
@@ -133,7 +134,6 @@ class ProtoFilmGCAgent(DDPGFilmGCAgent):
 
         # normalize prototypes
         self.normalize_protos()
-
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
@@ -169,102 +169,66 @@ class ProtoFilmGCAgent(DDPGFilmGCAgent):
 
         batch = next(replay_iter)
 
-        if actor1 and step % self.update_gc==0:
-            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+        obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
-        elif actor1 == False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
-                    batch, self.device)
-        else:
-            return metrics
 
-        obs = obs.reshape(-1, 9, 84, 84).float()
-        next_obs = next_obs.reshape(-1, 9, 84, 84).float()
+
         action = action.reshape(-1, 2).float()
         extr_reward = extr_reward.reshape(-1, 1).float()
         discount = discount.reshape(-1, 1).float()
         extr_reward = extr_reward.float()
+        
+        with torch.no_grad():
+            intr_reward = self.compute_intr_reward(next_obs, step)
 
         # augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-            if actor1:
-                goal = self.aug(goal)
-           
-        if actor1==False:
+            goal = self.aug(goal)
 
-            if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, step))
-                #utils.soft_update_params(self.protos, self.protos_target, self.protos_target_tau)
-                with torch.no_grad():
-                    intr_reward = self.compute_intr_reward(next_obs, step)
+        if step < self.switch_gc:
+            metrics.update(self.update_proto(obs, next_obs, step))
 
-                if self.use_tb or self.use_wandb:
-                    metrics['intr_reward'] = intr_reward.mean().item()
-                
-                reward = intr_reward
-            else:
-                reward = extr_reward
-
-            if self.use_tb or self.use_wandb:
-                metrics['extr_reward'] = extr_reward.mean().item()
-                metrics['batch_reward'] = reward.mean().item()
-
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
-
-            if not self.update_encoder:
-                obs = obs.detach()
-                next_obs = next_obs.detach()
-            # update critic
-            metrics.update(
-                self.update_critic2(obs.detach(), action, reward, discount,
-                               next_obs.detach(), step))
-
-            # update actor
-            metrics.update(self.update_actor2(obs.detach(), step))
+        obs = self.encoder(obs)
+        next_obs = self.encoder(next_obs)
+        goal = self.encoder(goal)
+        
+        if not self.update_encoder:
+            obs = obs.detach()
+            next_obs = next_obs.detach()
+            goal=goal.detach()
 
             # update critic target
             #if step <300000:
 
-            utils.soft_update_params(self.predictor, self.predictor_target,
-                                 self.encoder_target_tau)
-            utils.soft_update_params(self.encoder, self.encoder_target,
-                                                    self.encoder_target_tau)
-            utils.soft_update_params(self.critic2, self.critic2_target,
-                                 self.critic2_target_tau)
-
-        elif actor1 and step % self.update_gc==0:
-            goal = goal.reshape(-1, 9, 84, 84).float()
-
+        if step < self.switch_gc:
+            reward = intr_reward
+        else:
             reward = extr_reward
-            if self.use_tb or self.use_wandb:
-                metrics['extr_reward'] = extr_reward.mean().item()
-                metrics['batch_reward'] = reward.mean().item()
-
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
-            goal = self.encoder(goal)
-
-            if not self.update_encoder:
-            
-                obs = obs.detach()
-                next_obs = next_obs.detach()
-                goal=goal.detach()
         
-            # update critic
-            metrics.update(
+        if self.use_tb or self.use_wandb:
+            metrics['extr_reward'] = extr_reward.mean().item()
+            metrics['batch_reward'] = reward.mean().item()
+            metrics['intr_reward'] = intr_reward.mean().item()  
+        # update critic
+        
+        metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
+        metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
             # update critic target
-            utils.soft_update_params(self.critic, self.critic_target,
+        utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-
-
+        
+        if step < self.switch_gc:
+            utils.soft_update_params(self.predictor, self.predictor_target,
+                                                     self.encoder_target_tau)
+        
+            utils.soft_update_params(self.encoder, self.encoder_target,
+                                                                self.encoder_target_tau)
         return metrics
 
     def get_q_value(self, obs,action):

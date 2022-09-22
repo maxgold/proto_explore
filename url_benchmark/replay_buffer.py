@@ -506,7 +506,8 @@ class ReplayBuffer(IterableDataset):
         key = np.random.randint(0,10)
         if key > self.hybrid_pct:
             goal = episode["goal"][idx-1]
-            goal = np.tile(goal,(3,1,1))
+            if self.pixels and self.goal_proto==False:
+                goal = np.tile(goal,(3,1,1))
 
             for i in range(1):
                 step_reward = episode["reward"][idx + i]
@@ -532,24 +533,24 @@ class ReplayBuffer(IterableDataset):
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
-            z = episode["observation"][idx_goal]
-            protos = self.agent.protos.weight.data.detach().clone()
-            z_to_proto = torch.norm(z[:, None, :] - protos[None, :, :], dim=2, p=2)
-            all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
-            goal = protos[_]
-            goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal]
-            
-            for i in range(1):
+            z = episode["observation"][idx_goal][None,:]
+            protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
+            print('state', episode["state"][idx_goal])
+            z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+            _ = np.argsort(z_to_proto, axis=1)[:,-1:]
+            print('_', _)
+            print('sort', np.sort(z_to_proto, axis=1)[:,-10:])
+            goal = protos[_].reshape((128,))
 
-                obs_to_proto = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
-                dists, dists_idx = torch.topk(obs_to_proto, 1, dim=1, largest=False)
-                if torch.all(goal.eq(protos[dists_idx])):
-                    self.reward=torch.as_tensor(1)
+            for i in range(1):
+                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+                dists_idx = np.argsort(obs_to_proto, axis=1)[:,-1:]
+                if np.array_equal(goal,protos[dists_idx]):
+                    reward=1
                 else:
-                    self.reward=torch.as_tensor(0)
+                    reward=0
                     
-                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                step_reward = reward*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
             
@@ -559,9 +560,6 @@ class ReplayBuffer(IterableDataset):
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         return (obs, action, reward, discount, next_obs, goal, *meta)
-
-
-
 
     def _sample_goal_offline(self):
         try:
@@ -630,6 +628,7 @@ class OfflineReplayBuffer(IterableDataset):
         goal=False,
         vae=False,
         model_step=False,
+        model_step_lb = False,
         replay_dir2=False,
         obs_type='state',
         hybrid=False,
@@ -658,6 +657,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._goal_array = False
         self.obs = []
         self.model_step = int(int(model_step)/500)
+        self.model_step_lb = int(int(model_step_lb)/500)
         self.offline = offline
         self.hybrid = hybrid
         self.hybrid_pct = hybrid_pct
@@ -708,7 +708,9 @@ class OfflineReplayBuffer(IterableDataset):
         for x in tmp_fns:
             tmp_fns_.append(str(x))
             tmp_fns2.append(x)
-        if self.model_step:
+        if self.model_step and self.model_step_lb:
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (self.model_step_lb<=int(re.findall('\d+', x)[-2]) < self.model_step)]
+        elif self.model_step:
             eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
         else:
             eps_fns = tmp_fns
@@ -980,7 +982,8 @@ class OfflineReplayBuffer(IterableDataset):
 
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
-            goal = np.tile(goal,(3,1,1))
+            if self.goal_proto==False:
+                goal = np.tile(goal,(3,1,1))
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
@@ -998,8 +1001,8 @@ class OfflineReplayBuffer(IterableDataset):
             action = episode["action"][self.iz]
             next_obs = episode['observation'][self.iz+self._nstep-1]
             idx_goal = np.random.randint(self.iz,min(self.iz+50, 499))
-            goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal]
+            goal = episode["observation"][idx_goal][None, :]
+            print('goal', goal.shape)
 
             for i in range(self._nstep):
                 for z in range(2):
@@ -1114,6 +1117,7 @@ def make_replay_buffer(
     vae=False,
     relabel=False,
     model_step=False,
+    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1134,6 +1138,7 @@ def make_replay_buffer(
         goal=goal,
         vae=vae,
         model_step=model_step,
+        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
 	offline=offline,
@@ -1168,6 +1173,7 @@ def make_replay_offline(
     vae=False,
     relabel=False,
     model_step=False,
+    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1188,6 +1194,7 @@ def make_replay_offline(
         goal=goal,
         vae=vae,
         model_step=model_step,
+        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
         offline=offline,

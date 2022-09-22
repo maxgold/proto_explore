@@ -115,28 +115,28 @@ def make_generator(env, cfg):
     knn = KNN(states[:, :2], futures)
     return knn
 
-def intr_reward_grid(agent, work_dir, cfg, env):
-    replay_dir = work_dir / 'buffer2' / 'buffer_copy'
-    replay_buffer = make_replay_buffer(env,
-                                        replay_dir, 
-                                        500000,
-                                        cfg.batch_size,
-                                        0,
-                                        cfg.discount,
-                                        goal=False,
-                                        relabel=False,
-                                        replay_dir2=False,
-                                        obs_type=False)
-    states, actions = replay_buffer.parse_dataset()
-    if states == '':
-        print('nothing in buffer yet')
-    else:
-        states = states.astype(np.float64)
-        grid = states.reshape(-1,4)
-        idx = np.random.randint(grid.shape[0], size=(5000,))
-        grid = grid[idx, :]
-        grid = torch.tensor(grid).cuda().float()
-        return grid
+#def intr_reward_grid(agent, work_dir, cfg, env):
+#    replay_dir = work_dir / 'buffer2' / 'buffer_copy'
+#    replay_buffer = make_replay_buffer(env,
+#                                        replay_dir, 
+#                                        500000,
+#                                        cfg.batch_size,
+#                                        0,
+#                                        cfg.discount,
+#                                        goal=False,
+#                                        relabel=False,
+#                                        replay_dir2=False,
+#                                        obs_type=False)
+#    states, actions = replay_buffer.parse_dataset()
+#    if states == '':
+#        print('nothing in buffer yet')
+#    else:
+#        states = states.astype(np.float64)
+#        grid = states.reshape(-1,4)
+#        idx = np.random.randint(grid.shape[0], size=(5000,))
+#        grid = grid[idx, :]
+#        grid = torch.tensor(grid).cuda().float()
+#        return grid
 
 def make_expert():
     return ExpertAgent()
@@ -174,8 +174,8 @@ class Workspace:
         self.first_goal = np.array(goal)
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, cfg.seed, self.first_goal)
-        self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                                  cfg.action_repeat, cfg.seed)
+        self.train_env2 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                                  cfg.action_repeat, cfg.seed, self.first_goal)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed, self.first_goal)
 
@@ -203,8 +203,8 @@ class Workspace:
                                                                   self.work_dir / 'buffer2')
         # create replay buffer
         self.replay_loader1  = make_replay_loader(self.replay_storage1,
-                                                  cfg.replay_buffer_size,
                                                   100000,
+                                                    cfg.batch_size,
                                                   cfg.replay_buffer_num_workers,
                                                   False, cfg.nstep, cfg.discount, True, 
                                                   False)
@@ -218,14 +218,14 @@ class Workspace:
         self._replay_iter2 = None
 
         # create video recorders
-        self.video_recorder = VideoRecorder(
-            self.work_dir if cfg.save_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
-        self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if cfg.save_train_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
+ #       self.video_recorder = VideoRecorder(
+ #           self.work_dir if cfg.save_video else None,
+ #           camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+ #           use_wandb=self.cfg.use_wandb)
+ #       self.train_video_recorder = TrainVideoRecorder(
+ #           self.work_dir if cfg.save_train_video else None,
+ #           camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+ #           use_wandb=self.cfg.use_wandb)
 
         self.timer = utils.Timer()
         self._global_step = 0
@@ -348,18 +348,18 @@ class Workspace:
         #    log('episode', self.global_episode)
         #    log('step', self._global_step)
 
-    def eval_intr_reward(self):
-        obs = intr_reward_grid(self.agent, self.work_dir, self.cfg, self.eval_env)
-        meta = self.agent.init_meta()
-
-        with torch.no_grad():
-            reward = self.agent.compute_intr_reward(obs, self._global_step)
-            action = self.agent.act2(obs, meta, self._global_step, eval_mode=True)
-            q = self.agent.get_q_value(obs, action)
-        for x in range(len(reward)):
-            print('saving')
-            print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
-            save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
+#    def eval_intr_reward(self):
+#        obs = intr_reward_grid(self.agent, self.work_dir, self.cfg, self.eval_env)
+#        meta = self.agent.init_meta()
+#
+#        with torch.no_grad():
+#            reward = self.agent.compute_intr_reward(obs, self._global_step)
+#            action = self.agent.act2(obs, meta, self._global_step, eval_mode=True)
+#            q = self.agent.get_q_value(obs, action)
+#        for x in range(len(reward)):
+#            print('saving')
+#            print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
+#            save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
 
 
     def eval_goal(self, proto, model):
@@ -447,7 +447,6 @@ class Workspace:
     def train(self):
         # predicates
         resample_goal_every = 1000
-        update_buffer_every = 100000
         #to get full episode to store in replay loader
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
@@ -482,13 +481,13 @@ class Workspace:
                         log('episode_length', episode_frame)
                         log('episode', self.global_episode)
                         log('buffer_size1', len(self.replay_storage1))
-                        log('buffer_size2', len(self.replay_storage2))
                         log('step', self._global_step)
 
                 # reset env
-
+                time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
+                self.replay_storage1.add_goal(time_step1, meta, goal)
                 self.replay_storage2.add(time_step2, meta)
                 #self.train_video_recorder.init(time_step1.observation)
 
@@ -514,15 +513,16 @@ class Workspace:
                     self.global_step +=1
                         
                 else:
-                    if self.global_step%100000==0 and self.global_step!=0:
+                    if self.global_step%10000==0 and self.global_step!=0:
                         proto=self.agent
                         model = ''
-                        self.eval_goal()
+                        self.eval_goal(proto,model)
                         #self.eval_intr_reward()
                     else:
+                        print('ok')
                         #self.logger.log('eval_total_time', self.timer.total_time(),
                         #            self.global_frame)
-                        self.eval()
+                     #   self.eval()
             meta = self.agent.update_meta(meta, self._global_step, time_step2)
             if episode_step % resample_goal_every == 0:
                 
@@ -534,8 +534,9 @@ class Workspace:
                 else:
                     goal = self.sample_goal_uniform(time_step2.observation)
                 self.train_env1 = dmc.make(self.cfg.task, seed=None, goal=goal)
-                
+                self.train_env2 = dmc.make(self.cfg.task, seed=None, goal=goal) 
                 print('sampled goal', goal)
+                print('task', self.cfg.task)
                 #print('resample goal make env', self.train_env)
             
             #if episode_step % update_buffer_every == 0:

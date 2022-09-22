@@ -24,7 +24,7 @@ import dmc
 import torch.nn.functional as F
 import utils
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
+from replay_buffer_concurrent import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 
@@ -150,6 +150,7 @@ class Workspace:
         except:
             task = self.cfg.domain
         print('task', task)
+        
         self.train_env1 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, cfg.seed)
         self.train_env2 = dmc.make(task, cfg.obs_type, cfg.frame_stack,
