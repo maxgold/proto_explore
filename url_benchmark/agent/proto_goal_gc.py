@@ -448,7 +448,6 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
              #    self.replay_storage2.add(time_step2, meta, True) 
 
 
-
             meta = self.update_meta(self.meta, global_step, self.time_step1)
             
             # sample action
@@ -564,7 +563,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                        
             if self.eval_every_step(global_step) and global_step!=0:
                 if global_step < self.cut_off:
-                    self.eval(global_step)
+                    #self.eval(global_step)
+                    print('not evaluating')
                 else:
                     self.eval_all_proto(global_step)
                 #self.eval(global_step)
@@ -725,7 +725,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [.15, -.15]
+            init = [-.15, .15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
@@ -775,17 +775,17 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 episode += 1
                 
                 self.video_recorder.save(f'{global_step}_{ix}th_proto.mp4')
-                df.loc[ix, 'x'] = reached[0]
-                df.loc[ix, 'y'] = reached[1]
-                df.loc[ix, 'r'] = total_reward
+            df.loc[ix, 'x'] = reached[0]
+            df.loc[ix, 'y'] = reached[1]
+            df.loc[ix, 'r'] = total_reward
             
-            #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
-            #print(result)
-            #plt.clf()
-            #fig, ax = plt.subplots()
-            #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-            #plt.savefig(f"./{global_step}_{ix}_heatmap.png")
-            #wandb.save(f"./{global_step}_{ix}_heatmap.png")
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        print(result)
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./{global_step}_{ix}_heatmap.png")
+        wandb.save(f"./{global_step}_{ix}_heatmap.png")
             
 
     def update(self, replay_iter, step, actor1=False):
