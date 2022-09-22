@@ -32,5 +32,4 @@ encoder_target_tau: .05
 update_gc: ???
 gc_only: ???
 offline: ???
-load_protos: ???
 update_encoder: ${update_encoder}

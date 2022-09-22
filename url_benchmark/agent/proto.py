@@ -43,7 +43,7 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,load_protos,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -54,7 +54,7 @@ class ProtoAgent(DDPGAgent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
-        self.load_protos = load_protos
+        #self.load_protos = load_protos
 
         # models
         if self.gc_only==False:
@@ -86,11 +86,11 @@ class ProtoAgent(DDPGAgent):
             self.projector.train()
             self.protos.train()
         
-        elif self.load_protos:
-            self.protos = nn.Linear(pred_dim, num_protos,
-                                                    bias=False).to(self.device)
-            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-            self.projector = Projector(pred_dim, proj_dim).to(self.device)
+        #elif self.load_protos:
+        #    self.protos = nn.Linear(pred_dim, num_protos,
+        #                                            bias=False).to(self.device)
+        #    self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+        #    self.projector = Projector(pred_dim, proj_dim).to(self.device)
 
     def init_from(self, other):
         # copy parameters over
@@ -253,20 +253,21 @@ class ProtoAgent(DDPGAgent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            #goal = self.encoder(goal)
+            
+            goal = self.encoder(goal)
 
             if not self.update_encoder:
             
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-             #   goal=goal.detach()
+                goal=goal.detach()
         
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal, action, reward, discount,
+                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal, step))
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
