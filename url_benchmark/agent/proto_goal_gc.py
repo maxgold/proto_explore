@@ -725,7 +725,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [.15, -.15]
+            init = [-.15, .15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
