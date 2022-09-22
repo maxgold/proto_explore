@@ -262,6 +262,7 @@ class ProtoGCEncoderAgent(DDPGAgent):
             goal = self.encoder(goal)
 
             if not self.update_encoder: 
+                print('not updating encoder')
                 obs = obs.detach()
                 next_obs = next_obs.detach()
                 goal=goal.detach()

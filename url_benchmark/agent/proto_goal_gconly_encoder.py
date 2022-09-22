@@ -49,7 +49,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoGoalAgent(DDPGGoalAgent):
+class ProtoGoalGConlyEncoderAgent(DDPGGoalAgent):
     def __init__(self, pred_dim,proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder,update_gc, gc_only, 
                  offline, load_protos, task, frame_stack, action_repeat, replay_buffer_num_workers,
@@ -116,7 +116,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
 
             # optimizers
             self.proto_opt = torch.optim.Adam(utils.chain(
-                self.encoder.parameters(), self.predictor.parameters(),
+                self.predictor.parameters(),
                 self.projector.parameters(), self.protos.parameters()),
                                           lr=self.lr)
 
@@ -592,7 +592,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
             if self.eval_every_step(global_step) and global_step!=0:
                 if global_step < self.cut_off:
                     #self.eval(global_step)
-                    print('not evaluating')
+                    print('not eval')
                 else:
                     self.eval_all_proto(global_step)
                 #self.eval(global_step)
@@ -753,7 +753,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [-.15, 15]
+            init = [-.15, .15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
@@ -812,8 +812,8 @@ class ProtoGoalAgent(DDPGGoalAgent):
         plt.clf()
         fig, ax = plt.subplots()
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        plt.savefig(f"./{global_step}_heatmap.png")
-        wandb.save(f"./{global_step}_heatmap.png")
+        plt.savefig(f"./{global_step}_{ix}_heatmap.png")
+        wandb.save(f"./{global_step}_{ix}_heatmap.png")
             
 
     def update(self, replay_iter, step, actor1=False):
@@ -897,16 +897,16 @@ class ProtoGoalAgent(DDPGGoalAgent):
         #    next_obs = self.encoder(next_obs)
             #goal = self.encoder(goal)
 
-          #  if not self.update_encoder:
-            
-            obs = obs.detach()
-            next_obs = next_obs.detach()
+            if not self.update_encoder:
+                print('not updating encoder')
+                obs = obs.detach()
+                next_obs = next_obs.detach()
              #   goal=goal.detach()
         
             # update critic
             metrics.update(
-                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
-                               next_obs.detach(), step))
+                self.update_critic(obs, goal, action, reward, discount,
+                               next_obs, step))
             # update actor
             metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
