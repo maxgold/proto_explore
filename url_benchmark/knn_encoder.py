@@ -53,13 +53,12 @@ def ndim_grid(ndims, space):
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 goal_array = torch.as_tensor(ndim_grid(2,10))
-a = np.random.uniform(-.29,.29, size=(1000,2))
+a = np.random.uniform(-.29,.29, size=(2000,2))
 a = torch.as_tensor(a)
 # b = np.zeros((1000,2))
 # states = np.concatenate((a,b), axis=1)
 
 # dist_goal = cdist(np.array([[-.15, .29]]), a, 'euclidean')
-import IPython as ipy; ipy.embed(colors='neutral')
 state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
 all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
 

@@ -591,8 +591,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                        
             if self.eval_every_step(global_step) and global_step!=0:
                 if global_step < self.cut_off:
-                    print('not eval')
-                    #self.eval(global_step)
+                    self.eval_heatmap_only(global_step)
                 else:
                     self.eval_all_proto(global_step)
                 #self.eval(global_step)
@@ -657,6 +656,12 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         plt.savefig(f"./{model_step}_gc_reward.png")
         wandb.save(f"./{model_step}_gc_reward.png")  
             
+    def eval_heatmap_only(self, global_step):
+
+        if global_step<=self.cut_off:
+            self.heatmaps(self.eval_env, global_step, False, True)
+        else:
+            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
 
     def eval(self, global_step):
         
