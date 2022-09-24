@@ -126,8 +126,8 @@ class ProtoGoalAgent(DDPGGoalAgent):
         
         elif self.load_protos:
             self.protos = nn.Linear(pred_dim, num_protos,bias=False).to(self.device)
-            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-            self.projector = Projector(pred_dim, proj_dim).to(self.device)
+            #self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            #self.projector = Projector(pred_dim, proj_dim).to(self.device)
         
         self.logger = Logger(self.work_dir, use_tb=self.use_tb, use_wandb=self.use_wandb)
         work_path = str(os.getcwd().split('/')[-2])+'/'+str(os.getcwd().split('/')[-1])
@@ -387,48 +387,36 @@ class ProtoGoalAgent(DDPGGoalAgent):
                                                      
                             z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
                             all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                            print('_1', self.init_to_proto.shape)
-                            print('idx', self.init_to_proto[:,self.count].shape)
-                            print('goal', protos[self.init_to_proto[self.count]].shape)
                             self.goal = protos[self.init_to_proto[:,self.count]]
                             self.count+=1
                             self.constant_init_dist = True
-                            print('goal2', self.goal.shape)
                             
                         else:
                             z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
                             all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                            print('_1', self.init_to_proto.shape)
                             self.goal = protos[self.init_to_proto[:,self.count]]
                             self.count+=1
                             self.constant_init_dist = True
-                            print('goal3', self.goal.shape)
                             
                     
                     elif curriculum and self.constant_init_dist:
                         self.goal = protos[self.init_to_proto[:,self.count]]
                         self.count+=1
-                        print('goal4', self.goal.shape)
                     
                     else:
                         idx = np.random.randint(0, protos.shape[0])
-                        print('idx', idx)
                         self.goal = protos[idx][None,:]
-                        print('goal5', self.goal.shape)
                         
                 ptr = self.goal_queue_ptr
-                print('goal queue', self.goal_queue.shape)
-                print('ptr', ptr)
-                print('goal6', self.goal.shape)
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
-            if self.step==500 or self.time_step1.last():
+            if self.step==500 or (self.time_step1.last() and self.time_step2.last()):
                 #import IPython as ipy; ipy.embed(colors='neutral')
                 print('step=500, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
-                self.replay_storage2.add(self.time_step2,self.meta, True)
+                self.replay_storage2.add(self.time_step2,self.meta, True, last=True)
                 if global_step < self.cut_off:
                     self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None, 
@@ -460,7 +448,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
                     
                 self.replay_storage2.add(self.time_step2, self.meta, True)
-
+                
                 if self.metrics is not None:
                     # log stats
                     self._global_episode += 1
@@ -474,7 +462,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
                         log('episode', self._global_episode)
                         log('buffer_size', len(self.replay_storage1))
                         log('step', global_step)
-             #    self.replay_storage2.add(time_step2, meta, True) 
+
 
 
 
@@ -603,7 +591,8 @@ class ProtoGoalAgent(DDPGGoalAgent):
                        
             if self.eval_every_step(global_step) and global_step!=0:
                 if global_step < self.cut_off:
-                    self.eval(global_step)
+                    #self.eval(global_step)
+                    print('not evaluating')
                 else:
                     self.eval_all_proto(global_step)
                 #self.eval(global_step)
@@ -814,17 +803,17 @@ class ProtoGoalAgent(DDPGGoalAgent):
                 episode += 1
                 
                 self.video_recorder.save(f'{global_step}_{ix}th_proto.mp4')
-                df.loc[ix, 'x'] = reached[0]
-                df.loc[ix, 'y'] = reached[1]
-                df.loc[ix, 'r'] = total_reward
+            df.loc[ix, 'x'] = reached[0]
+            df.loc[ix, 'y'] = reached[1]
+            df.loc[ix, 'r'] = total_reward
             
-            #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
-            #print(result)
-            #plt.clf()
-            #fig, ax = plt.subplots()
-            #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-            #plt.savefig(f"./{global_step}_{ix}_heatmap.png")
-            #wandb.save(f"./{global_step}_{ix}_heatmap.png")
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        print(result)
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./{global_step}_heatmap.png")
+        wandb.save(f"./{global_step}_heatmap.png")
             
 
     def update(self, replay_iter, step, actor1=False):
@@ -919,7 +908,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
                                next_obs.detach(), step))
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal, step))
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
