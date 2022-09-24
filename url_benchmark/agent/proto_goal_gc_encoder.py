@@ -662,6 +662,12 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         plt.savefig(f"./{model_step}_gc_reward.png")
         wandb.save(f"./{model_step}_gc_reward.png")  
             
+    def eval_heatmap_only(self, global_step):
+
+        if global_step<=self.cut_off:
+            self.heatmaps(self.eval_env, global_step, False, True)
+        else:
+            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
 
     def eval(self, global_step):
         
