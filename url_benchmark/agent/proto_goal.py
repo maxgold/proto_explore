@@ -142,7 +142,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
         self.goal_queue_ptr = 0 
         self.count = 0
         self.constant_init_env = False
-        self.cut_off = 500000
+        self.cut_off = 900000
         self.ts_init = None
         self.z = None
         self.obs2 = None
@@ -759,7 +759,8 @@ class ProtoGoalAgent(DDPGGoalAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [-.15, .15]
+            init = np.random.uniform((-.29,.29),size=(2,))
+            #init = [-.15, .15]
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
