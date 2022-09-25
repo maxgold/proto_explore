@@ -142,7 +142,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.goal_queue_ptr = 0 
         self.count = 0
         self.constant_init_env = False
-        self.cut_off = 500000
+        self.cut_off = 900000
         self.ts_init = None
         self.z = None
         self.obs2 = None
@@ -340,7 +340,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         else:
             
             #no reward for too  long so sample goal nearby 
-            if self.episode_step == 500:
+            if self.episode_step == 100:
                 print('goal not reach, resample', self.step)
                 self.episode_step=0
                 self.episode_reward=0
@@ -411,9 +411,9 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
-            if self.step==500 or (self.time_step1.last() and self.time_step2.last()):
+            if self.step==100 or (self.time_step1.last() and self.time_step2.last()):
                 #import IPython as ipy; ipy.embed(colors='neutral')
-                print('step=500, saving last episode')
+                print('step=100, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
                 self.replay_storage2.add(self.time_step2,self.meta, True, last=True)
@@ -512,7 +512,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
             self.episode_reward += self.reward 
 
-            if self.step!=500 and self.time_step1.last()==False and self.time_step2.last()==False:
+            if self.step!=100 and self.time_step1.last()==False and self.time_step2.last()==False:
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
                 self.replay_storage2.add(self.time_step2, self.meta, True)
 
@@ -778,7 +778,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         
         for ix in range(protos.shape[0]):
             step, episode, total_reward = 0, 0, 0
-            init = [-.15, .15]
+            init = np.random.uniform((-0.29, .29),size=2)
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                     self.action_repeat, seed=None, goal=None, init_state=init_state)
