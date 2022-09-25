@@ -340,7 +340,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
         else:
             
             #no reward for too  long so sample goal nearby 
-            if self.episode_step == 500:
+            if self.episode_step == 100:
                 print('goal not reach, resample', self.step)
                 self.episode_step=0
                 self.episode_reward=0
@@ -411,9 +411,9 @@ class ProtoGoalAgent(DDPGGoalAgent):
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
-            if self.step==500 or (self.time_step1.last() and self.time_step2.last()):
+            if self.step==100 or (self.time_step1.last() and self.time_step2.last()):
                 #import IPython as ipy; ipy.embed(colors='neutral')
-                print('step=500, saving last episode')
+                print('step=100, saving last episode')
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
                 self.replay_storage2.add(self.time_step2,self.meta, True, last=True)
@@ -463,9 +463,6 @@ class ProtoGoalAgent(DDPGGoalAgent):
                         log('buffer_size', len(self.replay_storage1))
                         log('step', global_step)
 
-
-
-
             meta = self.update_meta(self.meta, global_step, self.time_step1)
             
             # sample action
@@ -512,7 +509,7 @@ class ProtoGoalAgent(DDPGGoalAgent):
             
             self.episode_reward += self.reward 
 
-            if self.step!=500 and self.time_step1.last()==False and self.time_step2.last()==False:
+            if self.step!=100 and self.time_step1.last()==False and self.time_step2.last()==False:
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
                 self.replay_storage2.add(self.time_step2, self.meta, True)
 
