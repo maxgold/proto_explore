@@ -417,7 +417,7 @@ class Workspace:
             self._global_step += 1
 
 
-            if self._global_step%2000==0 and self._global_step<=500000:
+            if self._global_step%100000==0 and self._global_step>=500000:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent.encoder, path)

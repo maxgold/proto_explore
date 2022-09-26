@@ -528,6 +528,7 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
                 
         elif key <= self.hybrid_pct and self.goal_proto:
+            import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(250,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
