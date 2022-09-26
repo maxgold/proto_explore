@@ -376,8 +376,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
                     print('dist', all_dists)
-                    print('knn: kth neighbor as goal', rand)
-                    idx = _[:,-rand+1]
+                    idx = _[:,-rand]
                     self.goal = protos[idx]
                     self.goal_key = idx.item()
                 else:

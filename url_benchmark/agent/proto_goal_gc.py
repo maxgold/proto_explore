@@ -352,8 +352,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
                     print('dist', all_dists)
-                    print('knn: kth neighbor as goal', -self.goal_topk+1)
-                    idx = _[:,-self.goal_topk+1]
+                    idx = _[:,-self.goal_topk]
                     self.goal = protos[idx]
                     self.goal_key = idx.item()
                 else:
@@ -485,6 +484,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
                 if torch.all(self.goal.eq(protos[_])):
                     self.reward=torch.as_tensor(1)
+                    self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
                 else:
                     self.reward=torch.as_tensor(0)
 
