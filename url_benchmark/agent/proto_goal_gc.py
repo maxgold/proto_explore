@@ -499,6 +499,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                 all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
                 if torch.all(self.goal.eq(protos[_])):
                     self.reward=torch.as_tensor(1)
+                    self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
                 else:
                     self.reward=torch.as_tensor(0)
 
