@@ -32,7 +32,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
                 hidden_dim, batch_size,update_gc, lr,gc_only,offline, load_protos, task, frame_stack, action_repeat=2, 
                replay_buffer_num_workers=4, discount=.99, reward_scores=False, 
                num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
-               work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None, eval_after_step=990000, episode_length=100, reward_nn=True):
+               work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None, 
+               eval_after_step=990000, episode_length=100, reward_nn=True, hybrid_gc=False, hybrid_pct=0):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -62,6 +63,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.eval_after_step = eval_after_step
     cfg.episode_length = episode_length
     cfg.reward_nn = reward_nn
+    cfg.hybrid_gc = hybrid_gc
+    cfg.hybrid_pct = hybrid_pct
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -174,7 +177,9 @@ class Workspace:
                                 seed=cfg.seed,
                                 eval_after_step=cfg.eval_after_step,
                                 episode_length=cfg.episode_length,
-                                reward_nn=cfg.reward_nn)
+                                reward_nn=cfg.reward_nn,
+                                hybrid_gc=cfg.hybrid_gc,
+                                hybrid_pct=cfg.hybrid_pct)
 
         if self.cfg.load_encoder:
             #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')

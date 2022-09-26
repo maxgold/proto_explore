@@ -57,7 +57,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                  offline, load_protos, task, frame_stack, action_repeat, replay_buffer_num_workers,
                  discount, reward_nn, reward_scores, num_seed_frames, task_no_goal,
                  work_dir, goal_queue_size, tmux_session, eval_every_frames,
-                 seed, eval_after_step, episode_length, **kwargs):
+                 seed, eval_after_step, episode_length, hybrid_gc, hybrid_pct, **kwargs):
         super().__init__(**kwargs)
         self.first = True
         self.tau = tau
@@ -88,6 +88,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.seed = seed
         self.eval_after_step = eval_after_step
         self.episode_length = episode_length
+        self.hybrid_gc = hybrid_gc
+        self.hybrid_pct = hybrid_pct
 #         self.lr = .0001
         self.batch_size=256
         self.goal=None
@@ -186,7 +188,19 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                   self.work_dir / 'buffer1')
 
         # create replay buffer
-        self.replay_loader1 = make_replay_loader(self.replay_storage1,
+
+        if self.hybrid_gc:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                False,
+                                                1000000,
+                                                self.batch_size,
+                                                self.replay_buffer_num_workers,
+                                                False, 1, self.discount,
+                                                True, hybrid=self.hybrid_gc,obs_type=self.obs_type, 
+						hybrid_pct=self.hybrid_pct, goal_proto=True, agent=self) 
+        
+        else:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                 False,
                                                 1000000,
                                                 self.batch_size,
