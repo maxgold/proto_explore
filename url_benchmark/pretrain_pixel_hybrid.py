@@ -262,7 +262,7 @@ class Workspace:
             print('regular or hybrid_gc loader')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
-                                                    100000,
+                                                    cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,

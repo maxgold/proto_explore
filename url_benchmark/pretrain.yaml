@@ -62,9 +62,11 @@ switch_gc: False
 load_encoder: ???
 load_proto: ???
 reward_scores: False
-reward_euclid: True
 goal_queue_size: 10
 const_init: True
+reward_nn: True
+eval_after_step: 990000
+episode_length: 100
 # experiment
 experiment: exp
 

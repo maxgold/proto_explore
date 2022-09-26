@@ -528,23 +528,22 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
                 
         elif key <= self.hybrid_pct and self.goal_proto:
-            idx = np.random.randint(250,episode_len(episode))
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
             z = episode["observation"][idx_goal][None,:]
             protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
-            print('state', episode["state"][idx_goal])
             z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-            _ = np.argsort(z_to_proto, axis=1)[:,-1:]
-            print('_', _)
-            print('sort', np.sort(z_to_proto, axis=1)[:,-10:])
+            _ = np.argsort(z_to_proto, axis=1)[:,0]
             goal = protos[_].reshape((128,))
 
             for i in range(1):
                 obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-                dists_idx = np.argsort(obs_to_proto, axis=1)[:,-1:]
+                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
+                
                 if np.array_equal(goal,protos[dists_idx]):
                     reward=1
                 else:
@@ -557,7 +556,7 @@ class ReplayBuffer(IterableDataset):
         else:
             print('sth went wrong in replay buffer')
         
-        goal = goal.astype(int)
+        #goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         return (obs, action, reward, discount, next_obs, goal, *meta)
 
