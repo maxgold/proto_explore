@@ -135,6 +135,7 @@ for x in goal_array:
         proto_goal.append(z)
         
 for x in a:
+
     with torch.no_grad():
         with eval_env_goal.physics.reset_context():
             time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item(),0,0]))
@@ -165,6 +166,7 @@ all_dists_proto, _proto = torch.topk(proto_to_goal, 10, dim=1, largest=False)
 
 filenames=[]
 for ix, x in enumerate(goal_array):
+    print('goal',ix)
     num=11
     colors = ['blue'] + ['red']*10 + ['black']*(a.shape[0]-11)
     data = np.empty((a.shape[0],4))
@@ -211,6 +213,7 @@ for file in filenames:
 
 filenames=[]
 for ix, x in enumerate(goal_array):
+    print('goal proto',ix)
     num=11
     colors = ['blue'] + ['red']*10 + ['black']*(a.shape[0]-11)
     data = np.empty((a.shape[0],4))

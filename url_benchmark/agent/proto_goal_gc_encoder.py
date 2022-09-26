@@ -18,6 +18,8 @@ from video import TrainVideoRecorder, VideoRecorder
 import os
 import wandb
 from pathlib import Path
+from collections import defaultdict
+import io
 
 @jit.script
 def sinkhorn_knopp(Q):
@@ -53,9 +55,9 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
     def __init__(self, pred_dim,proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder,update_gc, gc_only, 
                  offline, load_protos, task, frame_stack, action_repeat, replay_buffer_num_workers,
-                 discount, reward_scores, reward_euclid, num_seed_frames, task_no_goal,
+                 discount, reward_scores, reward_nn, num_seed_frames, task_no_goal,
                  work_dir, goal_queue_size, tmux_session, eval_every_frames,
-                 seed, **kwargs):
+                 seed, eval_after_step, episode_length, **kwargs):
         super().__init__(**kwargs)
         self.first = True
         self.tau = tau
@@ -72,7 +74,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.replay_buffer_num_workers = replay_buffer_num_workers
         self.discount = discount
         self.reward_scores = reward_scores
-        self.reward_euclid = reward_euclid
+        self.reward_nn = reward_nn
         self.num_seed_frames = num_seed_frames
         self.task_no_goal = task_no_goal
         self.work_dir = work_dir
@@ -84,6 +86,8 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.eval_every_frames=eval_every_frames
         self.eval_every_step = utils.Every(self.eval_every_frames, self.action_repeat)
         self.seed = seed
+        self.eval_after_step = eval_after_step
+        self.episode_length = episode_length
 #         self.lr = .0001
         self.batch_size=256
         self.goal=None
@@ -142,10 +146,11 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.goal_queue_ptr = 0 
         self.count = 0
         self.constant_init_env = False
-        self.cut_off = 900000
         self.ts_init = None
         self.z = None
         self.obs2 = None
+        self.goal_key = None
+        self.state_proto_pair = {}
         
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
@@ -316,6 +321,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
             protos = self.protos.weight.data.detach().clone()
             self.goal=protos[0][None,:]
+            self.goal_key = 0
             ptr = self.goal_queue_ptr
             self.goal_queue[ptr] = self.goal
             self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
@@ -338,9 +344,10 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             self.replay_storage2.add(self.time_step2, self.meta, True)
             
         else:
-            
+             
             #no reward for too  long so sample goal nearby 
-            if self.episode_step == 100:
+            if self.episode_step == self.episode_length:
+                print('keys',self.state_proto_pair.keys())
                 print('goal not reach, resample', self.step)
                 self.episode_step=0
                 self.episode_reward=0
@@ -359,75 +366,86 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 
                 self.obs2 = self.time_step2.observation['pixels']
     
-                if global_step < self.cut_off:
-                    self.gaol_topk = np.random.randint(1,10)
+                #if global_step < self.cut_off:
+                self.gaol_topk = np.random.randint(1,10)
+                if self.reward_nn and self.reward_scores==False:
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
-                    print('z_to_proto', z_to_proto.shape)
                     print('goal_topk', self.goal_topk)
                     all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
                     rand = min(np.random.randint(1,10), self.goal_topk)
-                    print('_', _.shape)
-                    idx = _[:,-rand]
+                    print('state', self.time_step1.observation['observations'])
+                    print('knn', _)
+                    print('dist', all_dists)
+                    print('knn: kth neighbor as goal', rand)
+                    idx = _[:,-rand+1]
                     self.goal = protos[idx]
-                    print('goal', self.goal.shape)
-                 
+                    self.goal_key = idx.item()
                 else:
-                    print('const init')
-                    if self.count==512:
-                        self.count=0
-                    if curriculum and self.constant_init_dist == False:
-                        if self.ts_init is None:
-                            with torch.no_grad():
-                                ts_init = self.time_step_init
-                                ts_init = torch.as_tensor(obs, device=self.device)
-                                ts_init = self.encoder(ts_init)
-                                ts_init = self.predictor(ts_init)
-                                ts_init = self.projector(ts_init)
-                                self.ts_init = F.normalize(ts_init, dim=1, p=2)
-                                                     
-                            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-                            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                            self.goal = protos[self.init_to_proto[:,self.count]]
-                            self.count+=1
-                            self.constant_init_dist = True
-                            
-                        else:
-                            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-                            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                            self.goal = protos[self.init_to_proto[:,self.count]]
-                            self.count+=1
-                            self.constant_init_dist = True
-                            
-                    
-                    elif curriculum and self.constant_init_dist:
-                        self.goal = protos[self.init_to_proto[:,self.count]]
-                        self.count+=1
-                    
-                    else:
-                        idx = np.random.randint(0, protos.shape[0])
-                        self.goal = protos[idx][None,:]
-                        
+                    print('no code for reward scores yet')
+                    self.goal = None
+                    self.goal_key=None
+                 
+                #else:
+                #    print('const init')
+                #    if self.count==512:
+                #        self.count=0
+                #    if curriculum and self.constant_init_dist == False:
+                #        if self.ts_init is None:
+                #            with torch.no_grad():
+                #                ts_init = self.time_step_init
+                #                ts_init = torch.as_tensor(obs, device=self.device)
+                #                ts_init = self.encoder(ts_init)
+                #                ts_init = self.predictor(ts_init)
+                #                ts_init = self.projector(ts_init)
+                #                self.ts_init = F.normalize(ts_init, dim=1, p=2)
+                #                                     
+                #            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+                #            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                #            self.goal = protos[self.init_to_proto[:,self.count]]
+                #            self.goal_key = self.init_to_proto[:,self.count]
+                #            self.count+=1
+                #            self.constant_init_dist = True
+                #            
+                #        else:
+                #            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+                #            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                #            self.goal = protos[self.init_to_proto[:,self.count]]
+                #            self.goal_key = self.init_to_proto[:,self.count]
+                #            self.count+=1
+                #            self.constant_init_dist = True
+                #            
+                #
+                #    elif curriculum and self.constant_init_dist:
+                #        self.goal = protos[self.init_to_proto[:,self.count]]
+                #        self.goal_key = self.init_to_proto[:,self.count]
+                #        self.count+=1
+                #    
+                #    else:
+                #        idx = np.random.randint(0, protos.shape[0])
+                #        self.goal = protos[idx][None,:]
+                #        self.goal_key = idx
                 ptr = self.goal_queue_ptr
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
-            if self.step==100 or (self.time_step1.last() and self.time_step2.last()):
+            if self.step==self.episode_length or (self.time_step1.last() and self.time_step2.last()):
                 #import IPython as ipy; ipy.embed(colors='neutral')
-                print('step=100, saving last episode')
+                print('step={}, saving last episode'.format(self.episode_length))
                 self.step=0
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
                 self.replay_storage2.add(self.time_step2,self.meta, True, last=True)
-                if global_step < self.cut_off:
-                    self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                #if global_step < self.cut_off:
+                
+                self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None, 
                                              init_state=(self.time_step1.observation['observations'][0], self.time_step1.observation['observations'][1]))
                     
-                else:
-                    print('make constant ini env')
-                    if self.constant_init_env==False:
-                        self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
-                                         self.action_repeat, seed=None, goal=None,init_state=(-.15, .15))
-                        self.constant_init_env=True
+                #else:
+                #    print('make constant ini env')
+                #    if self.constant_init_env==False:
+                #        self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                #                         self.action_repeat, seed=None, goal=None,init_state=(-.15, .15))
+                #        self.constant_init_env=True
                     
                 self.time_step1 = self.train_env1.reset()
                 self.time_step2 = self.train_env2.reset()
@@ -496,23 +514,24 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
             self.obs2 = self.time_step2.observation['pixels']
             
-            if self.reward_scores:
+            if self.reward_nn:
                 protos = self.protos.weight.data.detach().clone()
                 z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
                 all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
                 if torch.all(self.goal.eq(protos[_])):
                     self.reward=torch.as_tensor(1)
+                    self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
                 else:
                     self.reward=torch.as_tensor(0)
 
-            elif self.reward_euclid:
-                self.reward = -torch.norm(self.z[:, None, :] - self.goal[None, :,:], dim=2, p=2)
-                print('reward_euclid', self.reward)
-            #if max score == self.goal then reward = 1, otherwise =0
+            elif self.reward_scores:
+                self.reward=None
+                #self.reward = -torch.norm(self.z[:, None, :] - self.goal[None, :,:], dim=2, p=2)
+                print('reward_scores, not written code yet')
             
             self.episode_reward += self.reward 
 
-            if self.step!=100 and self.time_step1.last()==False and self.time_step2.last()==False:
+            if self.step!=self.episode_length and self.time_step1.last()==False and self.time_step2.last()==False:
                 self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
                 self.replay_storage2.add(self.time_step2, self.meta, True)
 
@@ -522,9 +541,10 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 self.metrics = self.update(self.replay_iter2, global_step, actor1=False)
 
             idx = None
-            if (self.reward_scores and self.episode_reward > 10) and global_step<self.cut_off:
+            #if (self.reward_nn and self.episode_reward > 10) and global_step<self.cut_off:
+            if (self.reward_nn and self.episode_reward > 10):
                 self.episode_step, self.episode_reward = 0, 0
-                print('sampling new goal', self.step)
+                print('reached.sampling new goal', self.step)
                 #import IPython as ipy; ipy.embed(colors='neutral')   
                 protos = self.protos.weight.data.detach().clone()
                 protos_to_goal_queue = torch.norm(protos[:, None,:] - self.goal_queue[None, :, :], dim=2, p=2)
@@ -545,65 +565,64 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 
                 if idx is None:
                     print('nothing fits sampling criteria, reevaluate')
-                    idx = np.random.randint(0,protos.shape[0])
+                    #idx = np.random.randint(0,protos.shape[0])
                     
                     self.goal=protos[idx][None,:]
-                    print('goal2', self.goal.shape)       
+                    #will break code 
+
                 self.goal = protos[idx][None,:]
+                self.goal_key = idx
                 #resample proto goal based on most recent k number of sampled goals(far from them) but close to current observaiton
-                ptr = self.goal_queue_ptr
-                self.goal_queue[ptr] = self.goal
-                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+#                ptr = self.goal_queue_ptr
+#                self.goal_queue[ptr] = self.goal
+#                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
                 
-            elif (self.episode_reward > 10) and global_step >=self.cut_off:
-                self.episode_step, self.episode_reward = 0, 0
-                if self.count==512:
-                    self.count=0
-                protos = self.protos.weight.data.detach().clone()
-                if curriculum and self.ts_init is None:
-                    with torch.no_grad():
-                        ts_init = self.time_step_init
-                        ts_init = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-                        ts_init = self.encoder(ts_init)
-                        ts_init = self.predictor(ts_init)
-                        ts_init = self.projector(ts_init)
-                        self.ts_init = F.normalize(ts_init, dim=1, p=2)
-
-                    z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-                    all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                    print('_1', self.init_to_proto.shape)
-                    self.goal = protos[self.init_to_proto[:,self.count]]
-                    self.count+=1
-
-                elif curriculum and self.ts_init is not None:
-                    print('cutoff const init')
-                    self.goal = protos[self.init_to_proto[:,self.count]]
-                    self.count+=1
-
-                else:
-                    idx = np.random.randint(0, protos.shape[0])
-                    print('idx', idx)
-                    self.goal = protos[idx][None,:]
-                    
-        #        ptr = self.goal_queue_ptr
-        #        self.goal_queue[ptr] = self.goal
-        #        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+            #elif (self.episode_reward > 10) and global_step >=self.cut_off:
+            #elif (self.episode_reward > 10) and self.reward_nn==False and self.reward_scores==False:
+            #    self.episode_step, self.episode_reward = 0, 0
+            #    if self.count==512:
+            #        self.count=0
+            #    protos = self.protos.weight.data.detach().clone()
+            #    if curriculum and self.ts_init is None:
+            #        with torch.no_grad():
+            #            ts_init = self.time_step_init
+            #            ts_init = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+            #            ts_init = self.encoder(ts_init)
+            #            ts_init = self.predictor(ts_init)
+            #            ts_init = self.projector(ts_init)
+            #            self.ts_init = F.normalize(ts_init, dim=1, p=2)
+#
+            #       z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
+            #        all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
+            #        print('_1', self.init_to_proto.shape)
+            #        self.goal = protos[self.init_to_proto[:,self.count]]
+            #        self.goal_key = self.init_to_proto[:,self.count]
+            #        self.count+=1
+#
+#                elif curriculum and self.ts_init is not None:
+#                    print('cutoff const init')
+#                    self.goal = protos[self.init_to_proto[:,self.count]]
+#                    self.goal_key = self.init_to_proto[:,self.count]
+#                    self.count+=1
+#
+#                else:
+#                    idx = np.random.randint(0, protos.shape[0])
+#                    print('idx', idx)
+#                    self.goal = protos[idx][None,:]
+#                    self.goal_key = idx 
+#                ptr = self.goal_queue_ptr
+#                self.goal_queue[ptr] = self.goal
+#                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
                        
             if self.eval_every_step(global_step) and global_step!=0:
-                if global_step < self.cut_off:
+                if global_step < self.eval_after_step:
                     self.eval_heatmap_only(global_step)
                 else:
-                    self.eval_all_proto(global_step)
+                    self.eval_pairwise(global_step)
                 #self.eval(global_step)
             self.episode_step += 1
             self.step +=1
             
-    def eval_heatmap_only(self, global_step):
-
-        if global_step<=self.cut_off:
-            self.heatmaps(self.eval_env, global_step, False, True)
-        else:
-            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
 
     def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False):
         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
@@ -664,22 +683,22 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
     def eval_heatmap_only(self, global_step):
 
-        if global_step<=self.cut_off:
-            self.heatmaps(self.eval_env, global_step, False, True)
-        else:
-            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
+        #if global_step<=self.cut_off:
+        self.heatmaps(self.eval_env, global_step, False, True)
+        #else:
+        #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
 
     def eval(self, global_step):
         
-        if global_step<=self.cut_off:
-            self.heatmaps(self.eval_env, global_step, False, True)
-        else:
-            self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
+        #if global_step<=self.cut_off:
+        self.heatmaps(self.eval_env, global_step, False, True)
+        #else:
+        #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
         
         for ix in range(10):
             step, episode, total_reward = 0, 0, 0
-            #init = np.random.uniform((-0.29, .29),size=2)
+            #ininn.random.uniform((-0.29, .29),size=2)
             init = np.array([-.15, .15])
             init_state = (init[0], init[1])
             self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
@@ -716,7 +735,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                     time_step = self.eval_env.reset()
                     self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                     
-                    while not time_step.last():
+                    while step!=self.episode_length:
                         with torch.no_grad(),utils.eval_mode(self):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
@@ -733,15 +752,22 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                         time_step = self.eval_env.step(action)
                         #print('ts', time_step.observation['observations'])
                         self.video_recorder.record(self.eval_env)
-                        obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
-                        dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
+                        if self.reward_nn and self.reward_scores==False:
+                            obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                            dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
                         
-                        if torch.all(goal.eq(protos[dists_idx])):
-                            reward=1
-                            reached = time_step.observation['observations']
+                            if torch.all(goal.eq(protos[dists_idx])):
+                                reward=1
+                                reached = time_step.observation['observations']
                         
-                        else:
-                            reward=0
+                            else:
+                                reward=0
+                        elif self.reward_nn==False and self.reward_scores:
+                            reward = None
+                            print('havent written code for reward_scores yet')
+                        elif self.reward_nn and self.reward_scores:
+                            reward = None
+                            print('two reward calculation methods passed in')
                         
                         total_reward += reward
                         step += 1
@@ -769,11 +795,10 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
     def eval_all_proto(self, global_step):
 
-        if global_step<=self.cut_off:
-            self.heatmaps(self.eval_env, global_step, False, True)
-        else:
-            self.heatmaps(self.eval_env, global_step, False, True, model_step_lb=self.cut_off)
-
+        #if global_step<=self.cut_off:
+        self.heatmaps(self.eval_env, global_step, False, True)
+       # else:
+       #     self.heatmaps(self.eval_env, global_step, False, True, model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
         
         for ix in range(protos.shape[0]):
@@ -795,7 +820,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 time_step = self.eval_env.reset()
                 self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                 
-                while not time_step.last():
+                while step!=self.episode_length:
                     with torch.no_grad(), utils.eval_mode(self):
                         obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                         obs = self.encoder(obs)
@@ -810,19 +835,26 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                         
                     time_step = self.eval_env.step(action)
                     self.video_recorder.record(self.eval_env)
-                    obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
-                    dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
+                    if self.reward_nn and self.reward_scores==False:
+
+                        obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                        dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
                     
-                    if torch.all(goal.eq(protos[dists_idx])):
-                        reward=1
-                        reached = time_step.observation['observations']
-                        print('saving')
-                        print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix))
-                        save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix), [[time_step.observation['observations'][:2], total_reward, init, ix]])
+                        if torch.all(goal.eq(protos[dists_idx])):
+                            reward=1
+                            reached = time_step.observation['observations']
+                            print('saving')
+                            print(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix))
+                            save(str(self.work_dir)+'/eval_{}_{}.csv'.format(global_step, ix), [[time_step.observation['observations'][:2], total_reward, init, ix]])
                         
-                    else:
-                        reward=0
-                        
+                        else:
+                            reward=0
+                    elif self.reward_scores and self.reward_nn==False:
+                        reward = None
+                        print('havent written code for reward_scores yet')
+                    elif self.reward_nn and self.reward_scores:
+                        reward = None
+                        print('two reward calculation methods passed in') 
                     total_reward += reward
                     step += 1
                 episode += 1
@@ -839,6 +871,130 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
         plt.savefig(f"./{global_step}_{ix}_heatmap.png")
         wandb.save(f"./{global_step}_{ix}_heatmap.png")
+        
+        
+    def eval_pairwise(self, global_step):
+        save_video_idx = np.random.randint(0,512)        
+        self.heatmaps(self.eval_env, global_step, False, True)
+
+        protos = self.protos.weight.data.detach().clone()
+        #row: init, col: goal
+        df = pd.DataFrame(index=range(protos.shape[0]), columns=range(protos.shape[0]), dtype=np.float64)
+        df_dist = pd.DataFrame(index=range(protos.shape[0]), columns=range(protos.shape[0]), dtype=np.float64)
+        encoded = defaultdict(list)
+        
+        for i in range(protos.shape[0]):
+            step, episode, total_reward = 0, 0, 0
+            encoded_i = False
+            
+            if i in self.state_proto_pair.keys():
+                init = self.state_proto_pair[i][:2]
+                init = init + np.random.randn(init.shape[0],)*(.00001**.5)
+                
+                #add gaussian noise 
+            else:
+                print('this prototype was never reached in rollouts')
+                #make mesh grid & find closest?
+                #use continue for now 
+                continue
+            init_state = (init[0], init[1])
+            self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                    self.action_repeat, seed=None, goal=None, init_state=init_state)
+            
+            eval_until_episode = utils.Until(2)
+            meta = self.init_meta()
+            time_step = self.eval_env.reset()
+            reached=np.array([0.,0.])
+            
+            
+            for ix in range(protos.shape[0]):
+                goal = protos[ix][None, :]
+                step, episode, total_reward = 0, 0, 0
+
+                while eval_until_episode(episode):
+                    time_step = self.eval_env.reset()
+                    if ix== save_video_idx:
+                        self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+
+                    while step!=self.episode_length:
+                        with torch.no_grad(), utils.eval_mode(self):
+                            obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
+                            obs = self.encoder(obs)
+                            obs = self.predictor(obs)
+                            obs = self.projector(obs)
+                            obs = F.normalize(obs, dim=1, p=2)
+                            action = self.act(obs,
+                                                goal,
+                                                meta,
+                                                global_step,
+                                                eval_mode=True)
+                            
+                        if encoded_i == False:
+                            encoded['state'].append(init)
+                            encoded['proto_space'].append(obs)
+                            encoded_i = True
+
+                        time_step = self.eval_env.step(action)
+                        if ix== save_video_idx:
+                            self.video_recorder.record(self.eval_env)
+                        if self.reward_nn and self.reward_scores==False:
+
+                            obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                            dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
+
+                            if torch.all(goal.eq(protos[dists_idx])):
+                                reward=1
+                                reached = time_step.observation['observations']
+                            else:
+                                reward=0
+                        elif self.reward_scores and self.reward_nn==False:
+                            reward = None
+                            print('havent written code for reward_scores yet')
+                        elif self.reward_nn and self.reward_scores:
+                            reward = None
+                            print('two reward calculation methods passed in') 
+                        total_reward += reward
+                        step += 1
+                    
+                    episode += 1
+                    if ix== save_video_idx:
+                        self.video_recorder.save(f'{global_step}_{ix}th_proto.mp4')
+                df.loc[i, ix] = total_reward
+                
+            init_to_protos = torch.norm(encoded['proto_space'][-1] - protos[None, :, :], dim=2, p=2)
+            proto_dist, proto_dist_idx = torch.topk(init_to_protos, protos.shape[0], dim=1, largest=False)
+            df.fillna(0,inplace=True) 
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            for z in range(protos.shape[0]):
+                #starting from closest
+                df_dist.loc[i,z] = df.iloc[i,proto_dist_idx[:,z].item()]
+        
+        df_dist.fillna(0, inplace=True)
+        df.to_csv(self.work_dir /'proto_pairwise_eval.csv', index=False)
+        df_dist.to_csv(self.work_dir /'proto_pairwise_eval_sorted_dist.csv', index=False)
+        
+        
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(df_dist, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./pairwise_heatmap.png")
+        wandb.save(f"./pairwise_heatmap.png")
+        
+        final_encoded = dict()
+        for x in encoded.keys():
+            if x == 'proto_space':
+                final_encoded[x] = np.array([i.cpu().numpy() for i in encoded[x]])
+            else:
+                final_encoded[x] = np.array(encoded[x])
+        fn = self.work_dir / 'encoded_proto.npz'
+        with io.BytesIO() as bs:
+            np.savez_compressed(bs, **final_encoded)
+            bs.seek(0)
+            with fn.open("wb") as f:
+                f.write(bs.read())
+            
+            
+            
             
 
     def update(self, replay_iter, step, actor1=False):
