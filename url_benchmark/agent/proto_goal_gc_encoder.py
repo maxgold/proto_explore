@@ -710,7 +710,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                     time_step = self.eval_env.reset()
                     self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                     
-                    while not time_step.last():
+                    while step<100:
                         with torch.no_grad(),utils.eval_mode(self):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
@@ -789,7 +789,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 time_step = self.eval_env.reset()
                 self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                 
-                while not time_step.last():
+                while step<100:
                     with torch.no_grad(), utils.eval_mode(self):
                         obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                         obs = self.encoder(obs)
