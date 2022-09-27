@@ -372,6 +372,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                         self.goal = protos[idx]
                         self.goal_key = idx.item()
                     else:
+                        print('freq', self.goal_freq)
                         goal_prob = 1/(self.goal_freq+1)
                         goal_prob = goal_prob/torch.norm(goal_prob)
                         idx = pyd.Categorical(goal_prob).sample()
@@ -870,6 +871,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         encoded = defaultdict(list)
         
         for i in range(protos.shape[0]):
+            print('i', i)
             step, episode, total_reward = 0, 0, 0
             encoded_i = False
             
@@ -894,6 +896,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             
             
             for ix in range(protos.shape[0]):
+                print('ix',ix)
                 goal = protos[ix][None, :]
                 step, episode, total_reward = 0, 0, 0
 
