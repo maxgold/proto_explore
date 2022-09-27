@@ -654,7 +654,7 @@ class Workspace:
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
                 self.video_recorder.init(self.eval_env, enabled=(episode == 0))
          
-                while not time_step.last():
+                while step!=100:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
                             action = self.agent.act(time_step_no_goal.observation['pixels'],
@@ -768,7 +768,7 @@ class Workspace:
                 
             else:
                 
-                if time_step1.last() or episode_step==500:
+                if time_step1.last() or episode_step==100:
                     print('last')
                     self._global_episode += 1
                     #self.train_video_recorder.save(f'{self.global_frame}.mp4')
