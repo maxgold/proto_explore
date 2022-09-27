@@ -398,8 +398,9 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                         goal_prob = 1/(self.goal_freq+1)
                         goal_prob = goal_prob/torch.norm(goal_prob)
                         idx = pyd.Categorical(goal_prob).sample()
-                        self.goal = protos[idx]
+                        self.goal = protos[idx][None,:]
                         print('prob of sampling this goal', goal_prob[idx])
+                        print('freq of this goal', self.goal_freq[idx])
                         self.goal_key = idx.item()
                 else:
                     print('no code for reward scores yet')
