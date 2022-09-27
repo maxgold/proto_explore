@@ -153,7 +153,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self.obs2 = None
         self.goal_key = None
         self.state_proto_pair = {}
-        self.goal_freq = torch.zeros((512,))
+        self.goal_freq = torch.zeros((self.num_protos,))
         
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
@@ -363,7 +363,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     #if global_step < 500000:
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
                     print('goal_topk', self.goal_topk)
-                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=False)
                     #rand = min(np.random.randint(1,10), self.goal_topk)
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
@@ -371,7 +371,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.goal=None
                     self.goal_key=None
                     
-                    for x in range(512):
+                    for x in range(self.num_protos):
                         idx = _[:,x]
                         if self.goal_freq[idx]<10:
                             self.goal = protos[idx]
@@ -558,7 +558,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     #if global_step < 500000:
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
                     print('goal_topk', self.goal_topk)
-                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=False)
                     #rand = min(np.random.randint(1,10), self.goal_topk)
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
@@ -566,7 +566,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                     self.goal=None
                     self.goal_key = None
                     
-                    for x in range(512):
+                    for x in range(self.num_protos):
                         idx = _[:,x]
                         if self.goal_freq[idx]<10:
                             self.goal = protos[idx]
@@ -953,7 +953,7 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         
         
     def eval_pairwise(self, global_step):
-        save_video_idx = np.random.randint(0,512)        
+        save_video_idx = np.random.randint(0,self.num_protos)        
         self.heatmaps(self.eval_env, global_step, False, True,gc=True)
 
         protos = self.protos.weight.data.detach().clone()

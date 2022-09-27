@@ -34,7 +34,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
                num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
                work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None, 
                eval_after_step=990000, episode_length=100, reward_nn=True, hybrid_gc=False, hybrid_pct=0, num_protos=512,
-               stddev_schedule=.2, stddev_clip=.3):
+               stddev_schedule=.2, stddev_clip=.3,proto_const_init=True):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -69,6 +69,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.num_protos = num_protos
     cfg.stddev_schedule = stddev_schedule
     cfg.stddev_clip = stddev_clip
+    cfg.proto_const_init=proto_const_init
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -186,7 +187,8 @@ class Workspace:
                                 hybrid_pct=cfg.hybrid_pct,
                                 num_protos=cfg.num_protos,
                                 stddev_schedule=cfg.stddev_schedule,
-                                stddev_clip=cfg.stddev_clip)
+                                stddev_clip=cfg.stddev_clip,
+                                proto_const_init=cfg.proto_const_init)
 
         if self.cfg.load_encoder:
             #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')

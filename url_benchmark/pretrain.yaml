@@ -70,6 +70,7 @@ episode_length: 100
 num_protos: 512
 stddev_schedule: .2
 stddev_clip: .3
+proto_const_init: True
 # experiment
 experiment: exp
 
