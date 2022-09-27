@@ -85,6 +85,11 @@ class ReplayBufferStorage:
         self._current_episode = defaultdict(list)
         self._current_episode_goal = defaultdict(list)
         self._preload()
+        self.state_visitation_proto = np.zeros((60,60))
+        self.state_visitation_proto_pct = np.zeros((20,20))
+        self.state_visitation_gc = np.zeros((60,60))
+        self.state_visitation_gc_pct = np.zeros((20,20))
+        self.reward_matrix = np.zeros((60,60))
 
     def __len__(self):
         return self._num_transitions
@@ -97,6 +102,17 @@ class ReplayBufferStorage:
                 value = time_step[spec.name]    
                 self._current_episode['observation'].append(value['pixels'])
                 self._current_episode['state'].append(value['observations'])
+                
+                tmp_state = value['observations']*100
+                idx_x = int(tmp_state[0])+29
+                idx_y = int(tmp_state[1])+29
+                self.state_visitation_proto[idx_x,idx_y]+=1
+                
+                tmp_state = tmp_state/3
+                idx_x = int(tmp_state[0])+9
+                idx_y = int(tmp_state[1])+9
+                self.state_visitation_proto_pct[idx_x,idx_y]+=1
+                
             else:
                 
                 value = time_step[spec.name]
@@ -104,6 +120,7 @@ class ReplayBufferStorage:
                     value = np.full(spec.shape, value, spec.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode[spec.name].append(value)
+                    
         if time_step.last() or last:
             episode = dict()
             for spec in self._data_specs:
@@ -131,12 +148,31 @@ class ReplayBufferStorage:
                 value = time_step_no_goal[spec.name]
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
+                
+                tmp_state = value['observations']*100
+                idx_x = int(tmp_state[0])+29
+                idx_y = int(tmp_state[1])+29
+                self.state_visitation_gc[idx_x,idx_y]+=1
+                
+                tmp_state = tmp_state/3
+                idx_x = int(tmp_state[0])+9
+                idx_y = int(tmp_state[1])+9
+                self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                
             else:
                 value = time_step[spec.name]
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode_goal[spec.name].append(value)
+                
+                if spec.name == 'reward' and pixels:
+                    value = time_step['observation']
+                    tmp_state = value['observations']*100
+                    idx_x = int(tmp_state[0])+29
+                    idx_y = int(tmp_state[1])+29
+                    self.reward_matrix[idx_x,idx_y]+=time_step['reward']
+                    
         if pixels:
             goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
@@ -181,9 +217,25 @@ class ReplayBufferStorage:
                 self._current_episode_goal['observation'].append(value1)
                 value2 = time_step[spec.name]
                 self._current_episode_goal['state'].append(value2['observations'])
+                
+                tmp_state = value2['observations']*100
+                idx_x = int(tmp_state[0])+29
+                idx_y = int(tmp_state[1])+29
+                self.state_visitation_gc[idx_x,idx_y]+=1
+                tmp_state = tmp_state/3
+                idx_x = int(tmp_state[0])+9
+                idx_y = int(tmp_state[1])+9
+                self.state_visitation_gc_pct[idx_x,idx_y]+=1
+
             elif spec.name=='reward':
                 value = np.array([reward]).reshape((-1,))
                 self._current_episode_goal['reward'].append(value)
+
+                value = time_step['observation']
+                tmp_state = value['observations']*100
+                idx_x = int(tmp_state[0])+29
+                idx_y = int(tmp_state[1])+29
+                self.reward_matrix[idx_x,idx_y]+=time_step['reward']
             else:
                 value = time_step[spec.name]
                 if np.isscalar(value):

@@ -67,6 +67,9 @@ const_init: True
 reward_nn: True
 eval_after_step: 990000
 episode_length: 100
+num_protos: 512
+stddev_schedule: .2
+stddev_clip: .3
 # experiment
 experiment: exp
 

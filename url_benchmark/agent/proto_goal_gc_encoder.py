@@ -382,27 +382,42 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
     
                 #if global_step < self.cut_off:
                 #self.gaol_topk = np.random.randint(1,10)
+            
                 if self.reward_nn and self.reward_scores==False:
-                    if global_step < 500000:
-                        z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
-                        print('goal_topk', self.goal_topk)
-                        all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
-                        rand = min(np.random.randint(1,10), self.goal_topk)
-                        print('state', self.time_step1.observation['observations'])
-                        print('knn', _)
-                        print('dist', all_dists)
-                        idx = _[:,-self.goal_topk+1]
-                        self.goal = protos[idx]
-                        self.goal_key = idx.item()
-                    else:
-                        print('freq', self.goal_freq)
-                        goal_prob = 1/(self.goal_freq+1)
-                        goal_prob = goal_prob/torch.norm(goal_prob)
-                        idx = pyd.Categorical(goal_prob).sample()
-                        self.goal = protos[idx][None,:]
-                        print('prob of sampling this goal', goal_prob[idx])
-                        print('freq of this goal', self.goal_freq[idx])
-                        self.goal_key = idx.item()
+                    #if global_step < 500000:
+                    z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
+                    print('goal_topk', self.goal_topk)
+                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    #rand = min(np.random.randint(1,10), self.goal_topk)
+                    print('state', self.time_step1.observation['observations'])
+                    print('knn', _)
+                    print('dist', all_dists)
+                    self.goal=None
+                    self.goal_key=None
+                    
+                    for x in range(512):
+                        idx = _[:,x]
+                        if self.goal_freq[idx]<10:
+                            self.goal = protos[idx]
+                            self.goal_key = idx.item()
+                            break
+                        else:
+                            continue
+
+                    if self.goal is None:
+                        idx=np.random.randint(protos.shape[0])
+                        self.goal=protos[idx]
+                        self.goal_key=idx
+
+                    #else:
+                    #    print('freq', self.goal_freq)
+                    #    goal_prob = 1/(self.goal_freq+1)
+                    #    goal_prob = goal_prob/torch.norm(goal_prob)
+                    #    idx = pyd.Categorical(goal_prob).sample()
+                    #    self.goal = protos[idx][None,:]
+                    #    print('prob of sampling this goal', goal_prob[idx])
+                    #    print('freq of this goal', self.goal_freq[idx])
+                    #    self.goal_key = idx.item()
                 else:
                     print('no code for reward scores yet')
                     self.goal = None
@@ -533,7 +548,6 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 self.z = self.projector(self.z)
                 self.z = F.normalize(self.z, dim=1, p=2)
                 #scores_z = self.protos(self.z)
-                
 
             self.obs2 = self.time_step2.observation['pixels']
             
@@ -567,36 +581,57 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
             idx = None
             #if (self.reward_nn and self.episode_reward > 10) and global_step<self.cut_off:
+            
             if (self.reward_nn and self.episode_reward > 10):
                 self.episode_step, self.episode_reward = 0, 0
                 print('reached.sampling new goal', self.step)
-                #import IPython as ipy; ipy.embed(colors='neutral')   
-                protos = self.protos.weight.data.detach().clone()
-                protos_to_goal_queue = torch.norm(protos[:, None,:] - self.goal_queue[None, :, :], dim=2, p=2)
-                #512xself.goal_queue.shape[0]
-                all_dists, _ = torch.topk(protos_to_goal_queue, self.goal_queue.shape[0], dim=1, largest=False)
-                #criteria of protos[idx] should be: 
-                #current self.goal's neghbor but increasingly further away from previous golas
-                for x in range(5,self.goal_queue.shape[0]*5):
-                    #select proto that's 5th closest to current goal 
-                    #current goal is indexed at self.goal_queue_ptr-1
-                    idx = _[x, self.goal_queue_ptr-1].item()
-                    for y in range(1,self.goal_queue.shape[0]):
-                        if torch.isin(idx, _[:5*(self.goal_queue.shape[0]-y), (self.goal_queue_ptr-1+y)%self.goal_queue.shape[0]]):
-                            continue
-                        else:
-                            break
-                    break
-                
-                if idx is None:
-                    print('nothing fits sampling criteria, reevaluate')
-                    #idx = np.random.randint(0,protos.shape[0])
-                    
-                    self.goal=protos[idx][None,:]
-                    #will break code 
 
-                self.goal = protos[idx][None,:]
-                self.goal_key = idx
+                #import IPython as ipy; ipy.embed(colors='neutral')
+                protos = self.protos.weight.data.detach().clone()
+                
+                if self.reward_nn and self.reward_scores==False:
+                    
+                    #if global_step < 500000:
+                    z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
+                    print('goal_topk', self.goal_topk)
+                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    #rand = min(np.random.randint(1,10), self.goal_topk)
+                    print('state', self.time_step1.observation['observations'])
+                    print('knn', _)
+                    print('dist', all_dists)
+                    self.goal=None
+                    self.goal_key = None
+                    
+                    for x in range(512):
+                        idx = _[:,x]
+                        if self.goal_freq[idx]<10:
+                            self.goal = protos[idx]
+                            print('goal',self.goal.shape)
+                            self.goal_key = idx.item()
+                            break
+                        else:
+                            continue
+
+                    if self.goal is None:
+                        idx=np.random.randint(protos.shape[0])
+                        self.goal=protos[idx][None,:]
+                        self.goal_key=idx
+
+                    #else:
+                    #    print('freq', self.goal_freq)
+                    #    goal_prob = 1/(self.goal_freq+1)
+                    #    goal_prob = goal_prob/torch.norm(goal_prob)
+                    #    idx = pyd.Categorical(goal_prob).sample()
+                    #    self.goal = protos[idx][None,:]
+                    #    print('prob of sampling this goal', goal_prob[idx])
+                    #    print('freq of this goal', self.goal_freq[idx])
+                    #    self.goal_key = idx.item()
+                
+                else:
+                    print('no code for reward scores yet')
+                    self.goal = None
+                    self.goal_key = None
+                    
                 #resample proto goal based on most recent k number of sampled goals(far from them) but close to current observaiton
 #                ptr = self.goal_queue_ptr
 #                self.goal_queue[ptr] = self.goal
@@ -649,74 +684,123 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             self.step +=1
             
 
-    def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False):
-        replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
+    def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
+#         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
 
-        replay_buffer = make_replay_offline(env,
-                                    Path(replay_dir),
-                                    2000000,
-                                    0,
-                                    0,
-                                    self.discount,
-                                    goal=goal,
-                                    relabel=False,
-                                    model_step=model_step,
-                                    model_step_lb=model_step_lb,
-                                    replay_dir2=False,
-                                    obs_type=self.obs_type, 
-                                    eval=True)
+#         replay_buffer = make_replay_offline(env,
+#                                     Path(replay_dir),
+#                                     2000000,
+#                                     0,
+#                                     0,
+#                                     self.discount,
+#                                     goal=goal,
+#                                     relabel=False,
+#                                     model_step=model_step,
+#                                     model_step_lb=model_step_lb,
+#                                     replay_dir2=False,
+#                                     obs_type=self.obs_type, 
+#                                     eval=True)
 
 
-        states, actions, rewards = replay_buffer.parse_dataset()
+#         states, actions, rewards = replay_buffer.parse_dataset()
 
-        #only adding states and rewards in replay_buffer
-        tmp = np.hstack((states, rewards))
-        df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
-        heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
-                                       range=np.array(([-.29, .29],[-.29, .29])))
-        plt.clf()
-        fig, ax = plt.subplots(figsize=(10,6))
-        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-        ax.set_title(model_step)
+#         #only adding states and rewards in replay_buffer
+#         tmp = np.hstack((states, rewards))
+#         df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
+#         heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
+#                                        range=np.array(([-.29, .29],[-.29, .29])))
+        if gc:
+        
+            heatmap = self.replay_storage1.state_visitation_gc
+        
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-        plt.savefig(f"./{model_step}_gc_heatmap.png")
-        wandb.save(f"./{model_step}_gc_heatmap.png")
+            plt.savefig(f"./{model_step}_gc_heatmap.png")
+            wandb.save(f"./{model_step}_gc_heatmap.png")
+            
+            
+            heatmap_pct = self.replay_storage1.state_visitation_gc_pct
+        
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-        #percentage breakdown
-        df=df*100
-        heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
-                                       range=np.array(([-29, 29],[-29, 29])))
-        plt.clf()
+            plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+            wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+            
+            
+            reward_matrix = self.replay_storage1.reward_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-        fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(heatmap.T/heatmap.sum()*100, 1)
-        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
+            plt.savefig(f"./{model_step}_gc_reward.png")
+            wandb.save(f"./{model_step}_gc_reward.png")
+        
+        if proto:
+            
+            heatmap = self.replay_storage2.state_visitation_proto
+        
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-        wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+            plt.savefig(f"./{model_step}_proto_heatmap.png")
+            wandb.save(f"./{model_step}_proto_heatmap.png")
+            
+            
+            heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+        
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-        #rewards seen thus far
-        df = df.astype(int)
-        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
-        result.fillna(0, inplace=True)
-        plt.clf()
-        fig, ax = plt.subplots()
-        sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
+            plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+            wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+            
 
-        plt.savefig(f"./{model_step}_gc_reward.png")
-        wandb.save(f"./{model_step}_gc_reward.png")  
+#         #percentage breakdown
+#         df=df*100
+#         heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
+#                                        range=np.array(([-29, 29],[-29, 29])))
+#         plt.clf()
+
+#         fig, ax = plt.subplots(figsize=(10,10))
+#         labels = np.round(heatmap.T/heatmap.sum()*100, 1)
+#         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
+
+#         plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+#         wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+
+#         #rewards seen thus far
+#         df = df.astype(int)
+#         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+#         result.fillna(0, inplace=True)
+#         plt.clf()
+#         fig, ax = plt.subplots()
+#         sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
+
+#         plt.savefig(f"./{model_step}_gc_reward.png")
+#         wandb.save(f"./{model_step}_gc_reward.png")  
             
     def eval_heatmap_only(self, global_step):
 
         #if global_step<=self.cut_off:
-        self.heatmaps(self.eval_env, global_step, False, True)
+        self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
         #else:
         #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
 
     def eval(self, global_step):
         
         #if global_step<=self.cut_off:
-        self.heatmaps(self.eval_env, global_step, False, True)
+        self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
         #else:
         #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
@@ -821,7 +905,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
     def eval_all_proto(self, global_step):
 
         #if global_step<=self.cut_off:
-        self.heatmaps(self.eval_env, global_step, False, True)
+        self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
        # else:
        #     self.heatmaps(self.eval_env, global_step, False, True, model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
@@ -900,7 +984,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         
     def eval_pairwise(self, global_step):
         save_video_idx = np.random.randint(0,512)        
-        self.heatmaps(self.eval_env, global_step, False, True)
+        self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
 
         protos = self.protos.weight.data.detach().clone()
         #row: init, col: goal
@@ -934,7 +1018,6 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
             
             for ix in range(protos.shape[0]):
-                print('ix', ix)
                 goal = protos[ix][None, :]
                 step, episode, total_reward = 0, 0, 0
 
