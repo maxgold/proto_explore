@@ -385,11 +385,11 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
                     print('goal_topk', self.goal_topk)
                     all_dists, _ = torch.topk(z_to_proto, self.goal_topk, dim=1, largest=False)
-                    rand = min(np.random.randint(1,10), self.goal_topk)
+                    #rand = min(np.random.randint(1,10), self.goal_topk)
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
                     print('dist', all_dists)
-                    idx = _[:,-rand]
+                    idx = _[:,-self.goal_topk+1]
                     self.goal = protos[idx]
                     self.goal_key = idx.item()
                 else:
