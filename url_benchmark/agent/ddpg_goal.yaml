@@ -17,8 +17,10 @@ use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
 hidden_dim: ???
 feature_dim: 50
-stddev_schedule: 0.2
-stddev_clip: 0.3
+stddev_schedule: ???
+stddev_schedule2: .2
+stddev_clip: ???
+stddev_clip2: .3
 nstep: 3
 batch_size: 256 # 256 for pixels
 init_critic: true

@@ -19,6 +19,8 @@ hidden_dim: ???
 feature_dim: 50
 stddev_schedule: ???
 stddev_clip: ???
+stddev_schedule2: ???
+stddev_clip2: ???
 nstep: 3
 init_critic: true
 pred_dim: 128
