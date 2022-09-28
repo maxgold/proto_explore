@@ -17,13 +17,13 @@ use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
 hidden_dim: ???
 feature_dim: 50
-stddev_schedule: 0.2
-stddev_clip: 0.3
+stddev_schedule: ???
+stddev_clip: ???
 nstep: 3
 init_critic: true
 pred_dim: 128
 proj_dim: 512
-num_protos: 512
+num_protos: ???
 tau: 0.1
 topk: 3
 queue_size: 2048
@@ -40,8 +40,8 @@ frame_stack: ???
 action_repeat: ??? 
 replay_buffer_num_workers: ???
 discount: ??? 
+reward_nn: ???
 reward_scores: ??? 
-reward_euclid: ??? 
 num_seed_frames: ??? 
 task_no_goal: ???
 work_dir: ??? 
@@ -49,3 +49,7 @@ goal_queue_size: ???
 tmux_session: ???
 eval_every_frames: ???
 seed: ???
+eval_after_step: ???
+episode_length: ???
+hybrid_gc: ???
+hybrid_pct: ???

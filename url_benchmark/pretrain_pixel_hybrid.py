@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0, switch_gc=False, film_gc=False):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0, stddev_schedule=.2,stddev_clip=.3, num_protos=512):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -43,10 +43,11 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal,
     cfg.lr = lr
     cfg.offline = offline
     cfg.gc_only = gc_only
-    if film_gc:
-        cfg.switch_gc = switch_gc
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
+    cfg.stddev_schedule = stddev_schedule
+    cfg.stddev_clip = stddev_clip
+    cfg.num_protos = num_protos
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -224,7 +225,10 @@ class Workspace:
                                 cfg.lr,
                                 cfg.offline,
                                 False,
-                                cfg.intr_coef) 
+                                cfg.intr_coef,
+                                cfg.stddev_schedule,
+                                cfg.stddev_clip,
+                                cfg.num_protos) 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -262,7 +266,7 @@ class Workspace:
             print('regular or hybrid_gc loader')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
-                                                    100000,
+                                                    cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
@@ -585,7 +589,7 @@ class Workspace:
                 if ix%10==0:
                     self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                 
-                while not time_step.last():
+                while step!=100:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
                             action = self.agent.act(time_step_no_goal.observation['pixels'],
@@ -669,7 +673,7 @@ class Workspace:
         
     def train(self):
         # predicates
-        resample_goal_every = 500
+        resample_goal_every = 100
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
@@ -704,7 +708,7 @@ class Workspace:
         metrics = None
         while train_until_step(self.global_step):
             
-            if (time_step1.last() and time_step2.last()) or episode_step==500:
+            if (time_step1.last() and time_step2.last()) or episode_step==100:
                 print('last')
                 self._global_episode += 1
                 #self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -930,7 +934,7 @@ class Workspace:
             
             self._global_step += 1
 
-            if self._global_step%50000==0 and self._global_step!=0:
+            if self._global_step%100000==0 and self._global_step!=0:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)

@@ -24,7 +24,7 @@ batch_size: ???
 init_critic: true
 pred_dim: 128
 proj_dim: 512
-num_protos: 512
+num_protos: ???
 tau: 0.1
 topk: 3
 queue_size: 2048

@@ -29,8 +29,10 @@ from dmc_benchmark import PRIMAL_TASKS
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal, cfg, 
                 hidden_dim, batch_size,update_gc, lr,gc_only,offline, load_protos, task, frame_stack, action_repeat=2, 
                replay_buffer_num_workers=4, discount=.99, reward_scores=False, 
-               reward_euclid=True, num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
-               work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None):
+               num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
+               work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None,
+               eval_after_step=990000, episode_length=100, reward_nn=True, hybrid_gc=False, hybrid_pct=0,num_protos=512,
+               stddev_schedule=.2, stddev_clip=.3):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -50,7 +52,6 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.replay_buffer_num_workers = replay_buffer_num_workers
     cfg.discount = discount
     cfg.reward_scores = reward_scores
-    cfg.reward_euclid = reward_euclid
     cfg.num_seed_frames = num_seed_frames
     cfg.task_no_goal = task_no_goal
     cfg.work_dir = work_dir
@@ -58,6 +59,14 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.tmux_session = tmux_session
     cfg.eval_every_frames = eval_every_frames
     cfg.seed = seed
+    cfg.eval_after_step = eval_after_step
+    cfg.episode_length = episode_length
+    cfg.reward_nn = reward_nn
+    cfg.hybrid_gc=hybrid_gc
+    cfg.hybrid_pct=hybrid_pct
+    cfg.num_protos=512
+    cfg.stddev_schedule=stddev_schedule
+    cfg.stddev_clip=stddev_clip
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -153,7 +162,7 @@ class Workspace:
                                 cfg.batch_size,
                                 cfg.update_gc,
                                 cfg.lr,
-                                True,
+                                False,
                                 cfg.offline,
                                 cfg.load_proto,
                                 cfg.task,
@@ -162,21 +171,32 @@ class Workspace:
                                 replay_buffer_num_workers = cfg.replay_buffer_num_workers,
                                 discount=cfg.discount,
                                 reward_scores = cfg.reward_scores,
-                                reward_euclid = cfg.reward_euclid,
                                 num_seed_frames = cfg.num_seed_frames,
                                 task_no_goal=cfg.task_no_goal,
                                 work_dir = self.work_dir,
                                 goal_queue_size=cfg.goal_queue_size,
                                 tmux_session=cfg.tmux_session,
                                 eval_every_frames=cfg.eval_every_frames,
-                                seed=cfg.seed)
+                                seed=cfg.seed,
+                                eval_after_step=cfg.eval_after_step,
+                                episode_length=cfg.episode_length,
+                                reward_nn=cfg.reward_nn,
+                                hybrid_gc=cfg.hybrid_gc,
+                                hybrid_pct=cfg.hybrid_pct,
+                                num_protos=cfg.num_protos,
+                                stddev_schedule=cfg.stddev_schedule,
+                                stddev_clip=cfg.stddev_clip)
 
         if self.cfg.load_encoder:
-            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth') 
+            encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
-            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
-            self.agent.init_protos_from(proto) 
+            proto = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
+            #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+            self.agent.init_protos_from(proto)  
 
         self.video_recorder = VideoRecorder(
            self.work_dir if cfg.save_video else None,
@@ -410,7 +430,7 @@ class Workspace:
             self._global_step += 1
 
 
-            if self._global_step%50000==0 and self._global_step!=0:
+            if self._global_step%100000==0 and self._global_step>=500000:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent.encoder, path)

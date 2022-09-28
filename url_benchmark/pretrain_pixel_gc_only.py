@@ -346,7 +346,7 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.proto_goal = []
-    
+        self.distance_goal_dict={} 
     
     
     
@@ -538,23 +538,44 @@ class Workspace:
             return proto2d
     
 
-    def sample_goal_distance(self):
+    def sample_goal_distance(self,init_state_idx=None):
 
         if self.goal_loaded==False:
 
             goal_array = ndim_grid(2,20)
-            dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')  
-            df1=pd.DataFrame()
-            df1['distance'] = dist_goal.reshape((400,))
-            df1['index'] = df1.index
-            df1 = df1.sort_values(by='distance')
-            goal_array_ = []
-            for x in range(len(df1)):
-                goal_array_.append(goal_array[df1.iloc[x,1]])
-            self.distance_goal = goal_array_
-            self.goal_loaded=True
-            index=self.global_step//1000
-            idx = np.random.randint(index,min(index+30, 400))
+            
+            if init_state_idx=None:
+                dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')  
+                df1=pd.DataFrame()
+                df1['distance'] = dist_goal.reshape((400,))
+                df1['index'] = df1.index
+                df1 = df1.sort_values(by='distance')
+                goal_array_ = []
+                for x in range(len(df1)):
+                    goal_array_.append(goal_array[df1.iloc[x,1]])
+                self.distance_goal = goal_array_
+                self.goal_loaded=True
+                index=self.global_step//1000
+                idx = np.random.randint(index,min(index+30, 400))
+            else:
+                dist_goal0 = cdist(np.array([[.15,.15]]), goal_array, 'euclidean')
+                dist_goal1 = cdist(np.array([[.15,-.15]]), goal_array, 'euclidean')
+                dist_goal2 = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')
+                dist_goal3 = cdist(np.array([[-.15,-.15]]), goal_array, 'euclidean')
+
+                for ix,i in enumerate([dist_goal0,dist_goal1,dist_goal2,dist_goal3]):
+                    df1=pd.DataFrame()
+                    df1['distance'] = i.reshape((400,))
+                    df1['index'] = df1.index
+                    df1 = df1.sort_values(by='distance')
+                    goal_array_ = []
+                    for x in range(len(df1)):
+                        goal_array_.append(goal_array[df1.iloc[x,1]])
+                    self.distance_goal_dict[ix] = goal_array_
+                self.goal_loaded=True
+                index=self.global_step//1000
+                idx = np.random.randint(index,min(index+30, 400))
+
 
         else:
             if self.global_step<500000:
@@ -565,8 +586,11 @@ class Workspace:
                     idx = np.random.randint(0,400)
             else:
                 idx = np.random.randint(0,400)
-
-        return self.distance_goal[idx]
+        
+        if init_state_idx=None:
+            return self.distance_goal[idx]
+        else:
+            return self.distance_goal_dict[init_state_idx][idx]
     
     def sample_goal_pixel(self, eval=False):
         replay_dir = self.work_dir / "buffer2" / "buffer_copy"
@@ -768,7 +792,7 @@ class Workspace:
                 
             else:
                 
-                if time_step1.last() or episode_step==100:
+                if time_step1.last() or episode_step==200:
                     print('last')
                     self._global_episode += 1
                     #self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -816,7 +840,10 @@ class Workspace:
                 if episode_step== 0 and self.global_step!=0:
 
                     if self.cfg.curriculum:
-                        goal_=self.sample_goal_distance()
+                        if self.cfg.const_init==False:
+                            goal_=self.sample_goal_distance(init_rand)
+                        else:
+                            goal_=self.sample_goal_distance()
                         goal_state = np.array([goal_[0], goal_[1]])
 
                     elif self.cfg.sample_proto:
@@ -889,9 +916,13 @@ class Workspace:
                         if self.count == len(goal_array):
                             self.count = 0
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
-
+                    
+                    initiation = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
+                    initial = np.array([np.random.uniform(0.29, 0.15), np.random.uniform(0.15, 0.29)])
+                    init_rand = np.random.randint(4)
+                    init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1])
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                                                      self.cfg.action_repeat, seed=None, goal=goal_state)
+                                                      self.cfg.action_repeat, seed=None, goal=goal_state,init_state=init_state)
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
@@ -938,12 +969,15 @@ class Workspace:
 
                 episode_step += 1
 
-                if time_step1.reward > 1.8 and self.cfg.test:
+                if time_step1.reward > 100:
                     print('reached making new env')
                     current_state = time_step1.observation['observations'][:2]
 
                     if self.cfg.curriculum:
-                        goal_=self.sample_goal_distance()
+                        if self.cfg.const_init==False:
+                            goal_=self.sample_goal_distance(init_rand)
+                        else:
+                            goal_=self.sample_goal_distance()
                         goal_state = np.array([goal_[0], goal_[1]])
                     else:
                         idx = np.random.randint(0,400)
