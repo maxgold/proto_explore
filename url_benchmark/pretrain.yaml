@@ -69,7 +69,10 @@ eval_after_step: 990000
 episode_length: 100
 num_protos: 512
 stddev_schedule: .2
+stddev_schedule2: .2
 stddev_clip: .3
+stddev_clip2: .3
+proto_const_init: True
 # experiment
 experiment: exp
 

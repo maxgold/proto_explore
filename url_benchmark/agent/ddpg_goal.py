@@ -216,9 +216,11 @@ class DDPGGoalAgent:
                  num_expl_steps,
                  update_every_steps,
                  stddev_schedule,
+                 stddev_schedule2,
                  nstep,
                  batch_size,
                  stddev_clip,
+                 stddev_clip2,
                  init_critic,
                  pred_dim2,
                  use_tb,
@@ -239,7 +241,11 @@ class DDPGGoalAgent:
         self.use_wandb = use_wandb
         self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
+        self.stddev_schedule2 = stddev_schedule2
+        print('1stddev',stddev_schedule)
+        print('2sttddev',stddev_schedule2)
         self.stddev_clip = stddev_clip
+        self.stddev_clip2 = stddev_clip2
         self.init_critic = init_critic
         self.pred_dim=pred_dim2
         self.feature_dim = feature_dim
@@ -354,7 +360,7 @@ class DDPGGoalAgent:
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(inpt, stddev)
         if eval_mode:
             action = dist.mean
@@ -397,9 +403,9 @@ class DDPGGoalAgent:
         metrics = dict()
 
         with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
+            stddev = utils.schedule(self.stddev_schedule2, step)
             dist = self.actor2(next_obs, stddev)
-            next_action = dist.sample(clip=self.stddev_clip)
+            next_action = dist.sample(clip=self.stddev_clip2)
             target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
@@ -448,9 +454,9 @@ class DDPGGoalAgent:
     def update_actor2(self, obs, step):
         metrics = dict()
 
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(obs, stddev)
-        action = dist.sample(clip=self.stddev_clip)
+        action = dist.sample(clip=self.stddev_clip2)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
         Q1, Q2 = self.critic2(obs, action)
         Q = torch.min(Q1, Q2)

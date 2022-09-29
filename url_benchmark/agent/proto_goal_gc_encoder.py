@@ -57,7 +57,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                  offline, load_protos, task, frame_stack, action_repeat, replay_buffer_num_workers,
                  discount, reward_scores, reward_nn, num_seed_frames, task_no_goal,
                  work_dir, goal_queue_size, tmux_session, eval_every_frames,
-                 seed, eval_after_step, episode_length, hybrid_gc, hybrid_pct, **kwargs):
+                 seed, eval_after_step, episode_length, hybrid_gc, hybrid_pct, proto_const_init,**kwargs):
         super().__init__(**kwargs)
         self.first = True
         self.tau = tau
@@ -90,6 +90,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.episode_length = episode_length
         self.hybrid_gc = hybrid_gc
         self.hybrid_pct = hybrid_pct
+        self.proto_const_init = proto_const_init
 #         self.lr = .0001
         self.batch_size=256
         self.goal=None
@@ -153,7 +154,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         self.obs2 = None
         self.goal_key = None
         self.state_proto_pair = {}
-        self.goal_freq = torch.zeros((512,))
+        self.goal_freq = torch.zeros((self.num_protos,))
         
         idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
@@ -383,19 +384,18 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 #if global_step < self.cut_off:
                 #self.gaol_topk = np.random.randint(1,10)
             
+                #if global_step < 500000:
                 if self.reward_nn and self.reward_scores==False:
-                    #if global_step < 500000:
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
-                    print('goal_topk', self.goal_topk)
-                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=False)
                     #rand = min(np.random.randint(1,10), self.goal_topk)
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
                     print('dist', all_dists)
                     self.goal=None
                     self.goal_key=None
-                    
-                    for x in range(512):
+                
+                    for x in range(self.num_protos):
                         idx = _[:,x]
                         if self.goal_freq[idx]<10:
                             self.goal = protos[idx]
@@ -409,59 +409,34 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                         self.goal=protos[idx]
                         self.goal_key=idx
 
-                    #else:
-                    #    print('freq', self.goal_freq)
-                    #    goal_prob = 1/(self.goal_freq+1)
-                    #    goal_prob = goal_prob/torch.norm(goal_prob)
-                    #    idx = pyd.Categorical(goal_prob).sample()
-                    #    self.goal = protos[idx][None,:]
-                    #    print('prob of sampling this goal', goal_prob[idx])
-                    #    print('freq of this goal', self.goal_freq[idx])
-                    #    self.goal_key = idx.item()
-                else:
-                    print('no code for reward scores yet')
-                    self.goal = None
+                elif self.reward_nn==False and self.reward_scores:
+                    z_to_proto = self.protos(self.z)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=True)
+                    print('state', self.time_step1.observation['observations'])
+                    print('similarity scores', _)
+                    print('scores', all_dists)
+                    self.goal=None
                     self.goal_key=None
-                 
-                #else:
-                #    print('const init')
-                #    if self.count==512:
-                #        self.count=0
-                #    if curriculum and self.constant_init_dist == False:
-                #        if self.ts_init is None:
-                #            with torch.no_grad():
-                #                ts_init = self.time_step_init
-                #                ts_init = torch.as_tensor(obs, device=self.device)
-                #                ts_init = self.encoder(ts_init)
-                #                ts_init = self.predictor(ts_init)
-                #                ts_init = self.projector(ts_init)
-                #                self.ts_init = F.normalize(ts_init, dim=1, p=2)
-                #                                     
-                #            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-                #            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                #            self.goal = protos[self.init_to_proto[:,self.count]]
-                #            self.goal_key = self.init_to_proto[:,self.count]
-                #            self.count+=1
-                #            self.constant_init_dist = True
-                #            
-                #        else:
-                #            z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-                #            all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-                #            self.goal = protos[self.init_to_proto[:,self.count]]
-                #            self.goal_key = self.init_to_proto[:,self.count]
-                #            self.count+=1
-                #            self.constant_init_dist = True
-                #            
-                #
-                #    elif curriculum and self.constant_init_dist:
-                #        self.goal = protos[self.init_to_proto[:,self.count]]
-                #        self.goal_key = self.init_to_proto[:,self.count]
-                #        self.count+=1
-                #    
-                #    else:
-                #        idx = np.random.randint(0, protos.shape[0])
-                #        self.goal = protos[idx][None,:]
-                #        self.goal_key = idx
+
+                    for x in range(self.num_protos):
+                        idx = _[:,x]
+                        if self.goal_freq[idx]<10:
+                            self.goal = protos[idx]
+                            self.goal_key = idx.item()
+                            break
+                        else:
+                            continue
+
+                    if self.goal is None:
+                        idx=np.random.randint(protos.shape[0])
+                        self.goal=protos[idx]
+                        self.goal_key=idx
+
+                else:
+                    self.goal=None
+                    self.goal_key=None
+                    print('improper reward function chosen')
+
                 ptr = self.goal_queue_ptr
                 self.goal_queue[ptr] = self.goal
                 self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
@@ -477,13 +452,11 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None, 
                                              init_state=(self.time_step1.observation['observations'][0], self.time_step1.observation['observations'][1]))
-                    
-                #else:
-                #    print('make constant ini env')
-                #    if self.constant_init_env==False:
-                #        self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
-                #                         self.action_repeat, seed=None, goal=None,init_state=(-.15, .15))
-                #        self.constant_init_env=True
+                
+                if self.proto_const_init==False:
+                    self.train_env2 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                                         self.action_repeat, seed=None, goal=None,
+                                             init_state=(self.time_step2.observation['observations'][0], self.time_step2.observation['observations'][1]))
                     
                 self.time_step1 = self.train_env1.reset()
                 self.time_step2 = self.train_env2.reset()
@@ -551,7 +524,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
             self.obs2 = self.time_step2.observation['pixels']
             
-            if self.reward_nn:
+            if self.reward_nn and self.reward_scores==False:
                 protos = self.protos.weight.data.detach().clone()
                 z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
                 all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
@@ -563,10 +536,17 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 else:
                     self.reward=torch.as_tensor(0)
 
-            elif self.reward_scores:
+            elif self.reward_scores and self.reward_nn==False:
+                if self.protos(self.z).argmax().item()==self.goal_key:
+                    self.reward=torch.as_tensor(1)
+                    self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
+                    self.goal_freq[self.goal_key] += 1
+                else:
+                    self.reward=torch.as_tensor(0)
+
+            else:
                 self.reward=None
-                #self.reward = -torch.norm(self.z[:, None, :] - self.goal[None, :,:], dim=2, p=2)
-                print('reward_scores, not written code yet')
+                print('reward function not set properly')
             
             self.episode_reward += self.reward 
 
@@ -580,9 +560,8 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 self.metrics = self.update(self.replay_iter2, global_step, actor1=False)
 
             idx = None
-            #if (self.reward_nn and self.episode_reward > 10) and global_step<self.cut_off:
-            
-            if (self.reward_nn and self.episode_reward > 10):
+            #change 
+            if self.episode_reward > 10:
                 self.episode_step, self.episode_reward = 0, 0
                 print('reached.sampling new goal', self.step)
 
@@ -590,23 +569,19 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                 protos = self.protos.weight.data.detach().clone()
                 
                 if self.reward_nn and self.reward_scores==False:
-                    
-                    #if global_step < 500000:
                     z_to_proto = torch.norm(self.z[:, None, :] - protos[None, :, :], dim=2, p=2)
-                    print('goal_topk', self.goal_topk)
-                    all_dists, _ = torch.topk(z_to_proto, 512, dim=1, largest=False)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=False)
                     #rand = min(np.random.randint(1,10), self.goal_topk)
                     print('state', self.time_step1.observation['observations'])
                     print('knn', _)
                     print('dist', all_dists)
                     self.goal=None
-                    self.goal_key = None
-                    
-                    for x in range(512):
+                    self.goal_key=None
+
+                    for x in range(self.num_protos):
                         idx = _[:,x]
                         if self.goal_freq[idx]<10:
                             self.goal = protos[idx]
-                            print('goal',self.goal.shape)
                             self.goal_key = idx.item()
                             break
                         else:
@@ -614,66 +589,47 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
                     if self.goal is None:
                         idx=np.random.randint(protos.shape[0])
-                        self.goal=protos[idx][None,:]
+                        self.goal=protos[idx]
                         self.goal_key=idx
 
-                    #else:
-                    #    print('freq', self.goal_freq)
-                    #    goal_prob = 1/(self.goal_freq+1)
-                    #    goal_prob = goal_prob/torch.norm(goal_prob)
-                    #    idx = pyd.Categorical(goal_prob).sample()
-                    #    self.goal = protos[idx][None,:]
-                    #    print('prob of sampling this goal', goal_prob[idx])
-                    #    print('freq of this goal', self.goal_freq[idx])
-                    #    self.goal_key = idx.item()
-                
+                elif self.reward_nn==False and self.reward_scores:
+                    z_to_proto = self.protos(self.z)
+                    all_dists, _ = torch.topk(z_to_proto, self.num_protos, dim=1, largest=True)
+                    print('state', self.time_step1.observation['observations'])
+                    print('similarity scores', _)
+                    print('scores', all_dists)
+                    self.goal=None
+                    self.goal_key=None
+
+                    for x in range(self.num_protos):
+                        idx = _[:,x]
+                        if self.goal_freq[idx]<10:
+                            self.goal = protos[idx]
+                            self.goal_key = idx.item()
+                            break
+                        else:
+                            continue
+
+                    if self.goal is None:
+                        idx=np.random.randint(protos.shape[0])
+                        self.goal=protos[idx]
+                        self.goal_key=idx
+
                 else:
-                    print('no code for reward scores yet')
-                    self.goal = None
-                    self.goal_key = None
-                    
-                #resample proto goal based on most recent k number of sampled goals(far from them) but close to current observaiton
-#                ptr = self.goal_queue_ptr
-#                self.goal_queue[ptr] = self.goal
-#                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+                    self.goal=None
+                    self.goal_key=None
+                    print('improper reward function chosen')
+
+                #else:
+                #    print('freq', self.goal_freq)
+                #    goal_prob = 1/(self.goal_freq+1)
+                #    goal_prob = goal_prob/torch.norm(goal_prob)
+                #    idx = pyd.Categorical(goal_prob).sample()
+                #    self.goal = protos[idx][None,:]
+                #    print('prob of sampling this goal', goal_prob[idx])
+                #    print('freq of this goal', self.goal_freq[idx])
+                #    self.goal_key = idx.item()
                 
-            #elif (self.episode_reward > 10) and global_step >=self.cut_off:
-            #elif (self.episode_reward > 10) and self.reward_nn==False and self.reward_scores==False:
-            #    self.episode_step, self.episode_reward = 0, 0
-            #    if self.count==512:
-            #        self.count=0
-            #    protos = self.protos.weight.data.detach().clone()
-            #    if curriculum and self.ts_init is None:
-            #        with torch.no_grad():
-            #            ts_init = self.time_step_init
-            #            ts_init = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-            #            ts_init = self.encoder(ts_init)
-            #            ts_init = self.predictor(ts_init)
-            #            ts_init = self.projector(ts_init)
-            #            self.ts_init = F.normalize(ts_init, dim=1, p=2)
-#
-            #       z_to_proto = torch.norm(self.ts_init[:, None, :] - protos[None, :, :], dim=2, p=2)
-            #        all_dists, self.init_to_proto = torch.topk(z_to_proto, 512, dim=1, largest=False)
-            #        print('_1', self.init_to_proto.shape)
-            #        self.goal = protos[self.init_to_proto[:,self.count]]
-            #        self.goal_key = self.init_to_proto[:,self.count]
-            #        self.count+=1
-#
-#                elif curriculum and self.ts_init is not None:
-#                    print('cutoff const init')
-#                    self.goal = protos[self.init_to_proto[:,self.count]]
-#                    self.goal_key = self.init_to_proto[:,self.count]
-#                    self.count+=1
-#
-#                else:
-#                    idx = np.random.randint(0, protos.shape[0])
-#                    print('idx', idx)
-#                    self.goal = protos[idx][None,:]
-#                    self.goal_key = idx 
-#                ptr = self.goal_queue_ptr
-#                self.goal_queue[ptr] = self.goal
-#                self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
-                       
             if self.eval_every_step(global_step) and global_step!=0:
                 if global_step < self.eval_after_step:
                     self.eval_heatmap_only(global_step)
@@ -685,30 +641,6 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
 
     def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
-#         replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
-
-#         replay_buffer = make_replay_offline(env,
-#                                     Path(replay_dir),
-#                                     2000000,
-#                                     0,
-#                                     0,
-#                                     self.discount,
-#                                     goal=goal,
-#                                     relabel=False,
-#                                     model_step=model_step,
-#                                     model_step_lb=model_step_lb,
-#                                     replay_dir2=False,
-#                                     obs_type=self.obs_type, 
-#                                     eval=True)
-
-
-#         states, actions, rewards = replay_buffer.parse_dataset()
-
-#         #only adding states and rewards in replay_buffer
-#         tmp = np.hstack((states, rewards))
-#         df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v','r'])
-#         heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
-#                                        range=np.array(([-.29, .29],[-.29, .29])))
         if gc:
         
             heatmap = self.replay_storage1.state_visitation_gc
@@ -725,7 +657,8 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             heatmap_pct = self.replay_storage1.state_visitation_gc_pct
         
             plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
             sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
             ax.set_title(model_step)
 
@@ -758,7 +691,8 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             heatmap_pct = self.replay_storage2.state_visitation_proto_pct
         
             plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
             sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
             ax.set_title(model_step)
 
@@ -766,43 +700,14 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             wandb.save(f"./{model_step}_proto_heatmap_pct.png")
             
 
-#         #percentage breakdown
-#         df=df*100
-#         heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
-#                                        range=np.array(([-29, 29],[-29, 29])))
-#         plt.clf()
-
-#         fig, ax = plt.subplots(figsize=(10,10))
-#         labels = np.round(heatmap.T/heatmap.sum()*100, 1)
-#         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
-
-#         plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-#         wandb.save(f"./{model_step}_gc_heatmap_pct.png")
-
-#         #rewards seen thus far
-#         df = df.astype(int)
-#         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
-#         result.fillna(0, inplace=True)
-#         plt.clf()
-#         fig, ax = plt.subplots()
-#         sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
-
-#         plt.savefig(f"./{model_step}_gc_reward.png")
-#         wandb.save(f"./{model_step}_gc_reward.png")  
             
     def eval_heatmap_only(self, global_step):
 
-        #if global_step<=self.cut_off:
         self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
-        #else:
-        #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off) 
 
     def eval(self, global_step):
         
-        #if global_step<=self.cut_off:
         self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
-        #else:
-        #    self.heatmaps(self.eval_env, global_step, False, True,model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
         
         for ix in range(10):
@@ -872,10 +777,13 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                             else:
                                 reward=0
                         elif self.reward_nn==False and self.reward_scores:
-                            reward = None
-                            print('havent written code for reward_scores yet')
+                            print('iz',iz)
+                            if self.protos(obs).argmax()==iz:
+                                reward=1
+                            else:
+                                reward=0
                         elif self.reward_nn and self.reward_scores:
-                            reward = None
+                            reward=None 
                             print('two reward calculation methods passed in')
                         
                         total_reward += reward
@@ -904,10 +812,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             
     def eval_all_proto(self, global_step):
 
-        #if global_step<=self.cut_off:
         self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
-       # else:
-       #     self.heatmaps(self.eval_env, global_step, False, True, model_step_lb=self.cut_off)
         protos = self.protos.weight.data.detach().clone()
         
         for ix in range(protos.shape[0]):
@@ -959,8 +864,10 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
                         else:
                             reward=0
                     elif self.reward_scores and self.reward_nn==False:
-                        reward = None
-                        print('havent written code for reward_scores yet')
+                        if self.protos(obs).argmax().item()==ix:
+                            reward=1
+                        else:
+                            reward=0
                     elif self.reward_nn and self.reward_scores:
                         reward = None
                         print('two reward calculation methods passed in') 
@@ -983,7 +890,7 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
         
         
     def eval_pairwise(self, global_step):
-        save_video_idx = np.random.randint(0,512)        
+        save_video_idx = np.random.randint(0,self.num_protos)        
         self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=True)
 
         protos = self.protos.weight.data.detach().clone()
@@ -1014,7 +921,6 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
             eval_until_episode = utils.Until(2)
             meta = self.init_meta()
             time_step = self.eval_env.reset()
-            reached=np.array([0.,0.])
             
             
             for ix in range(protos.shape[0]):
@@ -1054,12 +960,15 @@ class ProtoGoalGCEncoderAgent(DDPGGoalAgent):
 
                             if torch.all(goal.eq(protos[dists_idx])):
                                 reward=1
-                                reached = time_step.observation['observations']
                             else:
                                 reward=0
                         elif self.reward_scores and self.reward_nn==False:
-                            reward = None
-                            print('havent written code for reward_scores yet')
+                            if self.protos(obs).argmax().item()==ix:
+                                reward=1
+                            else:
+                                reward=0
+                            
+                            print('reward',reward)
                         elif self.reward_nn and self.reward_scores:
                             reward = None
                             print('two reward calculation methods passed in') 

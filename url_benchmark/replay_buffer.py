@@ -235,7 +235,7 @@ class ReplayBufferStorage:
                 tmp_state = value['observations']*100
                 idx_x = int(tmp_state[0])+29
                 idx_y = int(tmp_state[1])+29
-                self.reward_matrix[idx_x,idx_y]+=time_step['reward']
+                self.reward_matrix[idx_x,idx_y]+=reward
             else:
                 value = time_step[spec.name]
                 if np.isscalar(value):

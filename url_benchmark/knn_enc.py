@@ -34,12 +34,13 @@ from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
 import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
+import io
 
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
-encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
-agent = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
+agent = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
 #agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
 #encoder  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
 eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
@@ -48,7 +49,8 @@ eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=N
 
 
 #replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/')
-replay_dir = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/buffer2/buffer_copy/')
+# replay_dir = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/buffer2/buffer_copy/')
+replay_dir = Path('/home/nina/proto_explore/url_benchmark/model/buffer2/')
 replay_buffer = make_replay_offline(eval_env_goal,
                                         replay_dir,
                                         1000,
@@ -67,8 +69,13 @@ idx = np.random.randint(0, state.shape[0], size=512)
 state=state[idx]
 state=state.reshape(512,4)
 a = state
-
-
+fn = Path('./knn_visual/samples.npz')
+with io.BytesIO() as bs:
+    np.savez_compressed(bs, a)
+    bs.seek(0)
+    with fn.open("wb") as f:
+        f.write(bs.read())
+        
 
 def ndim_grid(ndims, space):
     L = [np.linspace(-.3,.3,space) for i in range(ndims)]
@@ -152,6 +159,24 @@ for x in a:
         z = agent.projector(z)
         z = F.normalize(z, dim=1, p=2)
         proto.append(z)
+        
+        
+final_encoded = np.array([i.detach().clone().cpu().numpy() for i in encoded])
+final_proto = np.array([i.detach().clone().cpu().numpy() for i in proto])
+final_encoded_goal = np.array([i.detach().clone().cpu().numpy() for i in encoded_goal])
+final_proto_goal = np.array([i.detach().clone().cpu().numpy() for i in proto_goal])   
+
+
+fn = [Path('./knn_visual/encoded_samples.npz'), Path('./knn_visual/proto_samples.npz'),
+      Path('./knn_visual/encoded_goals.npz'), Path('./knn_visual/proto_samples.npz')]
+lst_encoded = [final_encoded, final_proto, final_encoded_goal, final_proto_goal]
+
+for ix,x in enumerate(fn):
+    with io.BytesIO() as bs:
+        np.savez_compressed(bs, lst_encoded[ix])
+        bs.seek(0)
+        with x.open("wb") as f:
+            f.write(bs.read())
         
 encoded = torch.cat(encoded,axis=0)
 proto = torch.cat(proto,axis=0)
