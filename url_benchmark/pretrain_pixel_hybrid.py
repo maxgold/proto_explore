@@ -324,6 +324,7 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.proto_goal = []
+        self.distance_goal_init = {}
 
     @property
     def global_step(self):

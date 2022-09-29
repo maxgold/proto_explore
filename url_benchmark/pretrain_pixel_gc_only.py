@@ -45,7 +45,7 @@ from dmc_benchmark import PRIMAL_TASKS
 #         out += identity
 #         return out
 
-def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False):
+def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False,num_protos=512):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -63,7 +63,7 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
     cfg.load_protos = load_protos
-    cfg.work_dir = self.work_dir
+    cfg.num_protos=num_protos
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -102,85 +102,64 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
         return grid, states
 
     
+def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
+        if gc:
 
-def heatmaps(self, env, model_step, replay_dir2, goal):
-    if goal:
-        replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
-    else:
-        replay_dir = self.work_dir / 'buffer2' / 'buffer_copy'
-        
-    replay_buffer = make_replay_offline(env,
-                                Path(replay_dir),
-                                2000000,
-                                1,
-                                0,
-                                self.cfg.discount,
-                                goal=goal,
-                                relabel=False,
-                                model_step=model_step,
-                                replay_dir2=replay_dir2,
-                                obs_type=self.cfg.obs_type, 
-                                eval=True)
-    
-    if self.cfg.offline:
-        states, actions, rewards = replay_buffer.parse_dataset()
-    else:
-        states, actions, rewards, goal_state = replay_buffer.parse_dataset(goal_state=True)
-    #only adding states and rewards in replay_buffer
-    tmp = np.hstack((states, goal_state, rewards))
-    df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v', 'g_x', 'g_y', 'gp', 'gv','r'])
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50, 
-                                   range=np.array(([-.29, .29],[-.29, .29])))
-    plt.clf()
-    fig, ax = plt.subplots(figsize=(10,6))
-    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-    ax.set_title(model_step)
-    if goal:
-        plt.savefig(f"./{model_step}_gc_heatmap.png")
-        wandb.save(f"./{model_step}_gc_heatmap.png")
-    else:
-        plt.savefig(f"./{model_step}_proto_heatmap.png")
-        wandb.save(f"./{model_step}_proto_heatmap.png")
-   
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 4], df.iloc[:, 5], bins=50, 
-                                   range=np.array(([-.29, .29],[-.29, .29])))
-    plt.clf()
-    fig, ax = plt.subplots(figsize=(10,6))
-    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-    ax.set_title(model_step)
-    if goal:
-        plt.savefig(f"./{model_step}_gc_goals.png")
-        wandb.save(f"./{model_step}_gc_goals.png")
+            heatmap = self.replay_storage1.state_visitation_gc
 
-    #percentage breakdown
-    df=df*100
-    heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20, 
-                                   range=np.array(([-29, 29],[-29, 29])))
-    plt.clf()
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
-    fig, ax = plt.subplots(figsize=(10,10))
-    labels = np.round(heatmap.T/heatmap.sum()*100, 1)
-    sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
-    if goal:
-        plt.savefig(f"./{self._global_step}_gc_heatmap_pct.png")
-        wandb.save(f"./{self._global_step}_gc_heatmap_pct.png")
-    else:
-        plt.savefig(f"./{self._global_step}_proto_heatmap_pct.png")
-        wandb.save(f"./{self._global_step}_proto_heatmap_pct.png")
+            plt.savefig(f"./{model_step}_gc_heatmap.png")
+            wandb.save(f"./{model_step}_gc_heatmap.png")
 
-    #rewards seen thus far
-    df = df.astype(int)
-    result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
-    result.fillna(0, inplace=True)
-    plt.clf()
-    fig, ax = plt.subplots()
-    sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
-    if goal:
-        plt.savefig(f"./{self._global_step}_gc_reward.png")
-        wandb.save(f"./{self._global_step}_gc_reward.png")
-    else:
-        plt.savefig(f"./{self._global_step}_proto_reward.png")
-        wandb.save(f"./{self._global_step}_proto_reward.png")
+
+            heatmap_pct = self.replay_storage1.state_visitation_gc_pct
+
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
+
+            plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+            wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+
+
+            reward_matrix = self.replay_storage1.reward_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
+
+            plt.savefig(f"./{model_step}_gc_reward.png")
+            wandb.save(f"./{model_step}_gc_reward.png")
+
+        if proto:
+
+            heatmap = self.replay_storage2.state_visitation_proto
+
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
+
+            plt.savefig(f"./{model_step}_proto_heatmap.png")
+            wandb.save(f"./{model_step}_proto_heatmap.png")
+
+
+            heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
+
+            plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+            wandb.save(f"./{model_step}_proto_heatmap_pct.png")
 
         
 class Workspace:
@@ -262,7 +241,8 @@ class Workspace:
                                 cfg.offline,
                                 gc_only=True,
                                 intr_coef=cfg.intr_coef,
-                                load_protos=True) 
+                                load_protos=False,
+                                num_protos=cfg.num_protos) 
         
         if self.cfg.load_encoder and self.cfg.load_proto==False:
             encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
@@ -308,7 +288,7 @@ class Workspace:
             print('regular or hybrid_gc loader')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
-                                                    100000,
+                                                    cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
@@ -538,14 +518,18 @@ class Workspace:
             return proto2d
     
 
-    def sample_goal_distance(self,init_state_idx=None):
+    def sample_goal_distance(self,init_state_idx=None,init_state=False):
 
         if self.goal_loaded==False:
 
             goal_array = ndim_grid(2,20)
             
-            if init_state_idx=None:
-                dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')  
+            if init_state_idx is None:
+                if init_state==False:
+                    dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')  
+                else:
+                    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
+                
                 df1=pd.DataFrame()
                 df1['distance'] = dist_goal.reshape((400,))
                 df1['index'] = df1.index
@@ -573,21 +557,19 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//1000
-                idx = np.random.randint(index,min(index+30, 400))
+                index=self.global_step//2000
+                idx = np.random.randint(max(index-10,0),min(index+20, 400))
 
 
         else:
             if self.global_step<500000:
-                index=self.global_step//1000
-                if index<400:
-                    idx = np.random.randint(index,min(index+30, 400))
-                else:
-                    idx = np.random.randint(0,400)
+                index=self.global_step//2000
+                idx = np.random.randint(max(index-10,0),min(index+20, 400))
             else:
-                idx = np.random.randint(0,400)
+                index=(self.global_step-500000)//2000
+                idx = np.random.randint(max(index-10,0),min(index+20, 400)) 
         
-        if init_state_idx=None:
+        if init_state_idx is None:
             return self.distance_goal[idx]
         else:
             return self.distance_goal_dict[init_state_idx][idx]
@@ -649,9 +631,8 @@ class Workspace:
             save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
 
     def eval(self):
-        self.encode_proto(heatmap_only=True) 
-	#heatmaps(self, self.eval_env, self.global_step, False, True)
-
+        #self.encode_proto(heatmap_only=True) 
+        heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=False)
         goal_array = ndim_grid(2,10)
         success=0
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
@@ -678,7 +659,7 @@ class Workspace:
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
                 self.video_recorder.init(self.eval_env, enabled=(episode == 0))
          
-                while step!=100:
+                while step!=200:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
                             action = self.agent.act(time_step_no_goal.observation['pixels'],
@@ -780,7 +761,7 @@ class Workspace:
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
                 
-                if self.global_step%500==0:
+                if self.global_step%200==0:
                     elapsed_time, total_time = self.timer.reset()
                     with self.logger.log_and_dump_ctx(self.global_frame,
                                                           ty='train') as log:
@@ -838,14 +819,8 @@ class Workspace:
                     wandb.save("./{self._global_step}_eval.png")
 
                 if episode_step== 0 and self.global_step!=0:
-
                     if self.cfg.curriculum:
-                        if self.cfg.const_init==False:
-                            goal_=self.sample_goal_distance(init_rand)
-                        else:
-                            goal_=self.sample_goal_distance()
-                        goal_state = np.array([goal_[0], goal_[1]])
-
+                        print('sampling goal')
                     elif self.cfg.sample_proto:
                         if self.cfg.load_proto==False:
                             if (self.cfg.num_seed_frames==self.global_step) or (self.global_step < 100000 and self.global_step%2000==0) or (300000>self.global_step >100000 and self.global_step%50000==0):
@@ -918,9 +893,17 @@ class Workspace:
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                     
                     initiation = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
-                    initial = np.array([np.random.uniform(0.29, 0.15), np.random.uniform(0.15, 0.29)])
+                    initial = np.array([.15, .15])
                     init_rand = np.random.randint(4)
-                    init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1])
+                    init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
+                    
+                    if self.cfg.curriculum:
+                        if self.cfg.const_init==False:
+                            goal_=self.sample_goal_distance(init_rand)
+                        else:
+                            goal_=self.sample_goal_distance()
+                        goal_state = np.array([goal_[0], goal_[1]]) 
+
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state,init_state=init_state)
                     time_step1 = self.train_env1.reset()
@@ -969,15 +952,24 @@ class Workspace:
 
                 episode_step += 1
 
-                if time_step1.reward > 100:
-                    print('reached making new env')
-                    current_state = time_step1.observation['observations'][:2]
 
-                    if self.cfg.curriculum:
-                        if self.cfg.const_init==False:
-                            goal_=self.sample_goal_distance(init_rand)
+                if episode_reward > 100 and self.cfg.const_init==False:
+                    print('reached making new env')
+                    episode_reward=0
+                    current_state = time_step1.observation['observations'][:2]
+                    print('current_state', current_state)
+                    if current_state[0] > 0:
+                        if current_state[1] > 0:
+                            init_state_idx=0
                         else:
-                            goal_=self.sample_goal_distance()
+                            init_state_idx=1
+                    else:
+                        if current_state[1] > 0:
+                            init_state_idx=2
+                        else:
+                            init_state_idx=3
+                    if self.cfg.curriculum:
+                        goal_=self.sample_goal_distance(init_state_idx=init_state_idx)
                         goal_state = np.array([goal_[0], goal_[1]])
                     else:
                         idx = np.random.randint(0,400)
@@ -985,13 +977,13 @@ class Workspace:
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                                                      self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
                     print('should reset to', current_state)
                     print('new env state', self.train_env1._env.physics.state())
                     time_step1 = self.train_env1.reset()
                     print('reset state', time_step1.observation['observations'])
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                                                      self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
                     time_step_no_goal = self.train_env_no_goal.reset()
                     print('no goal reset', time_step_no_goal.observation['observations'])
                     #time_step_goal = self.train_env_goal.reset()
@@ -1005,7 +997,6 @@ class Workspace:
 
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
-
 
                 if not seed_until_step(self.global_step):
 
