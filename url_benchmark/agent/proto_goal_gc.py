@@ -105,8 +105,6 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
         self._global_episode=0
         self.constant_init_dist = False
         print('lr', self.lr)
-        
-        
 
         # models
         if self.gc_only==False:
@@ -176,6 +174,17 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                    self.action_repeat, seed=None, goal=self.first_goal)
         
         init_state = [-.15, .15]
+
+        lst=[]
+        for ix,x in enumerate(goal_array):
+            print(x[0])
+            print(x[1])
+            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                lst.append(ix)
+                print('del',x)
+        self.goal_array=np.delete(goal_array, lst,0)
+        self.goal_array_loaded = False
+
         with torch.no_grad():
             with self.eval_env_goal.physics.reset_context():
                 self.time_step_init = self.eval_env_goal.physics.set_state(np.array([init_state[0], init_state[1], 0, 0]))
