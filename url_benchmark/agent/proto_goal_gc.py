@@ -215,8 +215,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                 self.batch_size,
                                                 self.replay_buffer_num_workers,
                                                 False, 3, self.discount,
-                                                True, False,self.obs_type, goal_proto=True,
-                                                hybrid=True, hybrid_pct=5,agent=self)
+                                                True, False,self.obs_type,
+                                                hybrid_pct=5,goal_proto=True,agent=self)
         
         self._replay_iter1 = None
         self.timer = utils.Timer()
@@ -987,6 +987,141 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
             else:
                 final_encoded[x] = np.array(encoded[x])
         fn = self.work_dir / 'encoded_proto.npz'
+        with io.BytesIO() as bs:
+            np.savez_compressed(bs, **final_encoded)
+            bs.seek(0)
+            with fn.open("wb") as f:
+                f.write(bs.read())
+                
+    def ndim_grid(self, ndims, space):
+        L = [np.linspace(-.29,.29,space) for i in range(ndims)]
+        return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
+                
+    def pairwise_eval_mode(self, global_step, model_name):
+        save_video_idx = np.random.randint(0,self.num_protos)        
+        #self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=False)
+        goal_array = self.ndim_grid(2,20)
+        protos = self.protos.weight.data.detach().clone()
+        #row: init, col: goal
+        df = pd.DataFrame(index=range(protos.shape[0]), columns=range(protos.shape[0]), dtype=np.float64)
+        df_dist = pd.DataFrame(index=range(protos.shape[0]), columns=range(protos.shape[0]), dtype=np.float64)      
+        encoded = defaultdict(list)
+        
+        for i in range(goal_array.shape[0]):
+            print('i',i)
+            step, episode, total_reward = 0, 0, 0
+            encoded_i = False
+            init=goal_array[i]
+            init_state = (init[0], init[1])
+            self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                    self.action_repeat, seed=None, goal=None, init_state=init_state)
+            
+            eval_until_episode = utils.Until(2)
+            meta = self.init_meta()
+            time_step = self.eval_env.reset()
+            
+            with torch.no_grad(), utils.eval_mode(self):
+                obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
+                obs = self.encoder(obs)
+                obs = self.predictor(obs)
+                obs = self.projector(obs)
+                obs = F.normalize(obs, dim=1, p=2)
+                
+            obs_to_proto = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+            all_dists, _ = torch.topk(obs_to_proto, 1, dim=1, largest=False)
+            idx = _.item()
+            
+            
+            for ix in range(protos.shape[0]):
+                print('ix',ix)
+                goal = protos[ix][None, :]
+                step, episode, total_reward = 0, 0, 0
+
+                while eval_until_episode(episode):
+                    time_step = self.eval_env.reset()
+                    if ix== save_video_idx:
+                        self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+
+                    while step<200:
+                        with torch.no_grad(), utils.eval_mode(self):
+                            obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
+                            obs = self.encoder(obs)
+                            obs = self.predictor(obs)
+                            obs = self.projector(obs)
+                            obs = F.normalize(obs, dim=1, p=2)
+                            action = self.act(obs,
+                                                goal,
+                                                meta,
+                                                global_step,
+                                                eval_mode=True)
+                            
+                        if encoded_i == False:
+                            encoded['state'].append(init)
+                            encoded['proto_space'].append(obs)
+                            encoded_i = True
+
+                        time_step = self.eval_env.step(action)
+                        if ix== save_video_idx:
+                            self.video_recorder.record(self.eval_env)
+                        #if self.reward_nn and self.reward_scores==False:
+#
+                        obs_to_p = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
+                        dists, dists_idx = torch.topk(obs_to_p, 1, dim=1, largest=False)
+                        
+                        if torch.all(goal.eq(protos[dists_idx])):
+                            reward=1
+                            total_reward+=1
+                            print('reached')
+                            break
+                        else:
+                            reward=0
+                        #elif self.reward_scores and self.reward_nn==False:
+                        #    if self.protos(obs).argmax().item()==ix:
+                        #        reward=1
+                        #        total_reward+=1
+                        #        break
+                        #    else:
+                        #        reward=0
+                        #    
+                        #    print('reward',reward)
+                        #elif self.reward_nn and self.reward_scores:
+                        #    reward = None
+                        #    print('two reward calculation methods passed in') 
+                        step += 1
+                    
+                    episode += 1
+                    print('add episode')
+                    if ix== save_video_idx:
+                        self.video_recorder.save(f'{model_name}_{ix}th_proto.mp4')
+                df.loc[idx, ix] = total_reward
+                print('total reward', total_reward)
+                
+            init_to_protos = torch.norm(encoded['proto_space'][-1] - protos[None, :, :], dim=2, p=2)
+            proto_dist, proto_dist_idx = torch.topk(init_to_protos, protos.shape[0], dim=1, largest=False)
+            df.fillna(0,inplace=True) 
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            for z in range(protos.shape[0]):
+                #starting from closest
+                df_dist.loc[idx,z] = df.iloc[idx,proto_dist_idx[:,z].item()]
+        
+        df_dist.fillna(0, inplace=True)
+        df.to_csv(self.work_dir /'{model_name}_proto_pairwise_eval.csv', index=False)
+        df_dist.to_csv(self.work_dir /'{model_name}_proto_pairwise_eval_sorted_dist.csv', index=False)
+        
+        
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(df_dist, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./{model_name}_pairwise_heatmap.png")
+        wandb.save(f"./{model_name}_pairwise_heatmap.png")
+        
+        final_encoded = dict()
+        for x in encoded.keys():
+            if x == 'proto_space':
+                final_encoded[x] = np.array([i.cpu().numpy() for i in encoded[x]])
+            else:
+                final_encoded[x] = np.array(encoded[x])
+        fn = self.work_dir / '{model_name}_encoded_proto.npz'
         with io.BytesIO() as bs:
             np.savez_compressed(bs, **final_encoded)
             bs.seek(0)
