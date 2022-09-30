@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class NoProtoEncoderAgent(DDPGAgent):
+class ProtoEncoderAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)
@@ -76,12 +76,8 @@ class NoProtoEncoderAgent(DDPGAgent):
             self.queue_ptr = 0
 
             # optimizers
-<<<<<<< HEAD
             self.proto_opt = torch.optim.Adam(utils.chain(
                 self.encoder.parameters(), self.predictor.parameters(),
-=======
-            self.proto_opt = torch.optim.Adam(utils.chain(self.predictor.parameters(),
->>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
                 self.projector.parameters(), self.protos.parameters()),
                                           lr=self.lr)
 
@@ -89,11 +85,11 @@ class NoProtoEncoderAgent(DDPGAgent):
             self.projector.train()
             self.protos.train()
         
-        #elif self.load_protos:
-        #    self.protos = nn.Linear(pred_dim, num_protos,
-        #                                            bias=False).to(self.device)
-        #    self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-        #    self.projector = Projector(pred_dim, proj_dim).to(self.device)
+        elif self.load_protos:
+            self.protos = nn.Linear(pred_dim, num_protos,
+                                                    bias=False).to(self.device)
+            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.projector = Projector(pred_dim, proj_dim).to(self.device)
 
     def init_from(self, other):
         # copy parameters over
@@ -150,42 +146,7 @@ class NoProtoEncoderAgent(DDPGAgent):
         #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
-<<<<<<< HEAD
-#    def update_proto(self, obs, next_obs, step):
-#        metrics = dict()
-#
-#        # normalize prototypes
-#        self.normalize_protos()
-#
-#        # online network
-#        s = self.encoder(obs)
-#        s = self.predictor(s)
-#        s = self.projector(s)
-#        s = F.normalize(s, dim=1, p=2)
-#        scores_s = self.protos(s)
-#        #import IPython as ipy; ipy.embed(colors='neutral')
-#        log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-#
-#        # target network
-#        with torch.no_grad():
-#            t = self.encoder_target(next_obs)
-#            t = self.predictor_target(t)
-#            t = F.normalize(t, dim=1, p=2)
-#            scores_t = self.protos(t)
-#            q_t = sinkhorn_knopp(scores_t / self.tau)
-#
-#        # loss
-#        loss = -(q_t * log_p_s).sum(dim=1).mean()
-#        if self.use_tb or self.use_wandb:
-#            metrics['repr_loss'] = loss.item()
-#        self.proto_opt.zero_grad(set_to_none=True)
-#        loss.backward()
-#        self.proto_opt.step()
-#
-#        return metrics
-=======
     def update_proto(self, obs, next_obs, step):
-
         metrics = dict()
 
         # normalize prototypes
@@ -217,7 +178,6 @@ class NoProtoEncoderAgent(DDPGAgent):
         self.proto_opt.step()
 
         return metrics
->>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
 
     def update(self, replay_iter, step, actor1=False):
         metrics = dict()
@@ -301,21 +261,18 @@ class NoProtoEncoderAgent(DDPGAgent):
             next_obs = self.encoder(next_obs)
             goal = self.encoder(goal)
 
-            if not self.update_encoder: 
-                obs = obs.detach()
-                next_obs = next_obs.detach()
-                goal=goal.detach()
+            #if not self.update_encoder:
+           # 
+           #     obs = obs.detach()
+           #     next_obs = next_obs.detach()
+           #     goal=goal.detach()
         
             # update critic
             metrics.update(
                 self.update_critic(obs, goal, action, reward, discount,
                                next_obs, step))
             # update actor
-<<<<<<< HEAD
             metrics.update(self.update_actor(obs, goal, step))
-=======
-            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
->>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,

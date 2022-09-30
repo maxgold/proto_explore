@@ -1,3 +1,12 @@
+import warnings
+
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+import os
+
+os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+os.environ['MUJOCO_GL'] = 'egl'
+import seaborn as sns; sns.set_theme()
 import pandas as pd
 from copy import deepcopy
 from logger import Logger, save
@@ -12,7 +21,6 @@ import utils
 from agent.ddpg_goal_gc import DDPGGoalGCAgent
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
 import dmc
-import seaborn as sns; sns.set_theme()
 import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 import os
@@ -207,7 +215,8 @@ class ProtoGoalGCAgent(DDPGGoalGCAgent):
                                                 self.batch_size,
                                                 self.replay_buffer_num_workers,
                                                 False, 3, self.discount,
-                                                True, False,self.obs_type, goal_proto=True)
+                                                True, False,self.obs_type, goal_proto=True,
+                                                hybrid=True, hybrid_pct=5,agent=self)
         
         self._replay_iter1 = None
         self.timer = utils.Timer()

@@ -43,7 +43,8 @@ class Projector(nn.Module):
 
 class ProtoGCEncoderAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
+                 **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
