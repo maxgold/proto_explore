@@ -935,10 +935,7 @@ class Workspace:
                                 goal_=self.sample_goal_distance()
                             goal_state = np.array([goal_[0], goal_[1]]) 
                         else:
-                            if self.goal_queue_ptr!=0:
-                                idx = np.random.randint(self.goal_queue_ptr)
-                            else:
-                                idx = np.random.randint(self.goal_queue.shape[0])
+                            idx = np.random.randint(self.goal_queue.shape[0])
                             goal_state = self.goal_queue[idx]
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -996,7 +993,6 @@ class Workspace:
                         self.goal_array=np.delete(self.goal_array, ix, 0)
                         
                     
-                    self.curriculum_goal_loaded=True
                     init_state = goal_state
                     
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
@@ -1013,7 +1009,9 @@ class Workspace:
                         ptr = self.goal_queue_ptr
                         self.goal_queue[ptr] = goal_array_[x]
                         self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
-                        
+                    
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
                     print('reached making new env')
                     episode_reward=0
                     current_state = time_step1.observation['observations'][:2]
