@@ -73,6 +73,7 @@ stddev_schedule2: .2
 stddev_clip: .3
 stddev_clip2: .3
 proto_const_init: True
+resample_goal: False
 # experiment
 experiment: exp
 

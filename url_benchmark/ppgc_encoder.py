@@ -62,6 +62,10 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
     cfg.load_protos = load_protos
+<<<<<<< HEAD
+    cfg.work_dir = self.work_dir
+=======
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -263,10 +267,17 @@ class Workspace:
                                 load_protos=True) 
         
         if self.cfg.load_encoder and self.cfg.load_proto==False:
+<<<<<<< HEAD
+            encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+            self.agent.init_encoder_from(encoder)
+        if self.cfg.load_proto:
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+=======
             encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
             proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
             self.agent.init_protos_from(proto) 
 
         # get meta specs
@@ -413,7 +424,11 @@ class Workspace:
 #             grid = torch.tensor(grid).cuda().float()
 #             return grid, states
 
+<<<<<<< HEAD
+    def encode_proto(self, heatmap_only=False):
+=======
     def encode_proto(self):
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
         if self.cfg.film_gc:
             replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
@@ -428,8 +443,13 @@ class Workspace:
                                     replay_dir2=False,
                                     obs_type = self.cfg.obs_type
                                     )
+<<<<<<< HEAD
+        elif self.cfg.load_proto and heatmap_only==False:
+            replay_dir = '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/buffer2/buffer_copy/'
+=======
         elif self.cfg.load_proto:
             replay_dir = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/'
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
             self.replay_buffer_intr = make_replay_offline(self.eval_env,
                                         Path(replay_dir),
                                         100000,
@@ -442,7 +462,10 @@ class Workspace:
                                         replay_dir2=False,
                                         obs_type = self.cfg.obs_type
                                         )
+<<<<<<< HEAD
+=======
         
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
         else:
             
             replay_dir = self.work_dir / 'buffer1' / 'buffer_copy'
@@ -459,6 +482,84 @@ class Workspace:
                                         obs_type = self.cfg.obs_type
                                         )
             
+<<<<<<< HEAD
+        
+        if heatmap_only:
+            states, actions, rewards, goal_state = self.replay_buffer_intr.parse_dataset(goal_state=True)
+            tmp = np.hstack((states, goal_state, rewards))
+            df = pd.DataFrame(tmp, columns= ['x', 'y', 'pos', 'v', 'g_x', 'g_y', 'gp', 'gv','r'])
+            heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=50,
+                                   range=np.array(([-.29, .29],[-.29, .29])))
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(self.global_step)
+            plt.savefig(f"./{self.global_step}_gc_heatmap.png")
+            wandb.save(f"./{self.global_step}_gc_heatmap.png")
+
+            heatmap, _, _ = np.histogram2d(df.iloc[:, 4], df.iloc[:, 5], bins=50,
+                                   range=np.array(([-.29, .29],[-.29, .29])))
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(self.global_step)
+            plt.savefig(f"./{self.global_step}_gc_goals.png")
+            wandb.save(f"./{self.global_step}_gc_goals.png")
+
+            #percentage breakdown
+            df=df*100
+            heatmap, _, _ = np.histogram2d(df.iloc[:, 0], df.iloc[:, 1], bins=20,
+                                   range=np.array(([-29, 29],[-29, 29])))
+            plt.clf()
+
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(heatmap.T/heatmap.sum()*100, 1)
+            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax, annot=labels).invert_yaxis()
+            plt.savefig(f"./{self._global_step}_gc_heatmap_pct.png")
+            wandb.save(f"./{self._global_step}_gc_heatmap_pct.png")
+    
+            #rewards seen thus far
+            df = df.astype(int)
+            result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+            result.fillna(0, inplace=True)
+            plt.clf()
+            fig, ax = plt.subplots()
+            sns.heatmap(result, cmap="Blues_r", ax=ax).invert_yaxis()
+            plt.savefig(f"./{self._global_step}_gc_reward.png")
+            wandb.save(f"./{self._global_step}_gc_reward.png")
+
+        if heatmap_only==False:
+            state, actions, rewards = self.replay_buffer_intr.parse_dataset()
+            idx = np.random.randint(0, state.shape[0], size=1024)
+            state=state[idx]
+            state=state.reshape(1024,4)
+            print('state shape',state.shape)
+            obs = torch.empty(1024, 9, 84, 84)
+            states = np.empty((1024,4),np.float)
+            grid_embeddings = torch.empty(1024, 128)
+            meta = self.agent.init_meta()
+            for i in range(1024):
+                with torch.no_grad():
+                    with self.eval_env_goal.physics.reset_context():
+                        time_step = self.eval_env_goal.physics.set_state(np.array([state[i][0], state[i][1], 0, 0]))
+                    time_step = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                    goal = torch.tensor(np.transpose(time_step.copy(), (2,0,1))).cuda()
+                    obs[i] = torch.tile(goal, (1,3,1,1))
+                    states[i] = state[i,:]
+            obs = obs.cuda().float()
+            grid_embeddings = get_state_embeddings(self.agent, obs)
+            protos = self.agent.protos.weight.data.detach().clone()
+            protos = F.normalize(protos, dim=1, p=2)
+            dist_mat = torch.cdist(protos, grid_embeddings)
+            dist_np = dist_mat.cpu().numpy()
+            dist_df = pd.DataFrame(dist_np)	
+            dist_df.to_csv('./dist_{}.csv'.format(self.global_step), index=False)
+            closest_points = dist_mat.argmin(-1)
+            proto2d = states[closest_points.cpu(), :2]
+            states = pd.DataFrame(states)
+            states.to_csv('./states_{}.csv'.format(self.global_step), index=False)
+            return proto2d
+=======
         state, actions, rewards = self.replay_buffer_intr.parse_dataset()
         idx = np.random.randint(0, state.shape[0], size=1024)
         state=state[idx]
@@ -489,6 +590,7 @@ class Workspace:
         states = pd.DataFrame(states)
         states.to_csv('./states_{}.csv'.format(self.global_step), index=False) 
         return proto2d
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
     
 
     def sample_goal_distance(self):
@@ -578,7 +680,12 @@ class Workspace:
             save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
 
     def eval(self):
+<<<<<<< HEAD
+        self.encode_proto(heatmap_only=True) 
+	#heatmaps(self, self.eval_env, self.global_step, False, True)
+=======
         heatmaps(self, self.eval_env, self.global_step, False, True)
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
 
         goal_array = ndim_grid(2,10)
         success=0
@@ -774,7 +881,14 @@ class Workspace:
                     elif self.cfg.sample_proto:
                         if self.cfg.load_proto==False:
                             if (self.cfg.num_seed_frames==self.global_step) or (self.global_step < 100000 and self.global_step%2000==0) or (300000>self.global_step >100000 and self.global_step%50000==0):
+<<<<<<< HEAD
+                                if self.global_step%100000==0:
+                                    self.proto_goal = self.encode_proto()
+                                else:
+                                    self.proto_goal = self.encode_proto()
+=======
                                 self.proto_goal = self.encode_proto()
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
                                 dist_goal = cdist(np.array([[-.15,.15]]), np.array(self.proto_goal), 'euclidean')
                                 df1 = pd.DataFrame()
                                 df1['distance'] = dist_goal.reshape((len(self.proto_goal),))
@@ -800,7 +914,11 @@ class Workspace:
                         #if self.cfg.load_proto
                         else:
                             if self.loaded==False:
+<<<<<<< HEAD
+                                self.proto_goal = self.encode_proto() 
+=======
                                 self.proto_goal = self.encode_proto()
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
                                 self.loaded=True
                                 dist_goal = cdist(np.array([[-.15,.15]]), np.array(self.proto_goal), 'euclidean')
                                 df1 = pd.DataFrame()
@@ -1021,9 +1139,12 @@ class Workspace:
                     torch.save(self.agent.critic, path)
                 path = os.path.join(self.work_dir, 'actor1_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent.actor, path)
+<<<<<<< HEAD
+=======
 
                 path = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent.encoder, path)
+>>>>>>> cd1fc18c956ef1a72784b002756838ce2b162f69
             
 
 

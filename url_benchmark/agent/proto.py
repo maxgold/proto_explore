@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import distributions as pyd
 from torch import jit
-
+import pandas as pd
 import utils
 from agent.ddpg import DDPGAgent
 
@@ -138,6 +138,13 @@ class ProtoAgent(DDPGAgent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
+
+        #saving dist to see distribution for intrinsic reward
+        #if step%1000 and step<300000:
+        #    import IPython as ipy; ipy.embed(colors='neutral')
+        #    dist_np = z_to_q
+        #    dist_df = pd.DataFrame(dist_np.cpu())
+        #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
     def update_proto(self, obs, next_obs, step):

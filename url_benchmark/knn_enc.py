@@ -39,18 +39,18 @@ import io
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
-encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
-agent = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
-#agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
-#encoder  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+#encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
+#agent = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
+agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+encoder  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
 eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
 
 
 
-#replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/')
+replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/')
 # replay_dir = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/buffer2/buffer_copy/')
-replay_dir = Path('/home/nina/proto_explore/url_benchmark/model/buffer2/')
+#replay_dir = Path('/home/nina/proto_explore/url_benchmark/model/buffer2/')
 replay_buffer = make_replay_offline(eval_env_goal,
                                         replay_dir,
                                         1000,
@@ -78,7 +78,7 @@ with io.BytesIO() as bs:
         
 
 def ndim_grid(ndims, space):
-    L = [np.linspace(-.3,.3,space) for i in range(ndims)]
+    L = [np.linspace(-.25,.25,space) for i in range(ndims)]
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 lst=[]
 goal_array = ndim_grid(2,10)
@@ -188,7 +188,7 @@ encoded_to_goal = torch.norm(encoded_goal[:, None, :] - encoded[None, :, :], dim
 proto_to_goal = torch.norm(proto_goal[:, None, :] - proto[None, :, :], dim=2, p=2)
 all_dists_encode, _encode = torch.topk(encoded_to_goal, 10, dim=1, largest=False)
 all_dists_proto, _proto = torch.topk(proto_to_goal, 10, dim=1, largest=False)
-
+import IPython as ipy; ipy.embed(colors='neutral')
 filenames=[]
 for ix, x in enumerate(goal_array):
     print('goal',ix)
@@ -208,7 +208,6 @@ for ix, x in enumerate(goal_array):
         else:
             data[iz] = a[iz-num].cpu().numpy()
 #             print(data[iz])
-
     
     for xy, color in zip(data, colors):
         plt.clf()
