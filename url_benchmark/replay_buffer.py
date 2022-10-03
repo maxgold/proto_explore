@@ -90,7 +90,7 @@ class ReplayBufferStorage:
         self.state_visitation_gc = np.zeros((60,60))
         self.state_visitation_gc_pct = np.zeros((20,20))
         self.reward_matrix = np.zeros((60,60))
-
+        self.goal_state_matrix = np.zeros((60,60))
     def __len__(self):
         return self._num_transitions
 
@@ -172,10 +172,13 @@ class ReplayBufferStorage:
                     idx_x = int(tmp_state[0])+29
                     idx_y = int(tmp_state[1])+29
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
-                    
+                
         if pixels:
             goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
+            idx_x = int(goal_state[0])+29
+            idx_y = int(goal_state[1])+29
+            self.goal_state_matrix[idx_x,idx_y]+=1
         self._current_episode_goal['goal'].append(goal)
 
         if time_step.last() or last:

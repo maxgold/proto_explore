@@ -136,7 +136,16 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
 
             plt.savefig(f"./{model_step}_gc_reward.png")
             wandb.save(f"./{model_step}_gc_reward.png")
+            
+            goal_matrix = self.replay_storage1.goal_state_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+            sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
 
+            plt.savefig(f"./{model_step}_goal_state_heatmap.png")
+            wandb.save(f"./{model_step}_goal_state_heatmap.png")
         if proto:
 
             heatmap = self.replay_storage2.state_visitation_proto
@@ -206,7 +215,7 @@ class Workspace:
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
-        self.goal_array = ndim_grid(2,20)
+        self.goal_array = ndim_grid(2,15)
         lst =[]
         for ix,x in enumerate(goal_array):
             print(x[0])
