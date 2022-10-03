@@ -204,7 +204,7 @@ class Workspace:
                                    cfg.action_repeat, seed=None, goal=None)
         self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
                                    1, seed=None, goal=None)
-        self.goal_queue = np.zeros(50, 4)
+        self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
         self.goal_array = ndim_grid(2,20)
         lst =[]
@@ -257,12 +257,12 @@ class Workspace:
                                 num_protos=cfg.num_protos) 
         
         if self.cfg.load_encoder and self.cfg.load_proto==False:
-            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
-            #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+            #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
-            #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
-            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+            #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
         # get meta specs
@@ -673,7 +673,7 @@ class Workspace:
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
                 self.video_recorder.init(self.eval_env, enabled=(episode == 0))
          
-                while step!=200:
+                while step!=self.cfg.episode_length:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
                             action = self.agent.act(time_step_no_goal.observation['pixels'],
@@ -775,7 +775,7 @@ class Workspace:
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
                 
-                if self.global_step%200==0:
+                if self.global_step%self.cfg.episode_length==0:
                     elapsed_time, total_time = self.timer.reset()
                     with self.logger.log_and_dump_ctx(self.global_frame,
                                                           ty='train') as log:
@@ -787,7 +787,7 @@ class Workspace:
                 
             else:
                 
-                if time_step1.last() or episode_step==200:
+                if time_step1.last() or episode_step==self.cfg.episode_length:
                     print('last')
                     self._global_episode += 1
                     #self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -974,7 +974,7 @@ class Workspace:
 
                 episode_step += 1
 
-                if episode_reward > 100 and self.cfg.const_init==False:
+                if episode_reward > 100 and self.cfg.resample_goal:
                     print('reached making new env')
                     episode_reward=0
                     if goal_state.tolist() in self.goal_array.tolist():
