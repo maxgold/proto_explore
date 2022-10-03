@@ -769,8 +769,7 @@ class Workspace:
                     
            # meta = self.agent.update_meta(meta, self._global_step, time_step1)
             
-            if episode_step== 0 and self.global_step!=0:
-                
+            if episode_step== 0 and self.global_step!=0:    
                 if self.cfg.curriculum:
                     goal_=self.sample_goal_distance()
                     goal_state = np.array([goal_[0], goal_[1]])
