@@ -266,12 +266,12 @@ class Workspace:
                                 num_protos=cfg.num_protos) 
         
         if self.cfg.load_encoder and self.cfg.load_proto==False:
-            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
-            #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+            #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto:
-            #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
-            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+            #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
         # get meta specs
@@ -933,10 +933,7 @@ class Workspace:
                                 goal_=self.sample_goal_distance()
                             goal_state = np.array([goal_[0], goal_[1]]) 
                         else:
-                            if self.goal_queue_ptr!=0:
-                                idx = np.random.randint(self.goal_queue_ptr)
-                            else:
-                                idx = np.random.randint(self.goal_queue.shape[0])
+                            idx = np.random.randint(self.goal_queue.shape[0])
                             goal_state = self.goal_queue[idx]
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -994,7 +991,6 @@ class Workspace:
                         self.goal_array=np.delete(self.goal_array, ix, 0)
                         
                     
-                    self.curriculum_goal_loaded=True
                     init_state = goal_state
                     
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
@@ -1011,7 +1007,9 @@ class Workspace:
                         ptr = self.goal_queue_ptr
                         self.goal_queue[ptr] = goal_array_[x]
                         self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
-                        
+                    
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
                     print('reached making new env')
                     episode_reward=0
                     current_state = time_step1.observation['observations'][:2]
