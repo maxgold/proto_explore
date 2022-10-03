@@ -15,7 +15,7 @@ import torch
 import wandb
 from dm_env import specs
 
-import dmc_copy as dmc
+import dmc as dmc
 import utils
 from logger import Logger
 from replay_buffer import ReplayBufferStorage, make_replay_loader
@@ -26,12 +26,19 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, batch_size=256, num_protos=512, update_gc=2, gc_only=False, offline=False):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
+    cfg.lr = lr
+    cfg.hidden_dim = hidden_dim
+    cfg.batch_size = batch_size
+    cfg.num_protos=num_protos
+    cfg.update_gc=update_gc
+    cfg.gc_only=gc_only
+    cfg.offline=offline
     return hydra.utils.instantiate(cfg)
 
 
@@ -71,7 +78,13 @@ class Workspace:
                                 self.train_env.action_spec(),
                                 (2,),
                                 cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent)
+                                cfg.agent,
+                                cfg.lr,
+                                cfg.hidden_dim,
+                                cfg.batch_size,
+                                cfg.num_protos,
+                                cfg.update_gc,
+                                cfg.offline)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -87,10 +100,13 @@ class Workspace:
 
         # create replay buffer
         self.replay_loader = make_replay_loader(self.replay_storage,
+                                                False,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount)
+                                                False, cfg.nstep, cfg.discount,
+                                                goal=cfg.goal,
+                                                obs_type=cfg.obs_type)
         self._replay_iter = None
 
         # create video recorders
@@ -136,17 +152,29 @@ class Workspace:
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
                     if self.cfg.goal:
-                        action = self.agent.act(time_step.observation,
+                        if self.cfg.obs_type=='pixels':
+                            action = self.agent.act(time_step.observation['pixels'],
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
+                        else:
+                            action = self.agent.act(time_step.observation,
                                             goal,
                                             meta,
                                             self.global_step,
                                             eval_mode=True)
                     else:
-                        action = self.agent.act(time_step.observation,
+                        if self.cfg.obs_type=='pixels':
+                            action = self.agent.act2(time_step.observation['pixels'],
                                             meta,
                                             self.global_step,
                                             eval_mode=True)
-
+                        else:    
+                            action = self.agent.act2(time_step.observation,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True) 
                 time_step = self.eval_env.step(action)
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
@@ -224,21 +252,32 @@ class Workspace:
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
                 if self.cfg.goal:
-                    action = self.agent.act(time_step.observation, 
-                                            goal, 
-                                            meta, 
-                                            self.global_step, 
-                                            eval_mode=False)
+                    if self.cfg.obs_type=='pixels':
+                        action = self.agent.act(time_step.observation['pixels'],
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
+                    else:    
+                        action = self.agent.act(time_step.observation,
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
                 else:
-                    action = self.agent.act2(time_step.observation,
-                                        meta,
-                                        self.global_step,
-                                        eval_mode=False)
-
+                    if self.cfg.obs_type=='pixels':
+                        action = self.agent.act2(time_step.observation['pixels'],
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
+                    else:    
+                        action = self.agent.act2(time_step.observation,
+                                            goal,
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True)
             # try to update the agent
             if not seed_until_step(self.global_step):
-                print('global step', self.global_step)
-                print('seed until', seed_until_step(self.global_step))
                 metrics = self.agent.update(self.replay_iter, self.global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
