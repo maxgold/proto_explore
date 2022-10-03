@@ -217,13 +217,13 @@ class Workspace:
         self.goal_queue_ptr = 0 
         self.goal_array = ndim_grid(2,15)
         lst =[]
-        for ix,x in enumerate(goal_array):
+        for ix,x in enumerate(self.goal_array):
             print(x[0])
             print(x[1])
             if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
                 lst.append(ix)
                 print('del',x)
-        self.goal_array=np.delete(goal_array, lst,0)
+        self.goal_array=np.delete(self.goal_array, lst,0)
         self.curriculum_goal_loaded=False
  
         # create agent
@@ -922,9 +922,6 @@ class Workspace:
                         init_rand = np.random.randint(4)
                         init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
                     
-                    else:
-                        init_state= np.array([-.15,.15])
-
                     if self.cfg.curriculum:
                         if self.curriculum_goal_loaded==False:
                             if self.cfg.const_init==False:
@@ -935,9 +932,12 @@ class Workspace:
                         else:
                             idx = np.random.randint(self.goal_queue.shape[0])
                             goal_state = self.goal_queue[idx]
-
-                    self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                    if self.cfg.const_init==False:
+                        self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state,init_state=init_state)
+                    else:
+                        self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                      self.cfg.action_repeat, seed=None, goal=goal_state)
                     
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
