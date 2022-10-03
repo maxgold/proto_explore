@@ -926,7 +926,10 @@ class Workspace:
                                 goal_=self.sample_goal_distance()
                             goal_state = np.array([goal_[0], goal_[1]]) 
                         else:
-                            idx = np.random.randint(self.goal_queue_ptr)
+                            if self.goal_queue_ptr!=0:
+                                idx = np.random.randint(self.goal_queue_ptr)
+                            else:
+                                idx = np.random.randint(self.goal_queue.shape[0])
                             goal_state = self.goal_queue[idx]
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -1008,7 +1011,10 @@ class Workspace:
                     print('current_state', current_state)
                             
                     if self.cfg.curriculum:
-                        idx = np.random.randint(self.goal_queue_ptr)
+                        if self.goal_queue_ptr!=0:
+                            idx = np.random.randint(self.goal_queue_ptr)
+                        else:
+                            idx = np.random.randint(self.goal_queue.shape[0])
                         goal_state = np.array([self.goal_queue[idx][0], self.goal_queue[idx][1]])
                     else:
                         idx = np.random.randint(0,400)
