@@ -350,7 +350,7 @@ class Workspace:
         self.storage1=False
         self.proto_goal = []
         self.distance_goal_dict={} 
-    
+        self.resampled=False
     
     
     @property
@@ -827,6 +827,7 @@ class Workspace:
                         self.save_snapshot()
                     episode_step = 0
                     episode_reward = 0
+                    self.resampled=False
 
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
@@ -841,7 +842,7 @@ class Workspace:
                     plt.savefig(f"./{self._global_step}_eval.png")
                     wandb.save("./{self._global_step}_eval.png")
 
-                if episode_step== 0 and self.global_step!=0:
+                if (episode_step== 0 and self.global_step!=0) or (episode_reward<50 and episode_step==250 and self.global_step!=0 and self.resampled==False):
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:
@@ -932,19 +933,35 @@ class Workspace:
                         else:
                             idx = np.random.randint(self.goal_queue.shape[0])
                             goal_state = self.goal_queue[idx]
-                    if self.cfg.const_init==False:
+
+
+
+                    if self.cfg.const_init==False and episode_step==0:
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state,init_state=init_state)
-                    else:
+                    elif self.cfg.const_init and episode_step==0:
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state)
+                    elif episode_step==250:
+                        print('no reward for 250')
+                        current_state = time_step1.observation['observations']
+                        dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+
+                        df1=pd.DataFrame()
+                        df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
+                        df1['index'] = df1.index
+                        df1 = df1.sort_values(by='distance')
+                        goal_array_ = []
+                        for x in range(len(df1)):
+                            goal_array_.append(self.goal_array[df1.iloc[x,1]]) 
+                        goal_state = goal_array_[1]
+                        self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                      self.cfg.action_repeat, seed=None, goal=goal_state,init_state=np.array([current_state[0], current_state[1]]))
                     
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                     time_step_no_goal = self.train_env_no_goal.reset()
-                    
-                    #time_step_goal = self.train_env_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1) 
                     print('sampled goal', goal_state)
 
@@ -982,9 +999,10 @@ class Workspace:
                     self.replay_storage1.add_goal(time_step1, meta, goal)
 
                 episode_step += 1
-
+                
                 if episode_reward > 100 and self.cfg.resample_goal:
                     print('reached making new env')
+                    self.resampled=True
                     episode_reward=0
                     if goal_state.tolist() in self.goal_array.tolist():
                         ix = self.goal_array.tolist().index(goal_state.tolist())
