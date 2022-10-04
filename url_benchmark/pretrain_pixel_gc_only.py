@@ -215,7 +215,7 @@ class Workspace:
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
-        self.goal_array = ndim_grid(2,15)
+        self.goal_array = ndim_grid(2,20)
         lst =[]
         for ix,x in enumerate(self.goal_array):
             print(x[0])
@@ -945,7 +945,7 @@ class Workspace:
                     elif episode_step==250:
                         print('no reward for 250')
                         current_state = time_step1.observation['observations']
-                        dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+                        dist_goal = cdist(np.array([[current_state[0],current_state[1]]]), self.goal_array, 'euclidean')
 
                         df1=pd.DataFrame()
                         df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
