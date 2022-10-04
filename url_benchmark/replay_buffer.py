@@ -176,8 +176,8 @@ class ReplayBufferStorage:
         if pixels:
             goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0])+29
-            idx_y = int(goal_state[1])+29
+            idx_x = int(goal_state[0]*100)+29
+            idx_y = int(goal_state[1]*100)+29
             self.goal_state_matrix[idx_x,idx_y]+=1
         self._current_episode_goal['goal'].append(goal)
 
