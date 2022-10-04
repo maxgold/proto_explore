@@ -176,8 +176,8 @@ class ReplayBufferStorage:
         if pixels:
             goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0])+29
-            idx_y = int(goal_state[1])+29
+            idx_x = int(goal_state[0]*100)+29
+            idx_y = int(goal_state[1]*100)+29
             self.goal_state_matrix[idx_x,idx_y]+=1
         self._current_episode_goal['goal'].append(goal)
 
@@ -575,8 +575,17 @@ class ReplayBuffer(IterableDataset):
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
+            
+            while episode["goal_state"][idx][0]!=episode["goal_state"][idx_goal][0] and episode["goal_state"][idx][1]!=episode["goal_state"][idx_goal][1]:
+                idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
+                obs = episode["observation"][idx-1]
+                action = episode["action"][idx]
+                next_obs = episode['observation'][idx]
+                idx_goal = np.random.randint(idx,episode_len(episode))
+            
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
+            
             for i in range(1):
                 step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
