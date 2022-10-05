@@ -819,6 +819,16 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 
             plt.savefig(f"./{model_step}_gc_reward.png")
             wandb.save(f"./{model_step}_gc_reward.png")
+
+            goal_matrix = self.replay_storage1.goal_state_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,10))
+            labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+            sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(model_step)
+
+            plt.savefig(f"./{model_step}_goal_state_heatmap.png")
+            wandb.save(f"./{model_step}_goal_state_heatmap.png") 
             
         if proto:
             

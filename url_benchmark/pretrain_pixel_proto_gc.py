@@ -28,12 +28,12 @@ from dmc_benchmark import PRIMAL_TASKS
 
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal, cfg, 
                 hidden_dim, batch_size,update_gc, lr,gc_only,offline, load_protos, task, frame_stack, action_repeat=2, 
-               replay_buffer_num_workers=4, discount=.99, reward_scores=False, 
+               replay_buffer_num_workers=4, discount=.99, reward_scores=False, reward_scores_dense=False,
                num_seed_frames=4000, task_no_goal='point_mass_maze_reach_no_goal', 
                work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None,
-               eval_after_step=990000, episode_length=100, reward_nn=True, hybrid_gc=False, hybrid_pct=0,num_protos=512,
-               stddev_schedule=.2, stddev_clip=.3, reward_scores_dense=False, reward_euclid=False, episode_reset_length=500,
-               use_closest_proto=True,pos_reward=True,neg_reward=False, batch_size_gc=1024):
+               eval_after_step=990000, episode_length=100, reward_nn=True, reward_euclid=False, pos_reward=True,
+               neg_reward=False,hybrid_gc=False, hybrid_pct=0, batch_size_gc=256, const_init=False, episode_reset_length=100, 
+               num_protos=512,stddev_schedule=.2, stddev_clip=.3, use_closest_proto=True):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -53,6 +53,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.replay_buffer_num_workers = replay_buffer_num_workers
     cfg.discount = discount
     cfg.reward_scores = reward_scores
+    cfg.reward_scores_dense = reward_scores_dense
     cfg.num_seed_frames = num_seed_frames
     cfg.task_no_goal = task_no_goal
     cfg.work_dir = work_dir
@@ -63,18 +64,18 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.eval_after_step = eval_after_step
     cfg.episode_length = episode_length
     cfg.reward_nn = reward_nn
+    cfg.reward_euclid = reward_euclid
+    cfg.pos_reward = pos_reward
+    cfg.neg_reward = neg_reward
     cfg.hybrid_gc=hybrid_gc
     cfg.hybrid_pct=hybrid_pct
+    cfg.batch_size_gc = batch_size_gc
+    cfg.const_init = const_init
+    cfg.episode_reset_length = episode_reset_length
     cfg.num_protos=512
     cfg.stddev_schedule=stddev_schedule
     cfg.stddev_clip=stddev_clip
-    cfg.reward_scores_dense=reward_scores_dense
-    cfg.reward_euclid=reward_euclid
-    cfg.episode_reset_length=episode_reset_length
     cfg.use_closest_proto=use_closest_proto
-    cfg.pos_reward=pos_reward
-    cfg.neg_reward=neg_reward
-    cfg.batch_size_gc=batch_size_gc
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -179,6 +180,7 @@ class Workspace:
                                 replay_buffer_num_workers = cfg.replay_buffer_num_workers,
                                 discount=cfg.discount,
                                 reward_scores = cfg.reward_scores,
+                                reward_scores_dense = cfg.reward_scores_dense,
                                 num_seed_frames = cfg.num_seed_frames,
                                 task_no_goal=cfg.task_no_goal,
                                 work_dir = self.work_dir,
@@ -189,17 +191,18 @@ class Workspace:
                                 eval_after_step=cfg.eval_after_step,
                                 episode_length=cfg.episode_length,
                                 reward_nn=cfg.reward_nn,
+                                reward_euclid=cfg.reward_euclid,
+                                pos_reward=cfg.pos_reward,
+                                neg_reward=cfg.neg_reward,
                                 hybrid_gc=cfg.hybrid_gc,
                                 hybrid_pct=cfg.hybrid_pct,
+                                batch_size_gc=cfg.batch_size_gc,
+                                const_init=cfg.const_init,
+                                episode_reset_length=cfg.episode_reset_length,
                                 num_protos=cfg.num_protos,
                                 stddev_schedule=cfg.stddev_schedule,
                                 stddev_clip=cfg.stddev_clip,
-                                reward_scores_dense=cfg.reward_scores_dense,
-                                reward_euclid=cfg.reward_euclid,
-                                episode_reset_length=cfg.episode_reset_length,
-                                use_closest_proto=cfg.use_closest_proto,
-                                pos_reward=cfg.pos_reward,
-                                neg_reward=cfg.neg_reward)
+                                use_closest_proto=cfg.use_closest_proto)
 
         if self.cfg.load_encoder:
             #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
