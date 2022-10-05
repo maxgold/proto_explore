@@ -927,19 +927,22 @@ class Workspace:
                         init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
                     
                     if self.cfg.curriculum:
+                        print('globalstep', self.global_step) 
                         if self.curriculum_goal_loaded==False:
                             if self.cfg.const_init==False:
                                 goal_=self.sample_goal_distance(init_rand)
                             else:
                                 goal_=self.sample_goal_distance()
                             goal_state = np.array([goal_[0], goal_[1]]) 
+                        
                         else:
-                            if self.fully_loaded:
-                                print('fully loaded')
-                                idx = np.random.randint(self.goal_queue.shape[0])
-                                goal_state = self.goal_queue[idx]
+                            if self.global_step%5000==0:
+                                ix = np.random.uniform(.02,.29,size=(2,))
+                                sign = np.array([[1,1],[1,-1],[-1,-1]])
+                                rand = np.random.randint(3)
+                                goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
                             else:
-                                idx = np.random.randint(self.goal_queue_ptr)
+                                idx = np.random.randint(self.goal_queue.shape[0])
                                 goal_state = self.goal_queue[idx]
 
                     if self.cfg.const_init==False and episode_step==0:
@@ -1033,9 +1036,8 @@ class Workspace:
                         self.goal_queue[ptr] = goal_array_[x]
                         self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
                     
-                    self.curriculum_goal_loaded=True
                     if self.goal_queue_ptr==0:
-                        self.fully_loaded=True
+                        self.curriculum_goal_loaded=True
                     print('reached making new env')
                     episode_reward=0
                     current_state = time_step1.observation['observations'][:2]
