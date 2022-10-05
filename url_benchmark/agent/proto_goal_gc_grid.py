@@ -434,14 +434,14 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.reward =torch.as_tensor(-1)
                 
             self.replay_storage1.add_proto_goal(self.time_step1, self.z.cpu().numpy(), self.meta, 
-                    self.goal.cpu().numpy(), self.reward, last=False)
+                    self.goal.cpu().numpy(), self.reward, last=False, goal_state=self.goal_array[self.goal_key])
             
         else:
             #no reward for too  long so sample goal nearby 
             if self.episode_step == self.episode_length:
                 #sample new goal
                 if self.episode_step!=self.step:
-                    self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
+                    self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True, goal_state=self.goal_array[self.goal_key])
 
                     print('keys',self.state_proto_pair.keys())
                     print('goal not reach, resample', self.step)
@@ -492,7 +492,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 print('step={}, saving last episode'.format(global_step))
                 self.step=0
                 if self.step!=self.episode_step:
-                    self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True)
+                    self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True, goal_state=self.goal_array[self.goal_key])
 
                 if self.const_init==False and (global_step-1)%self.episode_reset_length==0:
                     initiation = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
@@ -566,7 +566,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     else:
                         self.reward =torch.as_tensor(-1)
 
-                self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(),last=False)
+                self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(),last=False, goal_state=self.goal_array[self.goal_key])
 
                 if self.metrics is not None:
                     # log stats
@@ -614,7 +614,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 
                     if self.goal_key==_[:,0].item():
                         self.reward=torch.as_tensor(1)
-                        self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
+                        self.state_proto_pair[str(self.goal_key)] = self.time_step1.observation['observations']
                         self.goal_freq[self.goal_key] += 1
                         
                     else:
@@ -626,7 +626,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     if self.goal_key==_[:,0].item():
 
                         self.reward=torch.as_tensor(0)
-                        self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
+                        self.state_proto_pair[str(self.goal_key)] = self.time_step1.observation['observations']
                         self.goal_freq[self.goal_key] += 1
                     
                     else:
@@ -648,7 +648,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     
                     if scores.argmax().item()==self.goal_key:
                         self.reward=torch.as_tensor(1)
-                        self.state_proto_pair[self.goal_key].append(self.time_step1.observation['observations'])
+                        self.state_proto_pair[str(self.goal_key)].append(self.time_step1.observation['observations'])
                         self.goal_freq[self.goal_key] += 1
                         print('current', self.time_step1.observation['observations'])
                         print('goal', self.goal_array[self.goal_key])
@@ -661,7 +661,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     scores = torch.matmul(self.proto_goal, self.z.T)
                     if scores.argmax().item()==self.goal_key:
                         self.reward=torch.as_tensor(0)
-                        self.state_proto_pair[self.goal_key] = self.time_step1.observation['observations']
+                        self.state_proto_pair[str(self.goal_key)] = self.time_step1.observation['observations']
                         self.goal_freq[self.goal_key] += 1
                     else:
                         self.reward=torch.as_tensor(-1)
@@ -677,7 +677,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.reward = scores[self.goal_key]
 
                     if self.reward==1:
-                        self.state_proto_pair[self.goal_key].append(self.time_step1.observation['observations'])
+                        self.state_proto_pair[str(self.goal_key)].append(self.time_step1.observation['observations'])
                         self.goal_freq[self.goal_key] += 1
                     
                     if self.reward >.95:
@@ -729,7 +729,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             self.episode_reward += self.reward
 
             if self.step!=self.episode_length and self.time_step1.last()==False:
-                self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy())
+                self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), goal_state=self.goal_array[self.goal_key])
 
             if not self.seed_until_step(global_step):
                 self.metrics = self.update(self.replay_iter1, global_step, actor1=True)
