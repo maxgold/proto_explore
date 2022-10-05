@@ -210,7 +210,7 @@ class ReplayBufferStorage:
             print('storing episode, w/ goal')
             
             
-    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False):
+    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None):
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
         for spec in self._data_specs:
@@ -249,6 +249,12 @@ class ReplayBufferStorage:
         goal = np.array([goal]).reshape((-1,))
         self._current_episode_goal['goal'].append(goal)
 
+        if goal_state is not None:
+            self._current_episode_goal['goal_state'].append(goal_state)
+            idx_x = int(goal_state[0]*100)+29
+            idx_y = int(goal_state[1]*100)+29
+            self.goal_state_matrix[idx_x,idx_y]+=1 
+
         if time_step.last() or last:
             print('replay last')
             episode = dict()
@@ -272,6 +278,10 @@ class ReplayBufferStorage:
             
             value = self._current_episode_goal['goal']
             episode['goal'] = np.array(value)
+            
+            if goal_state is not None:
+                value = self._current_episode_goal['goal_state']
+                episode['goal_state'] = np.array(value, np.float64)
 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
