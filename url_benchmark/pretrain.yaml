@@ -62,6 +62,8 @@ switch_gc: False
 load_encoder: ???
 load_proto: ???
 reward_scores: False
+reward_scores_dense: False
+reward_euclid: False
 goal_queue_size: 10
 const_init: True
 reward_nn: True
@@ -73,6 +75,10 @@ stddev_schedule2: .2
 stddev_clip: .3
 stddev_clip2: .3
 proto_const_init: True
+episode_reset_length: 500
+use_closest_proto: True
+pos_reward: True
+neg_reward: False
 # experiment
 experiment: exp
 
