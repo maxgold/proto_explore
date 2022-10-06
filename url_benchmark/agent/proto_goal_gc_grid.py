@@ -341,7 +341,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         return metrics
     
     def roll_out(self, global_step, curriculum):
-        file_name=self.work_dir / './state_proto_similarity_{global_step}.npz'
+        file_name=self.work_dir / './state_proto_similarity_{}.npz'.format(global_step)
         if global_step%100000==0:
             with io.BytesIO() as bs:
                 np.savez_compressed(bs, **self.state_proto_pair)
@@ -711,9 +711,13 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     x=(dist_to_target-upper)/margin
                     self.reward=torch.exp(-.5*(x*scale)**2).long()
                     
-                print('current', self.time_step1.observation['observations'])
-                print('goal', self.goal_array[self.goal_key])
-                print('reward', self.reward) 
+                
+                if self.reward == 1:
+                    print('current', self.time_step1.observation['observations'])
+                    print('goal', self.goal_array[self.goal_key])
+                    self.state_proto_pair[str(self.goal_key)].append(self.time_step1.observation['observations'])
+                    self.goal_freq[self.goal_key] += 1
+
                 #if self.pos_reward:
                 #    self.reward=dist+1
                 #else:
@@ -757,7 +761,6 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 #                         self.reward =torch.as_tensor(-1)
                 
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
-
                 
                 s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
                 
@@ -1134,14 +1137,17 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                             dist_to_target=np.linalg.norm(goal_-current)
 
                             if dist_to_target<.015:
-                                self.reward=torch.as_tensor(1)
+                                self.reward=1
+
                             else:
                                 upper=.015
                                 margin=.1
                                 scale=torch.as_tensor(np.sqrt(2))
                                 x=(dist_to_target-upper)/margin
-                                self.reward=torch.exp(-.5*(x*scale)**2).long()
-                                
+                                #import IPython as ipy; ipy.embed(colors='neutral')
+                                self.reward=torch.exp(-.5*(x*scale)**2).long().item()
+                            
+                            total_reward+=self.reward    
                         step += 1
                     
                     episode += 1
