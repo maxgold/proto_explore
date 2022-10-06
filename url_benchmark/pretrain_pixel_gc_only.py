@@ -842,7 +842,7 @@ class Workspace:
                     plt.savefig(f"./{self._global_step}_eval.png")
                     wandb.save("./{self._global_step}_eval.png")
 
-                if (episode_step== 0 and self.global_step!=0) or (episode_reward<50 and episode_step==250 and self.global_step!=0 and self.resampled==False):
+                if (episode_step== 0 and self.global_step!=0) or (episode_reward<100 and episode_step==self.cfg.episode_length/2 and self.global_step!=0 and self.resampled==False):
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:
@@ -934,10 +934,10 @@ class Workspace:
                         
                         else:
                             if self.global_step%5000==0:
-                                ix = np.random.uniform((.02,.29),(2,))
+                                ix = np.random.uniform(.02,.29,(2,))
                                 sign = np.array([[1,1],[1,-1],[-1,-1]])
                                 rand = np.random.randint(3)
-                                goal_state = np.array([ix[0]*sign[0], ix[1]*sign[1]])
+                                goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
                             else:
                                 idx = np.random.randint(self.goal_queue.shape[0])
                                 goal_state = self.goal_queue[idx]
@@ -948,7 +948,7 @@ class Workspace:
                     elif self.cfg.const_init and episode_step==0:
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state)
-                    elif episode_step==250:
+                    elif episode_step==self.cfg.episode_length/2:
                         print('no reward for 250')
                         current_state = time_step1.observation['observations']
                         dist_goal = cdist(np.array([[current_state[0],current_state[1]]]), self.goal_array, 'euclidean')
@@ -960,7 +960,7 @@ class Workspace:
                         goal_array_ = []
                         for x in range(len(df1)):
                             goal_array_.append(self.goal_array[df1.iloc[x,1]]) 
-                        goal_state = goal_array_[1]
+                        goal_state = goal_array_[0]
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state,init_state=np.array([current_state[0], current_state[1]]))
                     
