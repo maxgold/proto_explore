@@ -341,7 +341,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         return metrics
     
     def roll_out(self, global_step, curriculum):
-        file_name=self.work_dir / './state_proto_similarity_{global_step}.npz'
+        file_name=self.work_dir / './state_proto_similarity_{}.npz'.format(global_step)
         if global_step%100000==0:
             with io.BytesIO() as bs:
                 np.savez_compressed(bs, **self.state_proto_pair)
@@ -378,6 +378,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     #all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
                     sim = self.protos(z)
                     idx = sim.argmax()
+                    import IPython as ipy; ipy.embed(colors='neutral')
                     if self.use_closest_proto==False:
                         self.proto_goal.append(z)
                     else:
