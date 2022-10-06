@@ -53,37 +53,67 @@ class FiLM(nn.Module):
 
         #processors (adaptation networks) & regularization lists for each of 
         #the output params
-        self.shared_layer1 = nn.Sequential(nn.Linear(goal_dim, feature_dim),nn.ReLU())
-        self.shared_layer2 = nn.Sequential(nn.Linear(goal_dim, hidden_dim),nn.ReLU())
+        self.shared_layer1 = nn.Sequential(nn.Linear(goal_dim, feature_dim),
+            nn.ReLU())
+        self.shared_layer2 = nn.Sequential(
+            nn.Linear(goal_dim, hidden_dim),
+            nn.ReLU())
 
         #trying residual instead of linear
-        self.gamma_1 = nn.Identity()
+        self.gamma_1 = nn.Sequential(
+            DenseResidualLayer(feature_dim),
+            nn.ReLU(),
+            DenseResidualLayer(feature_dim),
+            nn.ReLU(),
+            DenseResidualLayer(feature_dim)
+        )
 
-        self.gamma_1_regularizers = torch.zeros(size=(feature_dim,))
+        self.gamma_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(feature_dim), 0, 0.001),
+                                                               requires_grad=True)
 
-        self.gamma_2 = nn.Identity()
+        self.gamma_2 = nn.Sequential(
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim)
+        )
 
-        self.gamma_2_regularizers = torch.zeros(size=(hidden_dim,))
+        self.gamma_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
 
-        self.beta_1 = nn.Identity()
+        self.beta_1 = nn.Sequential(
+            DenseResidualLayer(feature_dim),
+            nn.ReLU(),
+            DenseResidualLayer(feature_dim),
+            nn.ReLU(),
+            DenseResidualLayer(feature_dim)
+        )
 
-        self.beta_1_regularizers = torch.zeros(size=(feature_dim,))
+        self.beta_1_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(feature_dim), 0, 0.001),
+                                                               requires_grad=True)
 
-        self.beta_2 = nn.Identity()
+        self.beta_2 = nn.Sequential(
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim),
+            nn.ReLU(),
+            DenseResidualLayer(hidden_dim)
+        )
 
-        self.beta_2_regularizers = torch.zeros(size=(hidden_dim,))
+        self.beta_2_regularizers = torch.nn.Parameter(torch.nn.init.normal_(torch.empty(hidden_dim), 0, 0.001),
+                                                               requires_grad=True)
 
-        self.apply(utils.weight_init) 
+        self.apply(utils.weight_init)
 
     
     def forward(self, goal):
         x = self.shared_layer1(goal)
-        gamma1 = self.gamma_1(x).squeeze() * self.gamma_1_regularizers.cuda() + torch.ones_like(self.gamma_1_regularizers).cuda()
-        beta1 = self.beta_1(x).squeeze() * self.beta_1_regularizers.cuda()
+        gamma1 = self.gamma_1(x).squeeze() * self.gamma_1_regularizers + torch.ones_like(self.gamma_1_regularizers)
+        beta1 = self.beta_1(x).squeeze() * self.beta_1_regularizers
         x = self.shared_layer2(goal)
-        gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers.cuda() + torch.ones_like(self.gamma_2_regularizers).cuda()
-        beta2 = self.beta_2(x).squeeze() * self.beta_2_regularizers.cuda()
-        print(gamma1)
+        gamma2 = self.gamma_2(x).squeeze() * self.gamma_2_regularizers + torch.ones_like(self.gamma_2_regularizers)
+        beta2 = self.beta_2(x).squeeze() * self.beta_2_regularizers
         return (gamma1, beta1, gamma2, beta2)
     
     
@@ -128,7 +158,6 @@ class Actor(nn.Module):
         x = self.relu(x)
         x = self.fc4(x)
         mu = torch.tanh(x)
-        
         std = torch.ones_like(mu) * std
 
         dist = utils.TruncatedNormal(mu, std)
@@ -140,6 +169,42 @@ class Actor(nn.Module):
         gamma = gamma.expand_as(x)
         beta = beta.expand_as(x)
         return gamma * x + beta
+
+
+class Actor2(nn.Module):
+    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
+        super().__init__()
+
+        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
+
+        self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
+
+        policy_layers = []
+        policy_layers += [
+            nn.Linear(feature_dim, hidden_dim),
+            nn.ReLU(inplace=True)
+        ]
+        # add additional hidden layer for pixels
+        if obs_type == 'pixels':
+            policy_layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
+        policy_layers += [nn.Linear(hidden_dim, action_dim)]
+
+        self.policy = nn.Sequential(*policy_layers)
+
+        self.apply(utils.weight_init)
+
+    def forward(self, obs, std):
+        h = self.trunk(obs)
+        mu = self.policy(h)
+        mu = torch.tanh(mu)
+        std = torch.ones_like(mu) * std
+        dist = utils.TruncatedNormal(mu, std)
+        return dist
+
 
 class Critic(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
@@ -183,6 +248,7 @@ class Critic(nn.Module):
         
         h = self.trunk(inpt)
         h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
+
         q1 = self.Q1(h)
         q2 = self.Q2(h)
 
@@ -190,7 +256,55 @@ class Critic(nn.Module):
 
 
 
-class DDPGFilmGCAgent:
+
+class Critic2(nn.Module):
+    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
+        super().__init__()
+        self.obs_type = obs_type
+        if obs_type == 'pixels':
+            # for pixels actions will be added after trunk
+            self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
+                                       nn.LayerNorm(feature_dim), nn.Tanh())
+            trunk_dim = feature_dim + action_dim
+        else:
+            # for states actions come in the beginning
+            self.trunk = nn.Sequential(
+                nn.Linear(obs_dim + action_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim), nn.Tanh())
+            trunk_dim = hidden_dim
+
+        def make_q():
+            q_layers = []
+            q_layers += [
+                nn.Linear(trunk_dim, hidden_dim),
+                nn.ReLU(inplace=True)
+            ]
+            if obs_type == 'pixels':
+                q_layers += [
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(inplace=True)
+                ]
+            q_layers += [nn.Linear(hidden_dim, 1)]
+            return nn.Sequential(*q_layers)
+
+        self.Q1 = make_q()
+        self.Q2 = make_q()
+
+        self.apply(utils.weight_init)
+
+    def forward(self, obs, action):
+        inpt = obs if self.obs_type == 'pixels' else torch.cat([obs, action],
+                                                               dim=-1)
+        h = self.trunk(inpt)
+        h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
+
+        q1 = self.Q1(h)
+        q2 = self.Q2(h)
+        return q1, q2
+
+
+
+class DDPGFilmAgent:
     def __init__(self,
                  name,
                  reward_free,
@@ -213,7 +327,6 @@ class DDPGFilmGCAgent:
                  init_critic,
                  use_tb,
                  use_wandb,
-                 switch_gc,
                  meta_dim=0,
                 **kwargs):
         self.reward_free = reward_free
@@ -224,6 +337,7 @@ class DDPGFilmGCAgent:
         self.lr = lr
         self.device = device
         self.critic_target_tau = critic_target_tau
+        self.critic2_target_tau = critic2_target_tau
         self.update_every_steps = update_every_steps
         self.use_tb = use_tb
         self.use_wandb = use_wandb
@@ -233,7 +347,6 @@ class DDPGFilmGCAgent:
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.solved_meta = None
-        self.switch_gc=switch_gc
 
         # models
         if obs_type == 'pixels':
@@ -256,8 +369,15 @@ class DDPGFilmGCAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
-#        self.dense = DenseResidualLayer(
         
+        #2nd set of actor critic networks 
+        self.actor2 = Actor2(obs_type, self.obs_dim, self.action_dim,
+                           feature_dim, hidden_dim).to(device)
+        self.critic2 = Critic2(obs_type, self.obs_dim, self.action_dim,
+                             feature_dim, hidden_dim).to(device)
+        self.critic2_target = Critic2(obs_type, self.obs_dim, self.action_dim,
+                                    feature_dim, hidden_dim).to(device)
+        self.critic2_target.load_state_dict(self.critic2.state_dict())
 
         self.film = FiLM(self.goal_dim, feature_dim, hidden_dim).to(device)
 
@@ -268,17 +388,22 @@ class DDPGFilmGCAgent:
                                                 lr=lr)
         else:
             self.encoder_opt = None
-        self.actor_opt = torch.optim.Adam(utils.chain(self.actor.parameters(), self.film.parameters()), lr=lr)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        self.actor2_opt = torch.optim.Adam(self.actor2.parameters(), lr=lr)
+        self.critic2_opt = torch.optim.Adam(self.critic2.parameters(), lr=lr)
         self.film_opt = torch.optim.Adam(self.film.parameters(), lr=lr)
         self.train()
         self.critic_target.train()
+        self.critic2_target.train()
 
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
         self.actor.train(training)
         self.critic.train(training)
+        self.actor2.train(training)
+        self.critic2.train(training)
         self.film.train(training)
 
     def init_from(self, other):
@@ -286,8 +411,10 @@ class DDPGFilmGCAgent:
         utils.hard_update_params(other.film, self.film)
         utils.hard_update_params(other.encoder, self.encoder)
         utils.hard_update_params(other.actor, self.actor)
+        utils.hard_update_params(other.actor2, self.actor2)
         if self.init_critic:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
+            utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
     def get_meta_specs(self):
         return tuple()
@@ -299,15 +426,8 @@ class DDPGFilmGCAgent:
         return meta
 
     def act(self, obs, goal, meta, step, eval_mode):
-        if self.obs_type=='states':
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        else:
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
-            goal = np.transpose(goal, (2,0,1))
-            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            goal = torch.tile(goal, (1,3,1,1))
- 
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+        goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]
@@ -320,6 +440,25 @@ class DDPGFilmGCAgent:
         stddev = utils.schedule(self.stddev_schedule, step)
 
         dist = self.actor(inpt, inputs2, stddev)
+        if eval_mode:
+            action = dist.mean
+        else:
+            action = dist.sample(clip=None)
+            if step < self.num_expl_steps:
+                action.uniform_(-1.0, 1.0)
+        return action.cpu().numpy()[0]
+
+    def act2(self, obs, meta, step, eval_mode):
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        h = self.encoder(obs)
+        inputs = [h]
+        for value in meta.values():
+            value = torch.as_tensor(value, device=self.device).unsqueeze(0)
+            inputs.append(value)
+        inpt = torch.cat(inputs, dim=-1)
+        #assert obs.shape[-1] == self.obs_shape[-1]
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor2(inpt, stddev)
         if eval_mode:
             action = dist.mean
         else:
@@ -350,13 +489,42 @@ class DDPGFilmGCAgent:
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
-            self.film_opt.zero_grad(set_to_none=True)
+            #self.film_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
         if self.encoder_opt is not None:
             self.encoder_opt.step()
-            self.film_opt.step()
+            #self.film_opt.step()
+        return metrics
+
+    def update_critic2(self, obs, action, reward, discount, next_obs, step):
+        metrics = dict()
+
+        with torch.no_grad():
+            stddev = utils.schedule(self.stddev_schedule, step)
+            dist = self.actor2(next_obs, stddev)
+            next_action = dist.sample(clip=self.stddev_clip)
+            target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
+            target_V = torch.min(target_Q1, target_Q2)
+            target_Q = reward + (discount * target_V)
+
+        Q1, Q2 = self.critic2(obs, action)
+        critic2_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+
+        if self.use_tb or self.use_wandb:
+            metrics['critic2_target_q'] = target_Q.mean().item()
+            metrics['critic2_q1'] = Q1.mean().item()
+            metrics['critic2_q2'] = Q2.mean().item()
+            metrics['critic2_loss'] = critic2_loss.item()
+        # optimize critic
+        if self.encoder_opt is not None:
+            self.encoder_opt.zero_grad(set_to_none=True)
+        self.critic2_opt.zero_grad(set_to_none=True)
+        critic2_loss.backward()
+        self.critic2_opt.step()
+        if self.encoder_opt is not None:
+            self.encoder_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, step):
@@ -372,22 +540,45 @@ class DDPGFilmGCAgent:
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
-        #if step > self.switch_gc:
         self.film_opt.zero_grad(set_to_none=True)
 
         actor_loss.backward()
         self.actor_opt.step()
-        #if step > self.switch_gc:
-        #    print('optimizing film')
+        
         self.film_opt.step()
-        #    print(self.film.parameters())
+        
         if self.use_tb or self.use_wandb:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()
             metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
             metrics['actor_stddev'] = stddev
-            
         return metrics
+
+    def update_actor2(self, obs, step):
+        metrics = dict()
+
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor2(obs, stddev)
+        action = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
+        Q1, Q2 = self.critic2(obs, action)
+        Q = torch.min(Q1, Q2)
+
+        actor2_loss = -Q.mean()
+
+        # optimize actor
+        self.actor2_opt.zero_grad(set_to_none=True)
+        actor2_loss.backward()
+        self.actor2_opt.step()
+
+        if self.use_tb or self.use_wandb:
+            metrics['actor2_loss'] = actor2_loss.item()
+            metrics['actor2_logprob'] = log_prob.mean().item()
+            metrics['actor2_ent'] = dist.entropy().sum(dim=-1).mean().item()
+            metrics['actor2_stddev'] = stddev
+        return metrics
+
+
 
 
     def aug_and_encode(self, obs):
