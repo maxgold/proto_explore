@@ -581,14 +581,14 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx + i] * self._discount 
 
         elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(episode_len(episode)//2,episode_len(episode)-self._nstep)
+            idx = np.random.randint(episode_len(episode)-self._nstep)
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx + self._nstep - 1]
             idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
             
             while episode["goal_state"][idx][0]!=episode["goal_state"][idx_goal][0] and episode["goal_state"][idx][1]!=episode["goal_state"][idx_goal][1]:
-                idx = np.random.randint(episode_len(episode)//2,episode_len(episode)-self._nstep)
+                idx = np.random.randint(episode_len(episode)-self._nstep)
                 obs = episode["observation"][idx-1]
                 action = episode["action"][idx]
                 next_obs = episode['observation'][idx + self._nstep - 1]
