@@ -525,7 +525,6 @@ class ReplayBuffer(IterableDataset):
             meta.append(episode[spec.name][idx - 1])
         
         obs = episode["observation"][idx - 1]
-
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
@@ -537,7 +536,7 @@ class ReplayBuffer(IterableDataset):
             discount *= episode["discount"][idx + i] * self._discount
          
         if self.goal:
-            goal = episode["goal"][idx]
+            goal = episode["goal"][idx-1]
             if self.pixels and self.goal_proto==False:
                 goal = np.tile(goal,(3,1,1))
             #goal = goal[None,:,:]
@@ -546,7 +545,6 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, *meta)
 
     def _sample_goal_hybrid(self):
-
         try:
             self._try_fetch()
         except:
@@ -554,7 +552,7 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) + 1
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
         meta = []
         for spec in self._storage._meta_specs:
             meta.append(episode[spec.name][idx - 1])
@@ -562,7 +560,7 @@ class ReplayBuffer(IterableDataset):
         obs = episode["observation"][idx - 1]
 
         action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
@@ -571,42 +569,43 @@ class ReplayBuffer(IterableDataset):
         key = np.random.randint(0,10)
         if key > self.hybrid_pct:
             goal = episode["goal"][idx-1]
+            
             if self.pixels and self.goal_proto==False:
                 goal = np.tile(goal,(3,1,1))
-
-            for i in range(1):
+            
+            for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
+                discount *= episode["discount"][idx + i] * self._discount 
 
         elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
+            idx = np.random.randint(episode_len(episode)-self._nstep)
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
-            idx_goal = np.random.randint(idx,episode_len(episode))
+            next_obs = episode['observation'][idx + self._nstep - 1]
+            idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
             
             while episode["goal_state"][idx][0]!=episode["goal_state"][idx_goal][0] and episode["goal_state"][idx][1]!=episode["goal_state"][idx_goal][1]:
-                idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
+                idx = np.random.randint(episode_len(episode)-self._nstep)
                 obs = episode["observation"][idx-1]
                 action = episode["action"][idx]
-                next_obs = episode['observation'][idx]
-                idx_goal = np.random.randint(idx,episode_len(episode))
+                next_obs = episode['observation'][idx + self._nstep - 1]
+                idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
             
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
-            
-            for i in range(1):
+
+            for i in range(self._nstep):
                 step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount
+                discount *= episode["discount"][idx + i] * self._discount 
                 
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
+            next_obs = episode["observation"][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
             z = episode["observation"][idx_goal][None,:]
             protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
@@ -1089,7 +1088,6 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs, goal)
     
     def _sample_goal_offline(self):
-        print('sampling offline')
         try:
             self._try_fetch()
         except:
@@ -1285,7 +1283,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, return_iterable=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1315,8 +1313,10 @@ def make_replay_loader(
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )
-    return loader
-
+    if return_iterable:
+        return iterable, loader
+    else:
+        return loader
 
 def ndim_grid(ndims, space):
     L = [np.linspace(-.25,.25,space) for i in range(ndims)]

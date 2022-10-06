@@ -275,6 +275,7 @@ class Workspace:
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
         # get meta specs
@@ -312,14 +313,14 @@ class Workspace:
             print('making it later')
         else:
             print('regular or hybrid_gc loader')
-            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+            self.replay_iterable, self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct)
+                                                    cfg.hybrid_pct,return_iterable=True)
              
 
         self._replay_iter1 = None
@@ -354,6 +355,7 @@ class Workspace:
         self.proto_goal = []
         self.distance_goal_dict={} 
         self.resampled=False
+        self.reload_goal=False
     
     
     @property
@@ -927,7 +929,6 @@ class Workspace:
                         init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
                     
                     if self.cfg.curriculum:
-                        print('globalstep', self.global_step) 
                         if self.curriculum_goal_loaded==False:
                             if self.cfg.const_init==False:
                                 goal_=self.sample_goal_distance(init_rand)
@@ -936,14 +937,37 @@ class Workspace:
                             goal_state = np.array([goal_[0], goal_[1]]) 
                         
                         else:
-                            if self.global_step%5000==0:
-                                ix = np.random.uniform(.02,.29,size=(2,))
-                                sign = np.array([[1,1],[1,-1],[-1,-1]])
-                                rand = np.random.randint(3)
-                                goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
+                            print('goals left to reach', self.goal_array.shape[0])
+                            if self.goal_array.shape[0]>10:
+                                if self.global_step%5000==0:
+                                    ix = np.random.uniform((.02,.29),(2,))
+                                    sign = np.array([[1,1],[1,-1],[-1,-1]])
+                                    rand = np.random.randint(3)
+                                    goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
+                                else:
+                                    idx = np.random.randint(self.goal_queue.shape[0])
+                                    goal_state = self.goal_queue[idx]
                             else:
-                                idx = np.random.randint(self.goal_queue.shape[0])
-                                goal_state = self.goal_queue[idx]
+                                
+                                if self.reload_goal ==False:
+                                    self.replay_iterable.hybrid=False
+                                    self.reload_goal_array = ndim_grid(2,20)
+                                    lst =[]
+                                    for ix,x in enumerate(self.reload_goal_array):
+                                        print(x[0])
+                                        print(x[1])
+                                        if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                                            lst.append(ix)
+                                            print('del',x)
+                                    self.reload_goal_array=np.delete(self.reload_goal_array, lst,0)
+                                    idx = np.random.randint(self.reload_goal_array.shape[0])
+                                    goal_state= self.reload_goal_array[idx]
+                                    self.reload_goal=True
+                                else:
+                                    idx = np.random.randint(self.reload_goal_array.shape[0])
+                                    goal_state= self.reload_goal_array[idx]
+                                
+                                
 
                     if self.cfg.const_init==False and episode_step==0:
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -1010,7 +1034,7 @@ class Workspace:
 
                 episode_step += 1
                 
-                if episode_reward > 100 and self.cfg.resample_goal:
+                if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
                     episode_reward=0
