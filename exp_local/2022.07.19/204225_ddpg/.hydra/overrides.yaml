@@ -1,4 +1,0 @@
-- task=point_mass_maze_reach_top_left
-- obs_type=pixels
-- use_wandb=true
-- snapshot_ts=0
