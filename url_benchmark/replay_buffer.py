@@ -512,7 +512,6 @@ class ReplayBuffer(IterableDataset):
                     break
 
     def _sample(self):
-        print('sampling normal')
         try:
             self._try_fetch()
         except:
@@ -546,7 +545,6 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, *meta)
 
     def _sample_goal_hybrid(self):
-        print('sampling hybrid')
         try:
             self._try_fetch()
         except:
@@ -1090,7 +1088,6 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs, goal)
     
     def _sample_goal_offline(self):
-        print('sampling offline')
         try:
             self._try_fetch()
         except:
