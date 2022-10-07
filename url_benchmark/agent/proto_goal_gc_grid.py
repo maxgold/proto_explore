@@ -114,6 +114,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         self.const_init = const_init
         self.episode_reset_length = episode_reset_length
         self.use_closest_proto = use_closest_proto
+        self.rand=0
         print('lr', self.lr)
 
         # models
@@ -160,8 +161,6 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 
         self._global_episode = 0
 
-        self.goal_queue = torch.zeros(self.goal_queue_size, pred_dim, device=self.device)
-        self.goal_queue_ptr = 0 
         self.ten_step_reward = torch.zeros(10, 1, device=self.device)
         self.ten_step_queue_ptr = 0
         self.constant_init_env = False
@@ -173,10 +172,21 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         self.goal_freq = torch.zeros((self.num_protos,))
         self.count=0
         
+        if self.const_init:
+            self.curriculum_goal_loaded=False
+            self.goal_queue = torch.zeros((50,))
+            self.goal_queue_ptr = 0
+        else:
+            self.curriculum_goal_loaded = torch.as_tensor([[False],[False],[False],[False]])
+            self.goal_queue = torch.zeros((50,4))
+            self.goal_queue_ptr = torch.zeros((4,))
+        
         goal_array = ndim_grid(2,20)
         idx = np.random.randint(goal_array.shape[0])
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
+                                   self.action_repeat, seed=None, goal=None)
+        self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
                                    self.action_repeat, seed=None, goal=self.first_goal)
 
         self.eval_env = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
@@ -195,7 +205,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         self.goal_array_loaded=False
         self.goal_tensor = torch.as_tensor(self.goal_array)
         self.previous_goal = None
-
+        self.goal_array_={'0':self.goal_array, '1':self.goal_array, '2':self.goal_array, '3':self.goal_array}
         init_state = [-.15, .15]
         with torch.no_grad():
             with self.eval_env_goal.physics.reset_context():
@@ -378,6 +388,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     #all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
                     sim = self.protos(z)
                     idx = sim.argmax()
+                    #import IPython as ipy; ipy.embed(colors='neutral')
                     if self.use_closest_proto==False:
                         self.proto_goal.append(z)
                     else:
@@ -408,16 +419,16 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             self.first=False
             self.episode_step, self.episode_reward = 0, 0
             self.time_step1 = self.train_env1.reset()
+            if self.reward_euclid:
+                self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
+                                   self.action_repeat, seed=None, goal=self.goal_array[10], init_state=self.time_step1.observation['observations'][:2])
+                self.time_step2 = self.train_env_goal.reset()
             self.meta = self.init_meta()
             self.metrics = None
 
             protos = self.protos.weight.data.detach().clone()
             self.goal=self.proto_goal[10][None,:]
             self.goal_key = 10
-            ptr = self.goal_queue_ptr
-            self.goal_queue[ptr] = self.goal
-            self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
-            
 
             with torch.no_grad():
                 obs = self.time_step1.observation['pixels']
@@ -438,7 +449,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             
         else:
             #no reward for too  long so sample goal nearby 
-            if self.episode_step == self.episode_length:
+            if self.episode_step == self.episode_length or (self.episode_step == self.episode_length/2 and self.reward<10):
                 #sample new goal
                 if self.episode_step!=self.step:
                     self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True, goal_state=self.goal_array[self.goal_key])
@@ -448,41 +459,47 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     print('freq', self.goal_freq)
                     self.episode_step=0
                     self.episode_reward=0
-
-                    #                 protos = self.protos.weight.data.detach().clone()
-#                 with torch.no_grad():
-#                     obs = self.time_step1.observation['pixels']
-#                     obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-#                     self.z = self.encoder(obs)
-#                     self.z = self.predictor(self.z)
-#                     self.z = self.projector(self.z)
-#                     self.z = F.normalize(self.z, dim=1, p=2)
-
-#                     if self.pos_reward:
-#                         self.reward = torch.as_tensor(0)
-#                     else:
-#                         self.reward =torch.as_tensor(-1)
                 
+
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
+                s_to_proto = torch.norm(state[None,:]- goals[:, :], dim=1, p=2)
 
-                
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-                
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
-  
-                if global_step<500000:
-                    index=global_step//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
+
+                if self.const_init==False:
+                    curr_goal_loaded = self.curriculum_goal_loaded[self.rand].item()
                 else:
-                    index=(global_step-500000)//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                    curr_goal_loaded = self.curriculum_goal_loaded
+                    
+                if curr_goal_loaded==False:
 
-                self.goal = self.proto_goal[_[idx]][None,:]
-                self.goal_key = _[idx].item()
-                print('sampled goal', self.goal_array[_[idx]])
+                    if global_step<500000:
+                        index=global_step//2000
+                        idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                    else:
+                        index=(global_step-500000)//2000
+                        idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+
+                    self.goal = self.proto_goal[_[idx]][None,:]
+                    self.goal_key = _[idx].item()
+                else:
+                    if global_step%5000==0:
+                        idx = np.random.randint(self.goal_array.shape[0])
+
+                    else:
+                        idx = np.random.randint(self.goal_queue.shape[0])
+
+                    if self.const_init:
+                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal = self.proto_goal[self.goal_key][None,:]
+                    else:
+                        self.goal_key = self.goal_queue[idx,self.rand].item()
+                        self.goal = self.proto_goal[self.goal_key][None,:]
+
+                print('sampled goal', self.goal_array[self.goal_key])
                 print('current', self.time_step1.observation['observations'])
-                
-            
+
                 #ptr = self.goal_queue_ptr
                 #self.goal_queue[ptr] = self.goal
                 #self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
@@ -497,58 +514,75 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 if self.const_init==False and (global_step-1)%self.episode_reset_length==0:
                     initiation = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
                     initial = np.array([.15, .15])
-                    init_rand = np.random.randint(4)
-                    init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
+                    self.rand = np.random.randint(4)
+                    init_state = np.array([initial[0]*initiation[self.rand][0], initial[1]*initiation[self.rand][1]])
                     
                     print('reseting to', init_state)
                     self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                          self.action_repeat, seed=None, goal=None,
                                              init_state=(init_state[0], init_state[1]))
+                    if self.reward_euclid:
+                        
+                        self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
+                                           self.action_repeat, seed=None, goal=self.goal_array[self.goal_key],
+                                                       init_state=(init_state[0], init_state[1]))
+                        self.time_step_goal=self.train_env_goal.reset()
+                        
                     self.time_step1=self.train_env1.reset()
+                    
                 else:
                     self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                      self.action_repeat, seed=None, goal=None, 
-                                         init_state=(self.time_step1.observation['observations'][0], 
-                                                     self.time_step1.observation['observations'][1]))
-                
+                                         init_state=self.time_step1.observation['observations'][:2]) 
                     
                     self.time_step1 = self.train_env1.reset()
-                #print('current state', self.time_step1.observation['observations'][0], self.time_step1.observation['observations'][1])
-                #print('keys',self.state_proto_pair.keys())
-                #print('goal not reach, resample', self.step)
-                #print('freq', self.goal_freq)
+                    
+                    if self.reward_euclid:
+                        
+                        self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
+                                           self.action_repeat, seed=None, goal=self.goal_array[self.goal_key],
+                                                       init_state=self.time_step1.observation['observations'][:2])
+                        self.time_step_goal=self.train_env_goal.reset()
+                
                 self.episode_step=0
                 self.episode_reward=0
-
-#                 protos = self.protos.weight.data.detach().clone()
-#                 with torch.no_grad():
-#                     obs = self.time_step1.observation['pixels']
-#                     obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-#                     self.z = self.encoder(obs)
-#                     self.z = self.predictor(self.z)
-#                     self.z = self.projector(self.z)
-#                     self.z = F.normalize(self.z, dim=1, p=2)
-
-#                     if self.pos_reward:
-#                         self.reward = torch.as_tensor(0)
-#                     else:
-#                         self.reward =torch.as_tensor(-1)
                 
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
-                
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
-  
-                if global_step<500000:
-                    index=global_step//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
-                else:
-                    index=(global_step-500000)//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                s_to_proto = torch.norm(state[None,:]- goals[:, :], dim=1, p=2)
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
 
-                self.goal = self.proto_goal[_[idx]][None,:]
-                self.goal_key = _[idx].item()
-                print('sampled goal', self.goal_array[_[idx]])
+                if self.const_init==False:
+                    curr_goal_loaded = self.curriculum_goal_loaded[self.rand].item()
+                else:
+                    curr_goal_loaded = self.curriculum_goal_loaded
+                    
+                if curr_goal_loaded==False:
+                    if global_step<500000:
+                        index=global_step//2000
+                        idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                    else:
+                        index=(global_step-500000)//2000
+                        idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+
+                    self.goal = self.proto_goal[_[idx]][None,:]
+                    self.goal_key = _[idx].item()
+                else:
+                    if global_step%5000==0:
+                        idx = np.random.randint(self.goal_array.shape[0])
+                    else:
+                        idx = np.random.randint(self.goal_queue.shape[0])
+
+                    if self.const_init:
+                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        
+                    else:
+                        self.goal_key = self.goal_queue[idx, self.rand].item()
+                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        
+                            
+                print('sampled goal', self.goal_array[self.goal_key])
                 print('current', self.time_step1.observation['observations'])
  
                 protos = self.protos.weight.data.detach().clone()
@@ -593,6 +627,8 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                                    eval_mode=False)
             # take env step
             self.time_step1 = self.train_env1.step(action1)
+            if self.reward_euclid:
+                self.time_step_goal = self.train_env_goal.step(action1)
             
             with torch.no_grad():
                 obs = self.time_step1.observation['pixels']
@@ -635,9 +671,9 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     print('goal', self.goal_array[self.goal_key])
                     print('reward', self.reward)
                         
-                    ptr = self.ten_step_queue_ptr
-                    self.ten_step_reward[ptr] = self.reward
-                    self.ten_step_queue_ptr = (ptr + 1) % self.ten_step_reward.shape[0]
+                    #ptr = self.ten_step_queue_ptr
+                    #self.ten_step_reward[ptr] = self.reward
+                    #self.ten_step_queue_ptr = (ptr + 1) % self.ten_step_reward.shape[0]
             
             elif self.reward_nn==False and self.reward_euclid==False and self.reward_scores:
                 if self.pos_reward:
@@ -666,9 +702,9 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     else:
                         self.reward=torch.as_tensor(-1)
 
-                    ptr = self.ten_step_queue_ptr
-                    self.ten_step_reward[ptr] = self.reward
-                    self.ten_step_queue_ptr = (ptr + 1) % self.ten_step_reward.shape[0]
+                    #ptr = self.ten_step_queue_ptr
+                    #self.ten_step_reward[ptr] = self.reward
+                    #self.ten_step_queue_ptr = (ptr + 1) % self.ten_step_reward.shape[0]
                     
             elif self.reward_nn==False and self.reward_euclid==False and self.reward_scores_dense:
                     scores = torch.matmul(self.proto_goal, self.z.T)
@@ -698,26 +734,25 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 #                 control_reward+=max(min(tmp[1],1),0)/2
 #                 dist_to_target=(all_dists[idx[0,0],idx[0,1]]-all_dists[0,0])/(all_dists[0,self.proto_goal.shape[0]-1]-all_dists[0,0])
                 
-                current=self.time_step1.observation['observations'][:2]
-                goal = self.goal_array[self.goal_key]
-                dist_to_target=np.linalg.norm(goal-current)
+#                 current=self.time_step1.observation['observations'][:2]
+#                 goal = self.goal_array[self.goal_key]
+#                 dist_to_target=np.linalg.norm(goal-current)
                 
-                if dist_to_target<.015:
-                    self.reward=torch.as_tensor(1)
-                else:
-                    upper=.015
-                    margin=.1
-                    scale=torch.as_tensor(np.sqrt(2))
-                    x=(dist_to_target-upper)/margin
-                    self.reward=torch.exp(-.5*(x*scale)**2).long()
-                    
-                
-                if self.reward == 1:
+#                 if dist_to_target<.015:
+#                     self.reward=torch.as_tensor(1)
+#                 else:
+#                     upper=.015
+#                     margin=.1
+#                     scale=torch.as_tensor(np.sqrt(2))
+#                     x=(dist_to_target-upper)/margin
+#                     self.reward=torch.exp(-.5*(x*scale)**2).long()
+                self.reward = torch.as_tensor(self.time_step_goal.reward)
+                if self.reward>.98: 
                     print('current', self.time_step1.observation['observations'])
                     print('goal', self.goal_array[self.goal_key])
+                    print('reward', self.reward) 
                     self.state_proto_pair[str(self.goal_key)].append(self.time_step1.observation['observations'])
                     self.goal_freq[self.goal_key] += 1
-
                 #if self.pos_reward:
                 #    self.reward=dist+1
                 #else:
@@ -745,37 +780,46 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 
                 self.episode_step, self.episode_reward = 0, 0
                 print('reached.sampling new goal', self.step)
-
-                                    #                 protos = self.protos.weight.data.detach().clone()
-#                 with torch.no_grad():
-#                     obs = self.time_step1.observation['pixels']
-#                     obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-#                     self.z = self.encoder(obs)
-#                     self.z = self.predictor(self.z)
-#                     self.z = self.projector(self.z)
-#                     self.z = F.normalize(self.z, dim=1, p=2)
-
-#                     if self.pos_reward:
-#                         self.reward = torch.as_tensor(0)
-#                     else:
-#                         self.reward =torch.as_tensor(-1)
-                
+                if self.goal_key in self.goal_array_[str(self.rand)].tolist():
+                    ix = self.goal_array_[str(self.rand)].tolist().index(goal_state.tolist())
+                    self.goal_array_[str(self.rand)]=np.delete(self.goal_array_[str(self.rand)], ix, 0)
+                    print('goals left', self.goal_array_[str(self.rand)].shape[0])
+                    
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
-                
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-                
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
-  
-                if global_step<500000:
-                    index=global_step//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                s_to_proto = torch.norm(state[None,:]- goals[:,:], dim=1, p=2)
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
+#                 else:
+#                     a = self.protos(self.z)
+#                     all_dists,_ = torch.topk(a, a.shape[0], dim=1, largest=False)
+            
+                if self.const_init:
+                    for x in range(5):
+                        ptr = self.goal_queue_ptr
+                        self.goal_queue[ptr] = _[x].item()
+                        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+                        
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
                 else:
-                    index=(global_step-500000)//2000
-                    idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
+                    for x in range(5):
+                        ptr = self.goal_queue_ptr[self.rand].item()
+                        
+                        self.goal_queue[int(ptr),self.rand] = _[x].item()
+                        self.goal_queue_ptr[self.rand] = (int(ptr) + 1) % self.goal_queue.shape[0]
+                        
+                    if self.goal_queue_ptr[self.rand]==0:
+                        self.curriculum_goal_loaded[self.rand]=True
 
-                self.goal = self.proto_goal[_[idx]][None,:]
-                self.goal_key = _[idx].item()
-                print('sampled goal', self.goal_array[_[idx]])
+                if self.goal_queue_ptr[self.rand]!=0:
+                    idx = np.random.randint(self.goal_queue_ptr[self.rand])
+                else:
+                    idx = np.random.randint(self.goal_queue.shape[0])
+                
+                self.goal_key = int(self.goal_queue[idx, self.rand].item())
+                self.goal = self.proto_goal[self.goal_key][None,:]
+                
+                print('sampled goal', self.goal_array[self.goal_key])
                 print('current', self.time_step1.observation['observations'])
                        
             if self.eval_every_step(global_step) and global_step!=0:
@@ -1052,11 +1096,13 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         self.heatmaps(self.eval_env, global_step, False, True,gc=True,proto=False)
 
         #row: init, col: goal
+        rand = np.random.choice(self.goal_array.shape[0], 100, replace=False)
         df = pd.DataFrame(index=range(self.goal_array.shape[0]), columns=range(self.goal_array.shape[0]), dtype=np.float64)
-        df_dist = pd.DataFrame(index=range(self.goal_array.shape[0]), columns=range(self.goal_array.shape[0]), dtype=np.float64)
+        df_dist = pd.DataFrame(index=range(rand.shape[0]), columns=range(rand.shape[0]), dtype=np.float64)
         encoded = defaultdict(list)
-        rand = np.random.choice(self.goal_array.shape[0], 100, replace=False) 
-        for i in rand:
+        
+        
+        for i_idx,i in enumerate(rand):
             print('i',i)
             step, episode, total_reward = 0, 0, 0
             encoded_i = False
@@ -1069,6 +1115,8 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             eval_until_episode = utils.Until(2)
             meta = self.init_meta()
             time_step = self.eval_env.reset()
+            if self.reward_euclid:
+                time_step_goal = self.eval_env_goal.reset()
             
             for ix in rand:
             
@@ -1079,9 +1127,16 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 while eval_until_episode(episode):
                     
                     time_step = self.eval_env.reset()
+                    if self.reward_euclid:
+                        self.eval_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
+                                                        self.action_repeat, seed=None, goal=self.goal_array[ix], init_state=init_state)
+                        time_step_goal = self.eval_env_goal.reset()
                     
                     if ix== save_video_idx:
-                        self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                        if self.reward_euclid:
+                            self.video_recorder.init(self.eval_env_goal, enabled=(episode == 0))
+                        else:
+                            self.video_recorder.init(self.eval_env, enabled=(episode == 0))
 
                     while step!=500:
                         with torch.no_grad(), utils.eval_mode(self):
@@ -1097,9 +1152,14 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                                                 eval_mode=True)
 
                         time_step = self.eval_env.step(action)
+                        if self.reward_euclid:
+                            time_step_goal = self.eval_env_goal.step(action)
                         
                         if ix== save_video_idx:
-                            self.video_recorder.record(self.eval_env)
+                            if self.reward_euclid:
+                                self.video_recorder.init(self.eval_env_goal, enabled=(episode == 0))
+                            else:
+                                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
                         
                         if self.reward_nn and self.reward_scores==False:
                             
@@ -1131,23 +1191,22 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                                 break
 
                         elif self.reward_euclid and self.reward_nn==False:
+                            reward = time_step_goal.reward
+                            total_reward+=reward
                             
-                            current=time_step.observation['observations'][:2]
-                            goal_ = self.goal_array[self.goal_key]
-                            dist_to_target=np.linalg.norm(goal_-current)
+#                             current=time_step.observation['observations'][:2]
+#                             goal_ = self.goal_array[self.goal_key]
+#                             dist_to_target=np.linalg.norm(goal_-current)
 
-                            if dist_to_target<.015:
-                                self.reward=1
-
-                            else:
-                                upper=.015
-                                margin=.1
-                                scale=torch.as_tensor(np.sqrt(2))
-                                x=(dist_to_target-upper)/margin
-                                #import IPython as ipy; ipy.embed(colors='neutral')
-                                self.reward=torch.exp(-.5*(x*scale)**2).long().item()
-                            
-                            total_reward+=self.reward    
+#                             if dist_to_target<.015:
+#                                 self.reward=torch.as_tensor(1)
+#                             else:
+#                                 upper=.015
+#                                 margin=.1
+#                                 scale=torch.as_tensor(np.sqrt(2))
+#                                 x=(dist_to_target-upper)/margin
+#                                 self.reward=torch.exp(-.5*(x*scale)**2).long()
+                                
                         step += 1
                     
                     episode += 1
@@ -1157,15 +1216,19 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         
                 df.loc[i, ix] = total_reward
             
-            state = torch.as_tensor(self.goal_array[i])
-            s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-            all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
-            
+            if self.reward_euclid:
+                state = torch.as_tensor(self.goal_array[i])
+                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[rand, :], dim=1, p=2)
+                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
+            else:
+                a = self.protos(self.z[0,:])
+                a = a[rand]
+                #import IPython as ipy; ipy.embed(colors='neutral')
+                all_dists,_ = torch.topk(a, a.shape[0], dim=0, largest=True)
             df.fillna(0,inplace=True)
-            
-            for z in range(self.goal_array.shape[0]):
+            for z in range(_.shape[0]):
                 #starting from closest
-                df_dist.loc[i,z] = df.iloc[i,_[z].item()]
+                df_dist.loc[i_idx,z] = df.iloc[i_idx,_[z].item()]
         
         df_dist.fillna(0, inplace=True)
         df.to_csv(self.work_dir /'proto_pairwise_eval.csv', index=False)
