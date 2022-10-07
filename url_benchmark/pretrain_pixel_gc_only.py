@@ -940,7 +940,7 @@ class Workspace:
                             print('goals left to reach', self.goal_array.shape[0])
                             if self.goal_array.shape[0]>10:
                                 if self.global_step%5000==0:
-                                    ix = np.random.uniform((.02,.29),(2,))
+                                    ix = np.random.uniform(.02,.29,(2,))
                                     sign = np.array([[1,1],[1,-1],[-1,-1]])
                                     rand = np.random.randint(3)
                                     goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
