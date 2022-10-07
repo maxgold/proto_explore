@@ -482,7 +482,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
 
                     self.goal = self.proto_goal[_[idx]][None,:]
-                    self.goal_key = _[idx].item()
+                    self.goal_key = int(_[idx].item())
                 else:
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
@@ -491,10 +491,10 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(self.goal_queue.shape[0])
 
                     if self.const_init:
-                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal_key = int(self.goal_queue[idx].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                     else:
-                        self.goal_key = self.goal_queue[idx,self.rand].item()
+                        self.goal_key = int(self.goal_queue[idx,self.rand].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
 
                 print('sampled goal', self.goal_array[self.goal_key])
@@ -566,7 +566,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
 
                     self.goal = self.proto_goal[_[idx]][None,:]
-                    self.goal_key = _[idx].item()
+                    self.goal_key = int(_[idx].item())
                 else:
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
@@ -574,11 +574,11 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(self.goal_queue.shape[0])
 
                     if self.const_init:
-                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal_key = int(self.goal_queue[idx].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                         
                     else:
-                        self.goal_key = self.goal_queue[idx, self.rand].item()
+                        self.goal_key = int(self.goal_queue[idx, self.rand].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                         
                             
