@@ -76,7 +76,7 @@ class Workspace:
         self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
-                                (2,),
+                                (3,84,84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent,
                                 cfg.lr,
@@ -84,6 +84,7 @@ class Workspace:
                                 cfg.batch_size,
                                 cfg.num_protos,
                                 cfg.update_gc,
+                                False,
                                 cfg.offline)
 
         # get meta specs

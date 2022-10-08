@@ -225,7 +225,7 @@ class Workspace:
                 print('del',x)
         self.goal_array=np.delete(self.goal_array, lst,0)
         self.curriculum_goal_loaded=False
- 
+        self.fully_loaded=False 
         # create agent
         #import IPython as ipy; ipy.embed(colors='neutral')
         if self.cfg.film_gc:
@@ -925,7 +925,6 @@ class Workspace:
                         init_state = np.array([initial[0]*initiation[init_rand][0], initial[1]*initiation[init_rand][1]])
                     
                     if self.cfg.curriculum:
-                        
                         if self.curriculum_goal_loaded==False:
                             if self.cfg.const_init==False:
                                 goal_=self.sample_goal_distance(init_rand)
@@ -937,10 +936,10 @@ class Workspace:
                             print('goals left to reach', self.goal_array.shape[0])
                             if self.goal_array.shape[0]>10:
                                 if self.global_step%5000==0:
-                                    ix = np.random.uniform((.02,.29),(2,))
+                                    ix = np.random.uniform(.02,.29,(2,))
                                     sign = np.array([[1,1],[1,-1],[-1,-1]])
                                     rand = np.random.randint(3)
-                                    goal_state = np.array([ix[0]*sign[rand][0]], ix[1]*sign[rand][0])
+                                    goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
                                 else:
                                     idx = np.random.randint(self.goal_queue.shape[0])
                                     goal_state = self.goal_queue[idx]
@@ -973,6 +972,7 @@ class Workspace:
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                       self.cfg.action_repeat, seed=None, goal=goal_state)
                     elif episode_step==250:
+
                         print('no reward for 250')
                         current_state = time_step1.observation['observations']
                         dist_goal = cdist(np.array([[current_state[0],current_state[1]]]), self.goal_array, 'euclidean')
@@ -1038,7 +1038,7 @@ class Workspace:
                         ix = self.goal_array.tolist().index(goal_state.tolist())
                         self.goal_array=np.delete(self.goal_array, ix, 0)
                         
-                    
+                    print('goals left', self.goal_array.shape[0]) 
                     init_state = goal_state
                     
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
