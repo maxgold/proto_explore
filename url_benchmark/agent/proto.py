@@ -104,6 +104,10 @@ class ProtoAgent(DDPGAgent):
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
+
+    def init_gc_from(self,critic, actor):
+        utils.hard_update_params(critic, self.critic1)
+        utils.hard_update_params(actor, self.actor1)
     
     def init_protos_from(self, protos):
         utils.hard_update_params(protos.protos, self.protos)
