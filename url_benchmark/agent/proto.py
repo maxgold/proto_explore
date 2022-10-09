@@ -232,8 +232,8 @@ class ProtoAgent(DDPGAgent):
                 metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            #obs = self.encoder(obs)
+            #next_obs = self.encoder(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
@@ -262,8 +262,8 @@ class ProtoAgent(DDPGAgent):
                 metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            #obs = self.encoder(obs)
+            #next_obs = self.encoder(next_obs)
             
             goal = self.encoder(goal)
 
