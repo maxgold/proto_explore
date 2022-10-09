@@ -205,7 +205,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
         self.goal_array_loaded=False
         self.goal_tensor = torch.as_tensor(self.goal_array)
         self.previous_goal = None
-
+        self.goal_array_={'0':self.goal_array, '1':self.goal_array, '2':self.goal_array, '3':self.goal_array}
         init_state = [-.15, .15]
         with torch.no_grad():
             with self.eval_env_goal.physics.reset_context():
@@ -462,10 +462,10 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 
 
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
+                s_to_proto = torch.norm(state[None,:]- goals[:, :], dim=1, p=2)
 
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
 
                 if self.const_init==False:
                     curr_goal_loaded = self.curriculum_goal_loaded[self.rand].item()
@@ -482,7 +482,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
 
                     self.goal = self.proto_goal[_[idx]][None,:]
-                    self.goal_key = _[idx].item()
+                    self.goal_key = int(_[idx].item())
                 else:
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
@@ -491,10 +491,10 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(self.goal_queue.shape[0])
 
                     if self.const_init:
-                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal_key = int(self.goal_queue[idx].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                     else:
-                        self.goal_key = self.goal_queue[idx,self.rand].item()
+                        self.goal_key = int(self.goal_queue[idx,self.rand].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
 
                 print('sampled goal', self.goal_array[self.goal_key])
@@ -533,8 +533,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 else:
                     self.train_env1 = dmc.make(self.task_no_goal, self.obs_type, self.frame_stack,
                                      self.action_repeat, seed=None, goal=None, 
-                                         init_state=(self.time_step1.observation['observations'][0], 
-                                                     self.time_step1.observation['observations'][1]))
+                                         init_state=self.time_step1.observation['observations'][:2]) 
                     
                     self.time_step1 = self.train_env1.reset()
                     
@@ -542,15 +541,16 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         
                         self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
                                            self.action_repeat, seed=None, goal=self.goal_array[self.goal_key],
-                                                       init_state=(init_state[0], init_state[1]))
+                                                       init_state=self.time_step1.observation['observations'][:2])
                         self.time_step_goal=self.train_env_goal.reset()
                 
                 self.episode_step=0
                 self.episode_reward=0
-         
+                
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
+                s_to_proto = torch.norm(state[None,:]- goals[:, :], dim=1, p=2)
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
 
                 if self.const_init==False:
                     curr_goal_loaded = self.curriculum_goal_loaded[self.rand].item()
@@ -566,7 +566,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(max(index-10,0),min(index+20, self.proto_goal.shape[0]))
 
                     self.goal = self.proto_goal[_[idx]][None,:]
-                    self.goal_key = _[idx].item()
+                    self.goal_key = int(_[idx].item())
                 else:
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
@@ -574,11 +574,11 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         idx = np.random.randint(self.goal_queue.shape[0])
 
                     if self.const_init:
-                        self.goal_key = self.goal_queue[idx].item()
+                        self.goal_key = int(self.goal_queue[idx].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                         
                     else:
-                        self.goal_key = self.goal_queue[idx, self.rand].item()
+                        self.goal_key = int(self.goal_queue[idx, self.rand].item())
                         self.goal = self.proto_goal[self.goal_key][None,:]
                         
                             
@@ -747,10 +747,12 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
 #                     x=(dist_to_target-upper)/margin
 #                     self.reward=torch.exp(-.5*(x*scale)**2).long()
                 self.reward = torch.as_tensor(self.time_step_goal.reward)
-                
-                print('current', self.time_step1.observation['observations'])
-                print('goal', self.goal_array[self.goal_key])
-                print('reward', self.reward) 
+                if self.reward>.98: 
+                    print('current', self.time_step1.observation['observations'])
+                    print('goal', self.goal_array[self.goal_key])
+                    print('reward', self.reward) 
+                    self.state_proto_pair[str(self.goal_key)].append(self.time_step1.observation['observations'])
+                    self.goal_freq[self.goal_key] += 1
                 #if self.pos_reward:
                 #    self.reward=dist+1
                 #else:
@@ -778,10 +780,15 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 
                 self.episode_step, self.episode_reward = 0, 0
                 print('reached.sampling new goal', self.step)
-               
+                if self.goal_key in self.goal_array_[str(self.rand)].tolist():
+                    ix = self.goal_array_[str(self.rand)].tolist().index(goal_state.tolist())
+                    self.goal_array_[str(self.rand)]=np.delete(self.goal_array_[str(self.rand)], ix, 0)
+                    print('goals left', self.goal_array_[str(self.rand)].shape[0])
+                    
+                goals = torch.as_tensor(self.goal_array_[str(self.rand)])
                 state = torch.as_tensor(self.time_step1.observation['observations'][:2])
-                s_to_proto = torch.norm(state[None,:]- self.goal_tensor[:, :], dim=1, p=2)
-                all_dists, _ = torch.topk(s_to_proto, self.goal_tensor.shape[0], dim=0, largest=False)
+                s_to_proto = torch.norm(state[None,:]- goals[:,:], dim=1, p=2)
+                all_dists, _ = torch.topk(s_to_proto, goals.shape[0], dim=0, largest=False)
 #                 else:
 #                     a = self.protos(self.z)
 #                     all_dists,_ = torch.topk(a, a.shape[0], dim=1, largest=False)
