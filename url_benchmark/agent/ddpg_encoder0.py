@@ -198,7 +198,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGAgent:
+class DDPGEncoder0Agent:
     def __init__(self,
                  name,
                  reward_free,
@@ -226,7 +226,6 @@ class DDPGAgent:
         self.reward_free = reward_free
         self.obs_type = obs_type
         self.obs_shape = obs_shape
-        print('obs', obs_shape)
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
@@ -247,8 +246,8 @@ class DDPGAgent:
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
             self.encoder = Encoder(obs_shape).to(device)
-            self.obs_dim = self.encoder.repr_dim + meta_dim
-            self.goal_dim = self.encoder.repr_dim + meta_dim
+            self.obs_dim = 128 + meta_dim
+            self.goal_dim = 128 + meta_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
@@ -354,9 +353,13 @@ class DDPGAgent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-    def act2(self, obs, meta, step, eval_mode):
+    def act2(self, obs, meta, step, eval_mode, proto=None):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         h = self.encoder(obs)
+        if proto is not None:
+            with torch.no_grad():
+                h=proto.predictor(h)
+                h=proto.projector(h) 
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)

@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.proto.ProtoAgent
-name: proto
+_target_: agent.proto_encoder0.ProtoEncoder0Agent
+name: proto_encoder0
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later

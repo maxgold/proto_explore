@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg_encoder0 import DDPGEncoder0Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class ProtoEncoder0Agent(DDPGEncoder0Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)
@@ -60,7 +60,7 @@ class ProtoAgent(DDPGAgent):
         if self.gc_only==False:
             self.encoder_target = deepcopy(self.encoder)
 
-            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.predictor = nn.Linear(self.encoder.repr_dim, pred_dim).to(self.device)
             self.predictor.apply(utils.weight_init)
             self.predictor_target = deepcopy(self.predictor)
 
@@ -232,8 +232,13 @@ class ProtoAgent(DDPGAgent):
                 metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            with torch.no_grad():
+                obs = self.encoder(obs)
+                obs = self.predictor(obs)
+                obs = self.projector(obs)
+                next_obs = self.encoder(next_obs)
+                next_obs = self.predictor(next_obs)
+                next_obs = self.projector(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()

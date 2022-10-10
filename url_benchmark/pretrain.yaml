@@ -59,8 +59,8 @@ init_value: 2
 film_gc: False
 sample_proto: ???
 switch_gc: False
-load_encoder: ???
-load_proto: ???
+load_encoder: False
+load_proto: False
 goal_queue_size: 10
 const_init: True
 reward_nn: True
@@ -80,6 +80,8 @@ stddev_clip2: .3
 use_closest_proto: True
 proto_const_init: True
 resample_goal: False
+use_predictor: False
+load_model: False
 # experiment
 experiment: exp
 
