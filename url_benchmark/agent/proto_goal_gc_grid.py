@@ -422,7 +422,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             if self.reward_euclid:
                 self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
                                    self.action_repeat, seed=None, goal=self.goal_array[10], init_state=self.time_step1.observation['observations'][:2])
-                self.time_step2 = self.train_env_goal.reset()
+                self.time_step_goal = self.train_env_goal.reset()
             self.meta = self.init_meta()
             self.metrics = None
 
@@ -449,7 +449,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             
         else:
             #no reward for too  long so sample goal nearby 
-            if self.episode_step == self.episode_length or (self.episode_step == self.episode_length/2 and self.reward<10):
+            if self.episode_step == self.episode_length:
                 #sample new goal
                 if self.episode_step!=self.step:
                     self.replay_storage1.add_proto_goal(self.time_step1,self.z.cpu().numpy(), self.meta, self.goal.cpu().numpy(), self.reward.cpu().numpy(), last=True, goal_state=self.goal_array[self.goal_key])
@@ -484,6 +484,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.goal = self.proto_goal[_[idx]][None,:]
                     self.goal_key = int(_[idx].item())
                 else:
+                    print('fully loaded')
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
 
@@ -568,7 +569,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.goal = self.proto_goal[_[idx]][None,:]
                     self.goal_key = int(_[idx].item())
                 else:
-                    if global_step%5000==0:
+                    if (global_step-1)%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
                     else:
                         idx = np.random.randint(self.goal_queue.shape[0])
