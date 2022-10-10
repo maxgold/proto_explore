@@ -23,7 +23,7 @@ import dmc
 import torch.nn.functional as F
 import utils
 from logger import Logger, save
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 import glob
@@ -152,13 +152,16 @@ def heatmaps(self, env, replay_dir, model_step, replay_dir2, goal):
     
     
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg):
+def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, lr):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
     cfg.goal = goal
+    cfg.hidden_dim = hidden_dim
+    cfg.batch_size = batch_size
+    cfg.lr = lr
     return hydra.utils.instantiate(cfg)
 
 def make_generator(env, cfg):
@@ -191,15 +194,17 @@ class Workspace:
         print(f'workspace: {self.work_dir}')
 
         self.cfg = cfg
-        self.agent_path = agent
+        self.critic_path = agent + str('/critic1_proto_2000000.pth')
+        self.actor_path = agent + str('/actor1_proto_2000000.pth')
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
+        work_path = str(os.getcwd().split('/')[-2])+'/'+str(os.getcwd().split('/')[-1])
 
         # create logger
         if cfg.use_wandb:
             exp_name = '_'.join([
                 cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
-                str(cfg.seed)
+                str(cfg.seed), str(cfg.tmux_session),work_path 
             ])
             wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
 
@@ -207,32 +212,66 @@ class Workspace:
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-        try:
-            task = PRIMAL_TASKS[self.cfg.domain]
-        except:
-            task = self.cfg.domain
-        if self.cfg.obs_type =='pixels':
-            npz  = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_2_hs/buffer2/buffer_copy/20220817T211246_0_500.npz')
-            self.first_goal_pix = npz['observation'][50]
-            self.first_goal_state = npz['state'][50][:2]
-            self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                                                               cfg.action_repeat, seed=None, goal=self.first_goal_state)
-            self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                                     cfg.action_repeat, seed=None, goal=self.first_goal_state)
-        else:
-            self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
-            self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
+        #task = PRIMAL_TASKS[self.cfg.domain]
+        self.no_goal_task = 'point_mass_maze_reach_no_goal'
+        idx = np.random.randint(0,400)
+        goal_array = ndim_grid(2,20)
+        self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
+        self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=self.first_goal)
+        print('goal', self.first_goal)
+        self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        print('no goal task env', self.no_goal_task)
+        self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+                                   1, seed=None, goal=None)
+        self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                 cfg.action_repeat, seed=None, goal=self.first_goal)
+        self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+                                   cfg.action_repeat, seed=None, goal=None)
+        self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+                                   1, seed=None, goal=None)
+                                      
+#         if self.cfg.obs_type =='pixels':
+#             npz  = np.load('/home/ubuntu/url_benchmark/models/pixels_proto_ddpg_2_hs/buffer2/buffer_copy/20220817T211246_0_500.npz')
+#             self.first_goal_pix = npz['observation'][50]
+#             self.first_goal_state = npz['state'][50][:2]
+#             self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+#                                                                                cfg.action_repeat, seed=None, goal=self.first_goal_state)
+#             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+#                                                      cfg.action_repeat, seed=None, goal=self.first_goal_state)
+#         else:
+#             self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+#                                   cfg.action_repeat, cfg.seed)
+#             self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+#                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        self.agent = torch.load(self.agent_path)
-
+        self.agent = make_agent(self,
+                                cfg.obs_type,
+                                self.train_env1.observation_spec(),
+                                self.train_env1.action_spec(),
+                                (9, 84, 84),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                True,
+                                cfg.agent,
+                                cfg.hidden_dim,
+                                cfg.batch_size,
+                                cfg.lr)
+        
+        encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+        self.agent.init_encoder_from(encoder)
+        critic = torch.load(self.critic_path)
+        actor = torch.load(self.actor_path)
+        self.agent.init_gc_from(critic, actor)
+        
+       
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (self.train_env.observation_spec(),
-                      self.train_env.action_spec(),
+        data_specs = (self.train_env1.observation_spec(),
+                      self.train_env1.action_spec(),
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
@@ -407,51 +446,85 @@ class Workspace:
                 self.count_uniform = 1
             return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
 
-    def eval_goal_pixel(self, path, model_step, replay_dir2):
-        replay_dir_goal = path+'/buffer1/buffer_copy'
-        replay_dir_proto = path+'/buffer2/buffer_copy'
-        heatmaps(self, self.eval_env, replay_dir_goal, model_step, replay_dir2, True)
-        heatmaps(self, self.eval_env, replay_dir_proto, model_step, replay_dir2, False)
-        for i in range(400):
+    def eval_goal_pixel(self, model_step):
+
+        goal_array = ndim_grid(2,20)
+        success=0
+        df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
+
+        for ix, x in enumerate(goal_array):
+            print('ix')
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
-#            import IPython as ipy; ipy.embed(colors='neutral') 
+         #   goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+            goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
+            self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None)
+            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
+
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
-                #self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-                while not time_step.last():
+                time_step_no_goal = self.eval_env_no_goal.reset()
+
+                with self.eval_env_goal.physics.reset_context():
+                    time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
+                time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+         
+                while step!=self.cfg.episode_length:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.goal:
-                            action = self.agent.act(time_step.observation['pixels'],
-                                                    goal_pix,
+                            action = self.agent.act(time_step_no_goal.observation['pixels'],
+                                                    time_step_goal,
                                                     meta,
-                                                    self._global_step,
+                                                    model_step,
                                                     eval_mode=True)
                         else:
                             action = self.agent.act(time_step.observation,
                                                     meta,
-                                                    self._global_step,
+                                                    model_step,
                                                     eval_mode=True)
                     time_step = self.eval_env.step(action)
-                 #   self.video_recorder.record(self.eval_env)
+                    time_step_no_goal = self.eval_env_no_goal.step(action)
+                    #time_step_goal = self.eval_env_goal.step(action)
+                    self.video_recorder.record(self.eval_env)
                     total_reward += time_step.reward
                     step += 1
 
                 episode += 1
-               # self.video_recorder.save(f'{self.global_frame}.mp4')
+                self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
+                
+                if ix%10==0:
+                    wandb.save(f'{self.global_frame}_{ix}.mp4')
 
                 if self.cfg.eval:
                     print('saving')
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
 
                 else:
                     print('saving')
-                    print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+                    print(str(self.work_dir)+'/eval_{}.csv'.format(model_step))
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+            
+            if total_reward > 200*self.cfg.num_eval_episodes:
+                success+=1
+            
+            df.loc[ix, 'x'] = x[0]
+            df.loc[ix, 'y'] = x[1]
+            df.loc[ix, 'r'] = total_reward
+
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        plt.savefig(f"./{model_step}_heatmap.png")
+        wandb.save(f"./{model_step}_heatmap.png")
+        success_rate = success/len(goal_array)
+        print('success_rate of current eval', success_rate)
 
 
 
@@ -629,28 +702,25 @@ def main(cfg):
     from eval_proto_visual import Workspace as W
     
     root_dir = Path.cwd()
-    agents = glob.glob(str(cfg.path)+'/*pth')
-    agents = glob.glob('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/*pth')
-    print(agents)
-    
-    for ix, x in enumerate(agents):
-        if int(re.findall('\d+',x)[-1])%50000==0:
-            workspace = W(cfg, x)
-            model = str(x).split('_')[-1]
-            model = str(model).split('.')[-2]
-            #replay_dir = Path(cfg.replay_dir)
-            path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/'
-            replay_dir2 = False
-            # if cfg.replay_dir2:
-           #     replay_dir2 = Path(cfg.replay_dir2)
-           # else:
-           #     replay_dir2 = False
-            print('model_step', model)
-            #workspace.eval(replay_dir, model, replay_dir2)
-            workspace.eval_goal(path, model, replay_dir2)
-            #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
-            #workspace.eval_goal_pixel(path, model, replay_dir2)
-            print(ix)
+    agent = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.06/192949_proto'
+    #'/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.06/192932_proto' 
+
+    #'/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.06/192940_proto'
+ #'/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.06/192949_proto'
+    workspace = W(cfg, agent)
+    model = '2000000'
+    #replay_dir = Path(cfg.replay_dir)
+    path = '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.08.29/163803_proto/'
+    replay_dir2 = False
+    # if cfg.replay_dir2:
+   #     replay_dir2 = Path(cfg.replay_dir2)
+   # else:
+   #     replay_dir2 = False
+    print('model_step', model)
+    #workspace.eval(replay_dir, model, replay_dir2)
+#             workspace.eval_goal(path, model, replay_dir2)
+    #workspace.eval_intr_reward(replay_dir, model, replay_dir2)
+    workspace.eval_goal_pixel(model)
 
 if __name__ == '__main__':
     main()

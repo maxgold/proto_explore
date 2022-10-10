@@ -847,7 +847,7 @@ class Workspace:
                     plt.savefig(f"./{self._global_step}_eval.png")
                     wandb.save("./{self._global_step}_eval.png")
 
-                if (episode_step== 0 and self.global_step!=0) or (episode_reward<50 and episode_step==250 and self.global_step!=0 and self.resampled==False):
+                if (episode_step== 0 and self.global_step!=0) or (episode_reward<50 and episode_step==250 and self.global_step!=0 and self.resampled==False and self.reload_goal==False):
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:
