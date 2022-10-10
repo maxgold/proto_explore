@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)

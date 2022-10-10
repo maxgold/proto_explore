@@ -14,13 +14,20 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32 * 35 * 35
+        self.repr_dim = 64*7*7
+        #(84-8+1)/4 -> 19*19*32
+        #(19-4+1)/2 -> 8*8*64
+        #(8-3+1)/1 -> 6*6*64
+        #number of parameters:
+        #(8*8*9+1)*32 = 18464
+        #(4*4*32+1)*64 = 
+        #(3*3*64+1)*64 = 
+        #total: 88224
+        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 8, stride=4),
+                                    nn.ReLU(), nn.Conv2d(32,64,kernel_size=4,stride=2),
+                                    nn.ReLU(), nn.Conv2d(64,64,kernel_size=3, stride=1),
+                                    nn.ReLU())
 
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU())
 
         self.apply(utils.weight_init)
 
@@ -198,7 +205,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGAgent:
+class DDPGEncoder2Agent:
     def __init__(self,
                  name,
                  reward_free,
@@ -226,7 +233,6 @@ class DDPGAgent:
         self.reward_free = reward_free
         self.obs_type = obs_type
         self.obs_shape = obs_shape
-        print('obs', obs_shape)
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr

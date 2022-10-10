@@ -80,6 +80,7 @@ stddev_clip2: .3
 use_closest_proto: True
 proto_const_init: True
 resample_goal: False
+use_predictor: False
 # experiment
 experiment: exp
 

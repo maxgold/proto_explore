@@ -14,11 +14,11 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32*3*3
-        #41*41*32
-        #20*20*32
-        #8*8*32
-        #3*3*32
+        self.repr_dim = 32*9*9
+        #40*40*32
+        #19*19*32
+        #17*17*32
+        #9*9*32
         
         #number of parameters:
         #(3*3*3+1)*32 = 896
