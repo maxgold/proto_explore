@@ -262,6 +262,14 @@ class Workspace:
                         log('step', self.global_step)
 
                 # reset env
+                if self.cfg.const_init==False:
+                    task = PRIMAL_TASKS[self.cfg.domain]
+                    rand_init = np.random.uniform(.02,.29,size=(2,))
+                    sign = np.array([[1,1],[-1,1],[1,-1],[-1,-1]])
+                    rand = np.random.randint(4)
+                    self.train_env = dmc.make(task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                              self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
+                    
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
                 if self.cfg.obs_type=='pixels':
