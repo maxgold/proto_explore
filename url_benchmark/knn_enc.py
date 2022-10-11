@@ -42,19 +42,19 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 #encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
 #agent = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
-#agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
 #encoder  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
 #agent = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/optimizer_proto_encoder2_1000000.pth')
 #agent = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.09/133617_proto/optimizer_proto_1000000.pth')
-agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.10/031729_proto/optimizer_proto_1000000.pth')
+#agent  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.10/031729_proto/optimizer_proto_1000000.pth')
 eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
 
-replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.10/031729_proto/buffer/buffer_copy/')
+#replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.10/031729_proto/buffer/buffer_copy/')
 #replay_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.09/133617_proto/buffer/buffer_copy/')
 #replay_dir = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/buffer/buffer_copy/')
-#replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/')
+replay_dir = Path('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/buffer2/buffer_copy/')
 # replay_dir = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/buffer2/buffer_copy/')
 #replay_dir = Path('/home/nina/proto_explore/url_benchmark/model/buffer2/')
 replay_buffer = make_replay_offline(eval_env_goal,
@@ -117,8 +117,10 @@ test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
 action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
 #.0002
 #velocity test 
+
 count=0
 goal_w_vel = torch.empty((16, 9,84,84))
+goalwvel = []
 for x in test_states:
     for iy, y in enumerate(action):
         tmp_goal = []
@@ -133,15 +135,15 @@ for x in test_states:
                 elif iy==3:
                     time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item()+.0002,0,0]))
                 
-                time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                time_step_init = np.transpose(time_step_init, (2,0,1))
-                time_step_init = torch.as_tensor(time_step_init.copy())
-                tmp_goal.append(time_step_init)
+            time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+            time_step_init = np.transpose(time_step_init, (2,0,1))
+            time_step_init = torch.as_tensor(time_step_init.copy())
+            tmp_goal.append(time_step_init)
             
         for i in range(3):
             
-            time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-            time_step_init = np.transpose(time_step_init, (2,0,1))
+            #time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+            #time_step_init = np.transpose(time_step_init, (2,0,1))
             
             if i==0:
                 if iy==0:
@@ -160,10 +162,14 @@ for x in test_states:
             else:
                 
                 current = time_step.observation['observations']
+                print(x)
+                print(y)
+                print(current[0])
+                print(current[1])
+                with torch.no_grad(): 
+                    with eval_env_goal.physics.reset_context():
                 
-                with eval_env_goal.physics.reset_context():
-                
-                    time_step_init = eval_env_goal.physics.set_state(np.array([current[0], current[1],0,0]))
+                        time_step_init = eval_env_goal.physics.set_state(np.array([current[0], current[1],0,0]))
                     time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
                     time_step_init = np.transpose(time_step_init, (2,0,1))
                     time_step_init = torch.as_tensor(time_step_init.copy())
@@ -172,16 +178,22 @@ for x in test_states:
                     
                 env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=current[:2])
                 time_step = env.reset()
-                
-                
-             
                                  
             time_step = env.step(y)
        
         tmp_goal = torch.cat(tmp_goal, axis=0)
         goal_w_vel[count] = tmp_goal
+        goalwvel.append(tmp_goal)
         count+=1
 
+final_encoded = np.array([i.detach().clone().cpu().numpy() for i in goal_w_vel])
+fn = [Path('./test_frames.npz')]
+for ix,x in enumerate(fn):
+    with io.BytesIO() as bs:
+        np.savez_compressed(bs, final_encoded)
+        bs.seek(0)
+        with x.open("wb") as f:
+            f.write(bs.read())
 
 encoded_v=[]
 proto_v = []
@@ -191,6 +203,7 @@ for x in range(16):
         obs = goal_w_vel[x]
         obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
         z = agent.encoder(obs)
+
         encoded_v.append(z)
         z = agent.predictor(z)
         #z = agent.projector(z)
@@ -199,6 +212,8 @@ for x in range(16):
 
 encoded_v = torch.cat(encoded_v,axis=0)
 proto_v = torch.cat(proto_v,axis=0)
+print(encoded_v)
+print(proto_v)
 
 
         
@@ -206,6 +221,8 @@ vel_encode_dist = torch.norm(encoded_v[:,None, :] - encoded_v[None,:, :], dim=2,
 vel_proto_dist = torch.norm(proto_v[:,None,:] - proto_v[None,:, :], dim=2, p=2)
 all_dists_encode_v, _encode_v = torch.topk(vel_encode_dist, 16, dim=1, largest=False)
 all_dists_proto_v, _proto_v = torch.topk(vel_proto_dist, 16, dim=1, largest=False)
+print(all_dists_encode_v)
+print(all_dists_proto_v)
 df = pd.DataFrame(vel_encode_dist.cpu().numpy())
 df.to_csv('./knn_output/encode_dist.csv', index=False)
 df = pd.DataFrame(vel_proto_dist.cpu().numpy())
@@ -320,8 +337,8 @@ for ix, x in enumerate(test_states):
     ax=sns.scatterplot(x="x", y="y",
               hue="c",
               data=df,legend=False)
-    file1= f"./knn_output/10nn_goal_enc_w_vel{ix}.png"
     ax.set_title("\n".join(wrap(txt,75)))
+    file1= f"./knn_output/10nn_goal_ecnc_w_vel{ix}.png"
     plt.savefig(file1)
     filenames.append(file1)
 
