@@ -578,20 +578,22 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 else:
                     if (global_step-1)%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
+                        self.goal_key = idx
+                        self.goal = self.proto_goal[self.goal_key][None,:]
                     else:
                         idx = np.random.randint(self.goal_queue.shape[0])
 
-                    if self.const_init:
-                        self.goal_key = int(self.goal_queue[idx].item())
-                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        if self.const_init:
+                            self.goal_key = int(self.goal_queue[idx].item())
+                            self.goal = self.proto_goal[self.goal_key][None,:]
                         
-                    else:
-                        self.goal_key = int(self.goal_queue[idx, self.rand].item())
-                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        else:
+                            self.goal_key = int(self.goal_queue[idx, self.rand].item())
+                            self.goal = self.proto_goal[self.goal_key][None,:]
                         
                             
-                print('sampled goal', self.goal_array[self.goal_key])
-                print('current', self.time_step1.observation['observations'])
+                #print('sampled goal', self.goal_array[self.goal_key])
+                #print('current', self.time_step1.observation['observations'])
  
                 protos = self.protos.weight.data.detach().clone()
 
