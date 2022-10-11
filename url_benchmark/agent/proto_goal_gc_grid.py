@@ -422,7 +422,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
             if self.reward_euclid:
                 self.train_env_goal = dmc.make(self.task, self.obs_type, self.frame_stack,
                                    self.action_repeat, seed=None, goal=self.goal_array[10], init_state=self.time_step1.observation['observations'][:2])
-                self.time_step2 = self.train_env_goal.reset()
+                self.time_step_goal = self.train_env_goal.reset()
             self.meta = self.init_meta()
             self.metrics = None
 
@@ -487,6 +487,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.goal = self.proto_goal[_[idx]][None,:]
                     self.goal_key = int(_[idx].item())
                 else:
+                    print('fully loaded')
                     if global_step%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
 
@@ -575,22 +576,24 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     self.goal = self.proto_goal[_[idx]][None,:]
                     self.goal_key = int(_[idx].item())
                 else:
-                    if global_step%5000==0:
+                    if (global_step-1)%5000==0:
                         idx = np.random.randint(self.goal_array.shape[0])
+                        self.goal_key = idx
+                        self.goal = self.proto_goal[self.goal_key][None,:]
                     else:
                         idx = np.random.randint(self.goal_queue.shape[0])
 
-                    if self.const_init:
-                        self.goal_key = int(self.goal_queue[idx].item())
-                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        if self.const_init:
+                            self.goal_key = int(self.goal_queue[idx].item())
+                            self.goal = self.proto_goal[self.goal_key][None,:]
                         
-                    else:
-                        self.goal_key = int(self.goal_queue[idx, self.rand].item())
-                        self.goal = self.proto_goal[self.goal_key][None,:]
+                        else:
+                            self.goal_key = int(self.goal_queue[idx, self.rand].item())
+                            self.goal = self.proto_goal[self.goal_key][None,:]
                         
                             
-                print('sampled goal', self.goal_array[self.goal_key])
-                print('current', self.time_step1.observation['observations'])
+                #print('sampled goal', self.goal_array[self.goal_key])
+                #print('current', self.time_step1.observation['observations'])
  
                 protos = self.protos.weight.data.detach().clone()
 
