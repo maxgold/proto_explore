@@ -206,7 +206,7 @@ for x in range(16):
 
         encoded_v.append(z)
         z = agent.predictor(z)
-        #z = agent.projector(z)
+        z = agent.projector(z)
         z = F.normalize(z, dim=1, p=2)
         proto_v.append(z)
 
@@ -262,7 +262,7 @@ for x in goal_array:
         z = agent.encoder(obs)
         encoded_no_v.append(z)
         z = agent.predictor(z)
-        #z = agent.projector(z)
+        z = agent.projector(z)
         z = F.normalize(z, dim=1, p=2)
         proto_no_v.append(z)
 
@@ -292,7 +292,7 @@ for x in pixels:
         z = agent.encoder(obs)
         encoded.append(z)
         z = agent.predictor(z)
-        #z = agent.projector(z)
+        z = agent.projector(z)
         z = F.normalize(z, dim=1, p=2)
         proto.append(z)
 
