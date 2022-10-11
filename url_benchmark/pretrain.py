@@ -332,7 +332,7 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent
-            if self._global_step%100000==0:
+            if (self._global_step<300000 and self._global_step%10000==0) or (self._global_step>=300000 and self._global_step%50000==0):
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
             # take env step
