@@ -196,11 +196,8 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                                                    self.action_repeat, seed=None, goal=self.first_goal)
         lst =[]
         for ix,x in enumerate(goal_array):
-            print(x[0])
-            print(x[1])
             if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
                 lst.append(ix)
-                print('del',x)
         self.goal_array=np.delete(goal_array, lst,0)
         self.goal_array_loaded=False
         self.goal_tensor = torch.as_tensor(self.goal_array)
@@ -381,7 +378,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     tmp_encoded_goal['observation'].append(z.detach().clone().cpu().numpy())
                     self.encoded_goal.append(z)
                     z = self.predictor(z)
-                    z = self.projector(z)
+                    #z = self.projector(z)
                     z = F.normalize(z, dim=1, p=2)
                     self.grid_proto_goal.append(z)
                     #z_to_proto = torch.norm(z[:, None, :] - protos[None, :, :], dim=2, p=2)
@@ -436,7 +433,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 #import IPython as ipy; ipy.embed(colors='neutral')
                 self.z = self.encoder(obs)
                 self.z = self.predictor(self.z)
-                self.z = self.projector(self.z)
+                #self.z = self.projector(self.z)
                 self.z = F.normalize(self.z, dim=1, p=2)
 
                 if self.pos_reward:
@@ -602,7 +599,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                     obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
                     self.z = self.encoder(obs)
                     self.z = self.predictor(self.z)
-                    self.z = self.projector(self.z)
+                    #self.z = self.projector(self.z)
                     self.z = F.normalize(self.z, dim=1, p=2)
 
                     if self.pos_reward:
@@ -645,7 +642,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
                 self.z = self.encoder(obs)
                 self.z = self.predictor(self.z)
-                self.z = self.projector(self.z)
+                #self.z = self.projector(self.z)
                 self.z = F.normalize(self.z, dim=1, p=2)     
             
             #calculate reward 
@@ -956,7 +953,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
                 z = self.encoder(obs)
                 z = self.predictor(z)
-                z = self.projector(z)
+                #z = self.projector(z)
                 z = F.normalize(z, dim=1, p=2)
 
             z_to_proto = torch.norm(z[:, None, :] - protos[None, :, :], dim=2, p=2)
@@ -984,7 +981,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
                             obs = self.predictor(obs)
-                            obs = self.projector(obs)
+                            #obs = self.projector(obs)
                             obs = F.normalize(obs, dim=1, p=2)
                             action = self.act(obs,
                                                 goal,
@@ -1067,7 +1064,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                         obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                         obs = self.encoder(obs)
                         obs = self.predictor(obs)
-                        obs = self.projector(obs)
+                        #obs = self.projector(obs)
                         obs = F.normalize(obs, dim=1, p=2)
                         action = self.act(obs,
                                             goal,
@@ -1167,7 +1164,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
                             obs = self.predictor(obs)
-                            obs = self.projector(obs)
+                            #obs = self.projector(obs)
                             obs = F.normalize(obs, dim=1, p=2)
                             action = self.act(obs,
                                                 goal,
@@ -1310,7 +1307,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                 obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                 obs = self.encoder(obs)
                 obs = self.predictor(obs)
-                obs = self.projector(obs)
+                #obs = self.projector(obs)
                 obs = F.normalize(obs, dim=1, p=2)
                 
             obs_to_proto = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
@@ -1333,7 +1330,7 @@ class ProtoGoalGCGridAgent(DDPGGoalGCAgent):
                             obs = torch.as_tensor(time_step.observation['pixels'].copy(), device=self.device).unsqueeze(0)
                             obs = self.encoder(obs)
                             obs = self.predictor(obs)
-                            obs = self.projector(obs)
+                            #obs = self.projector(obs)
                             obs = F.normalize(obs, dim=1, p=2)
                             action = self.act(obs,
                                                 goal,
