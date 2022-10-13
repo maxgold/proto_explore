@@ -36,12 +36,12 @@ class Actor(nn.Module):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        #self.trunk = nn.Sequential(nn.Linear(pred_dim+pred_dim, feature_dim), 
-        #                           nn.LayerNorm(feature_dim), nn.Tanh())
+        self.trunk = nn.Sequential(nn.Linear(pred_dim+pred_dim, feature_dim), 
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
         policy_layers += [
-            nn.Linear(pred_dim+pred_dim, hidden_dim),
+            nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
@@ -58,8 +58,8 @@ class Actor(nn.Module):
 
     def forward(self, obs, goal, std):
         obs_goal = torch.cat([obs, goal], dim=-1)
-        #h = self.trunk(obs_goal)
-        mu = self.policy(obs_goal)
+        h = self.trunk(obs_goal)
+        mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
