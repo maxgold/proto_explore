@@ -346,9 +346,13 @@ class DDPGAgent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-    def act2(self, obs, meta, step, eval_mode):
+    def act2(self, obs, meta, step, eval_mode, proto=None):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         h = self.encoder(obs)
+        if proto is not None:
+            with torch.no_grad():
+                h=proto.predictor(h)
+                h=proto.projector(h)
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
