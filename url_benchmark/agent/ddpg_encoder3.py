@@ -14,13 +14,25 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32 * 35 * 35
-
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU())
+        self.repr_dim = 64*2*2
+        #40*40*32
+        #19*19*64
+        #15*15*64
+        #7*7*64
+        #3*3*64
+        #2*2*64
+        
+        
+        #number of parameters:
+        #(3*3*3+1)*32 = 896
+        #(3*3*32+1)*32 = 9248
+        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 5, stride=2),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(32, 64, 4, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(64, 64, 3, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(64, 64, 2, stride=1),nn.ReLU())
 
         self.apply(utils.weight_init)
 
@@ -32,16 +44,16 @@ class Encoder(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_type, pred_dim, action_dim, feature_dim, hidden_dim):
+    def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        #self.trunk = nn.Sequential(nn.Linear(pred_dim+pred_dim, feature_dim), 
-        #                           nn.LayerNorm(feature_dim), nn.Tanh())
+        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
         policy_layers += [
-            nn.Linear(pred_dim+pred_dim, hidden_dim),
+            nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels
@@ -58,8 +70,8 @@ class Actor(nn.Module):
 
     def forward(self, obs, goal, std):
         obs_goal = torch.cat([obs, goal], dim=-1)
-        #h = self.trunk(obs_goal)
-        mu = self.policy(obs_goal)
+        h = self.trunk(obs_goal)
+        mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
@@ -101,20 +113,20 @@ class Actor2(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_type, pred_dim, action_dim, feature_dim, hidden_dim):
+    def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         super().__init__()
 
         self.obs_type = obs_type
 
-        if self.obs_type == 'pixels':
+        if obs_type == 'pixels':
             # for pixels actions will be added after trunk
-            self.trunk = nn.Sequential(nn.Linear(pred_dim + pred_dim, feature_dim),
+            self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
                                        nn.LayerNorm(feature_dim), nn.Tanh())
             trunk_dim = feature_dim + action_dim
         else:
             # for states actions come in the beginning
             self.trunk = nn.Sequential(
-                nn.Linear(pred_dim + pred_dim + action_dim, hidden_dim),
+                nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
                 nn.LayerNorm(hidden_dim), nn.Tanh())
             trunk_dim = hidden_dim
 
@@ -124,7 +136,7 @@ class Critic(nn.Module):
                 nn.Linear(trunk_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
-            if self.obs_type == 'pixels':
+            if obs_type == 'pixels':
                 q_layers += [
                     nn.Linear(hidden_dim, hidden_dim),
                     nn.ReLU(inplace=True)
@@ -198,7 +210,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGGoalGCAgent:
+class DDPGEncoder3Agent:
     def __init__(self,
                  name,
                  reward_free,
@@ -206,7 +218,6 @@ class DDPGGoalGCAgent:
                  obs_shape,
                  action_shape,
                  goal_shape,
-                 goal,
                  device,
                  lr,
                  feature_dim,
@@ -220,7 +231,6 @@ class DDPGGoalGCAgent:
                  batch_size,
                  stddev_clip,
                  init_critic,
-                 pred_dim2,
                  use_tb,
                  use_wandb,
                  meta_dim=0,
@@ -231,6 +241,7 @@ class DDPGGoalGCAgent:
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
+        print('lr', lr)
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.critic2_target_tau = critic2_target_tau
@@ -241,62 +252,63 @@ class DDPGGoalGCAgent:
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
         self.init_critic = init_critic
-        self.pred_dim=pred_dim2
         self.feature_dim = feature_dim
         self.solved_meta = None
         # models
-        if self.obs_type == 'pixels':
+        if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
             self.encoder = Encoder(obs_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
+            self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
+            self.goal_dim = goal_shape[0]
         
-        self.actor = Actor(self.obs_type, self.pred_dim, self.action_dim,
+        self.actor = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                            feature_dim, hidden_dim).to(device)
 
-        self.critic = Critic(self.obs_type, self.pred_dim,self.action_dim,
+        self.critic = Critic(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic_target = Critic(self.obs_type, self.pred_dim, self.action_dim,
+        self.critic_target = Critic(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
         
-#         #2nd set of actor critic networks 
-#         self.actor2 = Actor2(obs_type, self.obs_dim, self.action_dim,
-#                            feature_dim, hidden_dim).to(device)
-#         self.critic2 = Critic2(obs_type, self.obs_dim, self.action_dim,
-#                              feature_dim, hidden_dim).to(device)
-#         self.critic2_target = Critic2(obs_type, self.obs_dim, self.action_dim,
-#                                     feature_dim, hidden_dim).to(device)
-#         self.critic2_target.load_state_dict(self.critic2.state_dict())
+        #2nd set of actor critic networks 
+        self.actor2 = Actor2(obs_type, self.obs_dim, self.action_dim,
+                           feature_dim, hidden_dim).to(device)
+        self.critic2 = Critic2(obs_type, self.obs_dim, self.action_dim,
+                             feature_dim, hidden_dim).to(device)
+        self.critic2_target = Critic2(obs_type, self.obs_dim, self.action_dim,
+                                    feature_dim, hidden_dim).to(device)
+        self.critic2_target.load_state_dict(self.critic2.state_dict())
 
 
         # optimizers
 
-        if self.obs_type == 'pixels':
+        if obs_type == 'pixels':
             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
                                                 lr=lr)
         else:
             self.encoder_opt = None
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-#         self.actor2_opt = torch.optim.Adam(self.actor2.parameters(), lr=lr)
-#         self.critic2_opt = torch.optim.Adam(self.critic2.parameters(), lr=lr)
+        self.actor2_opt = torch.optim.Adam(self.actor2.parameters(), lr=lr)
+        self.critic2_opt = torch.optim.Adam(self.critic2.parameters(), lr=lr)
 
         self.train()
         self.critic_target.train()
-#         self.critic2_target.train()
+        self.critic2_target.train()
 
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
         self.actor.train(training)
         self.critic.train(training)
-#         self.actor2.train(training)
-#         self.critic2.train(training)
+        self.actor2.train(training)
+        self.critic2.train(training)
 
     def init_from(self, other):
         # copy parameters over
@@ -307,6 +319,13 @@ class DDPGGoalGCAgent:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+
+    def init_gc_from(self,critic, actor):
+        utils.hard_update_params(critic, self.critic)
+        utils.hard_update_params(actor, self.actor)
+ 
     def get_meta_specs(self):
         return tuple()
 
@@ -316,27 +335,28 @@ class DDPGGoalGCAgent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
-    def act(self, obs, goal,meta, step, eval_mode):
-        #how to call proto from ddpg? 
-        #is the best way to import agent from main loop? 
+    def act(self, obs, goal, meta, step, eval_mode):
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
         
-        #goal = self.agent.protos.weight.data.clone()[idx] passed in from main loop 
-        #a particular prototype
-        #obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float() 
-        #goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        
-        h = obs
-        #g = self.encoder(goal)
+        h = self.encoder(obs)
+        g = self.encoder(goal)
         inputs = [h]
-        #inputs2 = g
+        inputs2 = g
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
-#         assert obs.shape[-1] == self.obs_shape[-1]
+        assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule, step)
 
-        dist = self.actor(inpt, goal, stddev)
+        dist = self.actor(inpt, inputs2, stddev)
         if eval_mode:
             action = dist.mean
         else:
@@ -435,7 +455,7 @@ class DDPGGoalGCAgent:
         
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
-        actor_loss.backward()
+        actor_loss.backward(retain_graph=True)
         self.actor_opt.step()
 
         if self.use_tb or self.use_wandb:
