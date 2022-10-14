@@ -82,6 +82,8 @@ proto_const_init: True
 resample_goal: False
 use_predictor: False
 load_model: False
+pred_dim: 128
+feature_dim: 50
 # experiment
 experiment: exp
 
