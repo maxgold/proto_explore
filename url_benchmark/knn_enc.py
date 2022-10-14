@@ -41,9 +41,10 @@ import io
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
-models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
+#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
-#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
+
+models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.14/010502_proto_encoder1/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
 
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
@@ -62,7 +63,7 @@ for m in models:
 
     replay_buffer = make_replay_offline(eval_env_goal,
                                             replay_dir,
-                                            100000,
+                                            500000,
                                             0,
                                             0,
                                             .99,
@@ -74,9 +75,11 @@ for m in models:
                                             )
 
     state, actions, rewards, eps, index = replay_buffer.parse_dataset()
-    idx = np.random.randint(0, state.shape[0], size=380)
+    
+    
+    idx = np.random.randint(0, state.shape[0], size=1000)
     state=state[idx]
-    state=state.reshape(380,4)
+    state=state.reshape(1000,4)
     a = state
     #fn = Path('./knn_visual/samples.npz')
     #with io.BytesIO() as bs:
@@ -281,7 +284,7 @@ for m in models:
     proto_no_v = torch.cat(proto_no_v,axis=0)
     actual_proto_no_v = torch.cat(actual_proto_no_v,axis=0)
 
-    pixels = []
+    #pixels = []
     encoded = []
     proto = []
     actual_proto = []
@@ -291,11 +294,10 @@ for m in models:
         fn = eps[x]
         idx_ = index[x]
         ep = np.load(fn)
-        pixels.append(ep['observation'][idx_])
+        #pixels.append(ep['observation'][idx_])
 
-    for x in pixels:
         with torch.no_grad():
-            obs = x
+            obs = ep['observation'][idx_]
             obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
             z = agent.encoder(obs)
             encoded.append(z)
@@ -338,15 +340,15 @@ for m in models:
                     df.loc[i,'x'] = a[i,0].cpu().numpy()
                     df.loc[i,'y'] = a[i,1].cpu().numpy()
                     if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'red'
+                        df.loc[i, 'c'] = 'orange'
                         z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
                         txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                     else:
-                        df.loc[i,'c'] = 'black'
+                        df.loc[i,'c'] = 'blue'
                 else:
                     df.loc[i,'x'] = x[0].item()
                     df.loc[i,'y'] = x[1].item()
-                    df.loc[i,'c'] = 'blue'
+                    df.loc[i,'c'] = 'green'
 
 
             plt.clf()
@@ -356,13 +358,13 @@ for m in models:
                       data=df,legend=False)
             ax.set_title("\n".join(wrap(txt,75)))
             if index_==0:
-                file1= f"./knn_output/10nn_proto_goals_w_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_proto_goals_w_vel_w_{ix}_model{model}.png"
             elif index_==1:
-                file1= f"./knn_output/10nn_actual_proto_goals_w_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_actual_proto_goals_w_vel_{ix}_model{model}.png"
             elif index_==2:
-                file1= f"./knn_output/10nn_sim_proto_goals_w_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_sim_proto_goals_w_vel_{ix}_model{model}.png"
             elif index_==3:
-                file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel_{ix}_model{model}.png"
             plt.savefig(file1)
             filenames.append(file1)
 
@@ -404,6 +406,7 @@ for m in models:
     for index_, dist_matrix in enumerate(dist_matrices):
         filenames=[]
         for ix, x in enumerate(goal_array):
+            print('no vel',ix)
             txt=''
             df = pd.DataFrame()
             for i in range(a.shape[0]+1):
@@ -411,15 +414,15 @@ for m in models:
                     df.loc[i,'x'] = a[i,0].cpu().numpy()
                     df.loc[i,'y'] = a[i,1].cpu().numpy()
                     if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'red'
+                        df.loc[i, 'c'] = 'orange'
                         z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
                         txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                     else:
-                        df.loc[i,'c'] = 'black'
+                        df.loc[i,'c'] = 'blue'
                 else:
                     df.loc[i,'x'] = x[0].item()
                     df.loc[i,'y'] = x[1].item()
-                    df.loc[i,'c'] = 'blue'
+                    df.loc[i,'c'] = 'green'
 
 
             plt.clf()
@@ -429,9 +432,9 @@ for m in models:
                       data=df,legend=False)
             ax.set_title("\n".join(wrap(txt,75)))
             if index_==0:
-                file1= f"./knn_output/10nn_proto_goals_no_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_proto_goals_no_vel_{ix}_model{model}.png"
             elif index_==1:
-                file1= f"./knn_output/10nn_actual_proto_goals_no_vel{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_actual_proto_goals_no_vel_{ix}_model{model}.png"
             elif index_==2:
                 file1= f"./knn_output/10nn_sim_proto_goals_no_vel{ix}_model{model}.png"
             elif index_==3:
@@ -469,6 +472,7 @@ for m in models:
     for index_, dist_matrix in enumerate(dist_matrices):
         filenames=[]
         for ix, x in enumerate(protos):
+            print('proto', ix)
             txt=''
             df = pd.DataFrame()
             for i in range(a.shape[0]+1):
@@ -476,11 +480,11 @@ for m in models:
                     df.loc[i,'x'] = a[i,0].cpu().numpy()
                     df.loc[i,'y'] = a[i,1].cpu().numpy()
                     if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'red'
+                        df.loc[i, 'c'] = 'orange'
                         z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
                         txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                     else:
-                        df.loc[i,'c'] = 'black'
+                        df.loc[i,'c'] = 'blue'
 
             plt.clf()
             fig, ax = plt.subplots()
@@ -489,9 +493,9 @@ for m in models:
                       data=df,legend=False)
             ax.set_title("\n".join(wrap(txt,75)))
             if index_==0:
-                file1= f"./knn_output/10nn_actual_prototypes{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_actual_prototypes_{ix}_model{model}.png"
             elif index_==1:
-                file1= f"./knn_output/10nn_actual_prototypes_sim{ix}_model{model}.png"
+                file1= f"./knn_output/10nn_actual_prototypes_sim_{ix}_model{model}.png"
 
             plt.savefig(file1)
             filenames.append(file1)
