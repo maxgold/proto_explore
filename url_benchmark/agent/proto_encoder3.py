@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg_encoder1 import DDPGEncoder1Agent
+from agent.ddpg_encoder3 import DDPGEncoder3Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoEncoder1Agent(DDPGEncoder1Agent):
+class ProtoEncoder3Agent(DDPGEncoder3Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)
@@ -55,36 +55,36 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.offline = offline
         self.gc_only = gc_only
         #self.load_protos = load_protos
-        
+
         # models
-        #if self.gc_only==False:
-        self.encoder_target = deepcopy(self.encoder)
+        if self.gc_only==False:
+            self.encoder_target = deepcopy(self.encoder)
 
-        self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-        self.predictor.apply(utils.weight_init)
-        self.predictor_target = deepcopy(self.predictor)
+            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.predictor.apply(utils.weight_init)
+            self.predictor_target = deepcopy(self.predictor)
 
-        self.projector = Projector(pred_dim, proj_dim).to(self.device)
-        self.projector.apply(utils.weight_init)
+            self.projector = Projector(pred_dim, proj_dim).to(self.device)
+            self.projector.apply(utils.weight_init)
 
-        # prototypes
-        self.protos = nn.Linear(pred_dim, num_protos,
-                            bias=False).to(self.device)
-        self.protos.apply(utils.weight_init)
-        #self.protos_target = deepcopy(self.protos)
-        # candidate queue
-        self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
-        self.queue_ptr = 0
+            # prototypes
+            self.protos = nn.Linear(pred_dim, num_protos,
+                                bias=False).to(self.device)
+            self.protos.apply(utils.weight_init)
+            #self.protos_target = deepcopy(self.protos)
+            # candidate queue
+            self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
+            self.queue_ptr = 0
 
-        # optimizers
-        self.proto_opt = torch.optim.Adam(utils.chain(
-            self.encoder.parameters(), self.predictor.parameters(),
-            self.projector.parameters(), self.protos.parameters()),
-                                      lr=self.lr)
+            # optimizers
+            self.proto_opt = torch.optim.Adam(utils.chain(
+                self.encoder.parameters(), self.predictor.parameters(),
+                self.projector.parameters(), self.protos.parameters()),
+                                          lr=self.lr)
 
-        self.predictor.train()
-        self.projector.train()
-        self.protos.train()
+            self.predictor.train()
+            self.projector.train()
+            self.protos.train()
         
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
