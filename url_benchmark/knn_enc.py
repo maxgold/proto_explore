@@ -7,7 +7,7 @@ import natsort
 import random
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
-import imageio.v2 as imageio
+import imageio
 import warnings
 from textwrap import wrap
 
@@ -42,11 +42,11 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/050615_proto_encoder1/']
+models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/050615_proto_encoder1/', '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
 
-models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.14/010502_proto_encoder1/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
+#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.14/010502_proto_encoder1/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
 
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
@@ -125,7 +125,6 @@ for m in models:
     test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
     action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
 
->>>>>>> 40d8b0cc7e9a9cd73bf9b729c4a7333fd1692689
     ###############################################################################################################################
     #.0002
     #velocity test 
@@ -214,7 +213,7 @@ for m in models:
             z = agent.encoder(obs)
             encoded_v.append(z)
             z = agent.predictor(z)
-            #z = agent.projector(z)
+            z = agent.projector(z)
             z = F.normalize(z, dim=1, p=2)
             proto_v.append(z)
             sim = agent.protos(z)
@@ -272,7 +271,7 @@ for m in models:
             z = agent.encoder(obs)
             encoded_no_v.append(z)
             z = agent.predictor(z)
-            #z = agent.projector(z)
+            z = agent.projector(z)
             z = F.normalize(z, dim=1, p=2)
             proto_no_v.append(z)
             sim = agent.protos(z)
@@ -305,7 +304,7 @@ for m in models:
             z = agent.encoder(obs)
             encoded.append(z)
             z = agent.predictor(z)
-            #z = agent.projector(z)
+            z = agent.projector(z)
             z = F.normalize(z, dim=1, p=2)
             proto.append(z)
             sim = agent.protos(z)
@@ -314,7 +313,6 @@ for m in models:
     
 
     print('data from buffer: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), a.shape[0]))
->>>>>>> 40d8b0cc7e9a9cd73bf9b729c4a7333fd1692689
 
     encoded = torch.cat(encoded,axis=0)
     proto = torch.cat(proto,axis=0)
@@ -516,7 +514,6 @@ for m in models:
         imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
 
->>>>>>> 40d8b0cc7e9a9cd73bf9b729c4a7333fd1692689
 
 # df = pd.DataFrame()
 # for ix in range(_encode.shape[0]):
