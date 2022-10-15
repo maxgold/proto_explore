@@ -270,7 +270,8 @@ class Workspace:
                                 pred_dim=cfg.pred_dim) 
         
         if self.cfg.load_model:
-            model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/050615_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             print(model.protos)
             print(model.encoder)
             print(model.projector)
@@ -1008,6 +1009,7 @@ class Workspace:
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                     time_step_no_goal = self.train_env_no_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1) 
+                    print('time step', time_step1.observation['observations'])
                     print('sampled goal', goal_state)
 
                     with self.train_env_goal.physics.reset_context():
