@@ -320,3 +320,98 @@ class DDPGAgent:
                                  self.critic_target_tau)
 
         return metrics
+
+class RefinedDDPGAgent(DDPGAgent):
+    def __init__(self, goal_policy, weight, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.goal_policy = goal_policy
+        self.weight = weight
+
+    def act(self, obs, meta, step, eval_mode):
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        h = self.encoder(obs)
+        inputs = [h]
+        for value in meta.values():
+            value = torch.as_tensor(value, device=self.device).unsqueeze(0)
+            inputs.append(value)
+        inpt = torch.cat(inputs, dim=-1)
+        #assert obs.shape[-1] == self.obs_shape[-1]
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(inpt, stddev)
+        if eval_mode:
+            action = self.transform_action(dist.mean, obs, step)
+        else:
+            action = self.transform_action(dist.sample(clip=None), obs, step)
+        return action.cpu().numpy()[0]
+
+    def update_critic(self, obs, action, reward, discount, next_obs, step):
+        metrics = dict()
+
+        with torch.no_grad():
+            stddev = utils.schedule(self.stddev_schedule, step)
+            dist = self.actor(next_obs, stddev)
+            next_action = dist.sample(clip=self.stddev_clip)
+            next_action = self.transform_action(next_action, next_obs, step)
+            target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
+            target_V = torch.min(target_Q1, target_Q2)
+            target_Q = reward + (discount * target_V)
+
+        action = self.transform_action(action, obs, step)
+        Q1, Q2 = self.critic(obs, action)
+        critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+
+        if self.use_tb or self.use_wandb:
+            metrics['critic_target_q'] = target_Q.mean().item()
+            metrics['critic_q1'] = Q1.mean().item()
+            metrics['critic_q2'] = Q2.mean().item()
+            metrics['critic_loss'] = critic_loss.item()
+
+        # optimize critic
+        if self.encoder_opt is not None:
+            self.encoder_opt.zero_grad(set_to_none=True)
+        self.critic_opt.zero_grad(set_to_none=True)
+        critic_loss.backward()
+        self.critic_opt.step()
+        if self.encoder_opt is not None:
+            self.encoder_opt.step()
+        return metrics
+
+    def transform_action(self, action, obs, step):
+        #weight = utils.schedule(self.stddev_schedule, step)
+        #action = action / (1 + self.weight)
+        if step < self.num_expl_steps:
+            with torch.no_grad():
+                goal_action = self.goal_policy(obs)
+            action = torch.tensor(goal_action).to(self.device)
+            action.uniform_(-1.0, 1.0)
+        else:
+            action = action
+
+        return action
+
+
+    def update_actor(self, obs, step):
+        metrics = dict()
+
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        action = dist.sample(clip=self.stddev_clip)
+        action = self.transform_action(action, obs, step)
+        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
+        Q1, Q2 = self.critic(obs, action)
+        Q = torch.min(Q1, Q2)
+
+        actor_loss = -Q.mean()
+
+        # optimize actor
+        self.actor_opt.zero_grad(set_to_none=True)
+        actor_loss.backward()
+        self.actor_opt.step()
+
+        if self.use_tb or self.use_wandb:
+            metrics['actor_loss'] = actor_loss.item()
+            metrics['actor_logprob'] = log_prob.mean().item()
+            metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+
+        return metrics
+

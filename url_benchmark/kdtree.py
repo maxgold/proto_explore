@@ -12,6 +12,7 @@ class KNN:
     def query_k(self, X, k):
         dist, indices = self.kdtree.query(X, k=k)
         return self.y_src[indices]
+
     def query_r(self, X, r):
         indices = self.kdtree.query_radius(X, r=r)
         return self.y_src[indices]

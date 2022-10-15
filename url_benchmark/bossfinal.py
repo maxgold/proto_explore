@@ -1,11 +1,11 @@
 import warnings
 
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'egl'
+os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
+os.environ["MUJOCO_GL"] = "egl"
 
 from pathlib import Path
 
@@ -21,7 +21,8 @@ import dmc
 import torch.nn.functional as F
 import utils
 from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
+from replay_buffer import ReplayBufferStorage, make_replay_loader
+from offline_replay_buffer import make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 
@@ -29,12 +30,7 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-# TODO:
-# write code to sample from our generative model
-# write code to import the expert gaol-conditioned agent
-# write code to visualize prototyeps
-#   to do this i think need to embed a grid of states
-#   and then for each prototype find the closest state embedding to it
+from agent.ddpg import RefinedDDPGAgent
 
 
 def get_state_embeddings(agent, states):
@@ -46,9 +42,9 @@ def get_state_embeddings(agent, states):
     return s
 
 
-def visualize_prototypes(agent):
-    grid = np.meshgrid(np.arange(-.3,.3,.01),np.arange(-.3,.3,.01))
-    grid = np.concatenate((grid[0][:,:,None],grid[1][:,:,None]), -1)
+def proto2states(agent, states=None):
+    grid = np.meshgrid(np.arange(-0.3, 0.3, 0.01), np.arange(-0.3, 0.3, 0.01))
+    grid = np.concatenate((grid[0][:, :, None], grid[1][:, :, None]), -1)
     grid = grid.reshape(-1, 2)
     grid = np.c_[grid, np.zeros_like(grid)]
     grid = torch.tensor(grid).cuda().float()
@@ -60,34 +56,58 @@ def visualize_prototypes(agent):
     return grid[closest_points, :2].cpu()
 
 
-def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
-    cfg.obs_type = obs_type
-    cfg.obs_shape = obs_spec.shape
-    cfg.action_shape = action_spec.shape
-    cfg.num_expl_steps = num_expl_steps
-    return hydra.utils.instantiate(cfg)
+### STEPS
+# 1. load agent
+# 2. load pretrained goal agent
+# 3. Set up environment
+# 4. Map prototypes to their closest point in state space via a grid
+# 5. Relabel all these states with reward and choose highest one
+# 6. Run goal conditioned RL to reach that prototype
 
-def make_generator(env, cfg):
-    replay_dir = Path(
-        "/home/maxgold/workspace/explore/proto_explore/url_benchmark/exp_local/2022.07.23/101256_proto/buffer2"
-    )
-    replay_buffer = make_replay_buffer(
-        env,
-        replay_dir,
-        cfg.replay_buffer_size,
-        cfg.batch_size,
-        0,
-        cfg.discount,
-        goal=True,
-        relabel=False,
-    )
-    states, actions, futures = replay_buffer.parse_dataset()
-    states = states.astype(np.float64)
-    knn = KNN(states[:, :2], futures)
-    return knn
 
-def make_expert():
-    return ExpertAgent()
+
+
+def make_refined_agent(goal_policy, obs_type, obs_spec, action_spec, num_expl_steps, cfg):
+
+    agent = RefinedDDPGAgent(
+        goal_policy,
+        cfg.weight,
+        "rddpg",
+        False,
+        obs_type,
+        obs_spec.shape,
+        action_spec.shape,
+        cfg.device,
+        cfg.agent.lr,
+        cfg.agent.feature_dim,
+        cfg.agent.hidden_dim,
+        cfg.agent.critic_target_tau,
+        num_expl_steps,
+        cfg.agent.update_every_steps,
+        cfg.agent.stddev_schedule,
+        cfg.agent.nstep,
+        cfg.agent.batch_size,
+        cfg.agent.stddev_clip,
+        cfg.agent.init_critic,
+        cfg.agent.use_tb,
+        False,
+    )
+    return agent
+
+
+class GoalHelper:
+    def __init__(self, goal_agent, goal):
+        self.goal_agent = goal_agent
+        self.goal = goal
+
+    def __call__(self, obs):
+        if (obs.shape[0] > 1) or (len(obs.shape) > 2):
+            goal = self.goal.tile((obs.shape[0],1))
+        else:
+            obs = obs[0]
+            goal = self.goal
+        return self.goal_agent.act(obs, goal, {}, 0, eval_mode=True)
+
 
 
 class Workspace:
@@ -98,34 +118,49 @@ class Workspace:
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        d = torch.load(
+            "/home/maxgold/workspace/explore/proto_explore/url_benchmark/models/states/point_mass_maze_reach_bottom_right/proto/1/snapshot_2000000.pt"
+        )
+        proto_agent = d["agent"]
+        goal_agent = d["goal_agent"]
+        #path_to_agent = "/home/maxgold/workspace/explore/proto_explore/output/2022.08.24/174419_gcac_gcsl_nohorizon/agent"
+        #goal_agent = torch.load(path_to_agent)
+
+        goal = (-.23, -.23)
+
+        cand_states = proto2states(proto_agent)
+        env = dmc.make("point_mass_maze_reach_custom_goal", seed=0, goal=goal)
+        rewards = []
+        for state in cand_states:
+            with env.physics.reset_context():
+                env.physics.set_state(np.r_[state, np.zeros(2)])
+            reward = env.task.get_reward(env.physics)
+            rewards.append(reward)
+
+        istate = np.argmax(rewards)
+
+        goal_state = cand_states[istate]
+
+        goal_policy = GoalHelper(goal_agent, goal_state)
+
+        self.agent = make_refined_agent(
+            goal_policy,
+            cfg.obs_type,
+            env.observation_spec(),
+            env.action_spec(),
+            cfg.num_seed_frames // cfg.action_repeat,
+            cfg
+        )
 
         # create logger
-        if cfg.use_wandb:
-            exp_name = '_'.join([
-                cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
-                str(cfg.seed)
-            ])
-            wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
-
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-        try:
-            task = PRIMAL_TASKS[self.cfg.domain]
-        except:
-            task = self.cfg.domain
-        self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
-        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
 
-        # create agent
-        self.agent = make_agent(cfg.obs_type,
-                                self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
-                                cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent)
+        self.train_env = dmc.make("point_mass_maze_reach_custom_goal", seed=cfg.seed, goal=goal)
+        self.eval_env = dmc.make("point_mass_maze_reach_custom_goal", seed=cfg.seed, goal=goal)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -149,20 +184,13 @@ class Workspace:
 
         # create video recorders
         self.video_recorder = VideoRecorder(
-            self.work_dir if cfg.save_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
+            self.work_dir if cfg.save_video else None)
         self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if cfg.save_train_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
+            self.work_dir if cfg.save_train_video else None)
 
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-        self.expert = make_expert()
-        self.knn = make_generator(self.eval_env, cfg)
-        self.use_expert = True
 
     @property
     def global_step(self):
@@ -181,27 +209,6 @@ class Workspace:
         if self._replay_iter is None:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
-
-    def sample_goal(self, obs):
-        cands = self.knn.query_k(np.array(obs[:2])[None], 10)
-        cands = torch.tensor(cands[0, :, :, 1]).cuda()
-        with torch.no_grad():
-            z = self.agent.encoder(cands)
-            z = self.agent.predictor(z)
-            z = F.normalize(z, dim=1, p=2)
-            # this score is P x B and measures how close 
-            # each prototype is to the elements in the batch
-            # each prototype is assigned a sampled vector from the batch
-            # and this sampled vector is added to the queue
-            scores = self.agent.protos(z).T
-
-        current_protos = self.agent.protos.weight.data.clone()
-        current_protos = F.normalize(current_protos, dim=1, p=2)
-        z_to_c = torch.norm(z[:, None, :] - current_protos[None, :, :], dim=2, p=2)
-        all_dists, _ = torch.topk(z_to_c, 3, dim=1, largest=True)
-        ind = all_dists.mean(-1).argmax().item()
-        return cands[ind].cpu().numpy()
-        
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -223,23 +230,15 @@ class Workspace:
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
-        if self.global_step % int(1e5) == 0:
-            proto2d = visualize_prototypes(self.agent)
-            plt.clf()
-            fig, ax = plt.subplots()
-            ax.scatter(proto2d[:,0], proto2d[:,1])
-            plt.savefig(f"./{self.global_step}_proto2d.png")
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
-    
 
     def train(self):
         # predicates
-        resample_goal_every = 50
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
@@ -249,7 +248,6 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
-        goal = self.sample_goal(time_step.observation)[:2]
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -278,9 +276,7 @@ class Workspace:
                 meta = self.agent.init_meta()
                 self.replay_storage.add(time_step, meta)
                 self.train_video_recorder.init(time_step.observation)
-                # try to save snapshot
-                if self.global_frame in self.cfg.snapshots:
-                    self.save_snapshot()
+
                 episode_step = 0
                 episode_reward = 0
 
@@ -291,21 +287,22 @@ class Workspace:
                 self.eval()
 
             meta = self.agent.update_meta(meta, self.global_step, time_step)
-            if episode_step % resample_goal_every == 0:
-                goal = self.sample_goal(time_step.observation)[:2]
+
+            if hasattr(self.agent, "regress_meta"):
+                repeat = self.cfg.action_repeat
+                every = self.agent.update_task_every_step // repeat
+                init_step = self.agent.num_init_steps
+                if self.global_step > (
+                        init_step // repeat) and self.global_step % every == 0:
+                    meta = self.agent.regress_meta(self.replay_iter,
+                                                   self.global_step)
+
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
-                if self.use_expert:
-                    action = self.expert.act(time_step.observation,
-                                            goal,
-                                            self.global_step,
-                                            eval_mode=False)
-                else:
-                    action = self.agent.act(time_step.observation,
-                                            #goal,
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=False)
+                action = self.agent.act(time_step.observation,
+                                        meta,
+                                        self.global_step,
+                                        eval_mode=False)
 
             # try to update the agent
             if not seed_until_step(self.global_step):
@@ -320,28 +317,55 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
 
-    def save_snapshot(self):
-        snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
-        snapshot_dir.mkdir(exist_ok=True, parents=True)
-        snapshot = snapshot_dir / f'snapshot_{self.global_frame}.pt'
-        keys_to_save = ['agent', '_global_step', '_global_episode']
-        payload = {k: self.__dict__[k] for k in keys_to_save}
-        with snapshot.open('wb') as f:
-            torch.save(payload, f)
+    def load_snapshot(self):
+        snapshot_base_dir = Path(self.cfg.snapshot_base_dir)
+        domain, _ = self.cfg.task.split('_', 1)
+        snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / self.cfg.agent.name
 
+        def try_load(seed):
+            snapshot = snapshot_dir / str(
+                seed) / f'snapshot_{self.cfg.snapshot_ts}.pt'
+            if not snapshot.exists():
+                return None
+            with snapshot.open('rb') as f:
+                payload = torch.load(f)
+            return payload
 
-@hydra.main(config_path='.', config_name='pretrain')
+        # try to load current seed
+        payload = try_load(self.cfg.seed)
+        if payload is not None:
+            return payload
+        # otherwise try random seed
+        while True:
+            seed = np.random.randint(1, 11)
+            payload = try_load(seed)
+            if payload is not None:
+                return payload
+        return None
+
+@hydra.main(config_path='.', config_name='finalboss')
 def main(cfg):
-    from mypretrain import Workspace as W
+    from bossfinal import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
     if snapshot.exists():
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
-    print("training")
     workspace.train()
 
 
-if __name__ == '__main__':
+
+if __name__=="__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+

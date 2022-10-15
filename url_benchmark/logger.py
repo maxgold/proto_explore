@@ -10,8 +10,8 @@ from termcolor import colored
 from torch.utils.tensorboard import SummaryWriter
 
 COMMON_TRAIN_FORMAT = [('frame', 'F', 'int'), ('step', 'S', 'int'),
-                       ('episode', 'E', 'int'), ('episode_length', 'L', 'int'),
-                       ('episode_reward', 'R', 'float'),
+                       ('episode', 'E', 'int'), ('episode_length', 'B', 'float'),
+                       ('episode_reward', 'L', 'float'),
                        ('fps', 'FPS', 'float'), ('total_time', 'T', 'time')]
 
 COMMON_EVAL_FORMAT = [('frame', 'F', 'int'), ('step', 'S', 'int'),

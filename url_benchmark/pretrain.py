@@ -14,6 +14,8 @@ import numpy as np
 import torch
 import wandb
 from dm_env import specs
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 import dmc
 import utils
@@ -25,6 +27,30 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
+def get_state_embeddings(agent, states):
+    with torch.no_grad():
+        s = agent.encoder(states)
+        s = agent.predictor(s)
+        s = agent.projector(s)
+        s = F.normalize(s, dim=1, p=2)
+    return s
+
+def visualize_prototypes(agent, states=None):
+    if states is None:
+        grid = np.meshgrid(np.arange(-.3,.3,.01),np.arange(-.3,.3,.01))
+        grid = np.concatenate((grid[0][:,:,None],grid[1][:,:,None]), -1)
+        grid = grid.reshape(-1, 2)
+        grid = np.c_[grid, np.zeros_like(grid)]
+        grid = torch.tensor(grid).cuda().float()
+    else:
+        grid = np.array(states)
+        grid = torch.tensor(grid).to(agent.device)
+    grid_embeddings = get_state_embeddings(agent, grid)
+    protos = agent.protos.weight.data.clone()
+    protos = F.normalize(protos, dim=1, p=2)
+    dist_mat = torch.cdist(protos, grid_embeddings)
+    closest_points = dist_mat.argmin(-1)
+    return grid[closest_points, :2].cpu()
 
 def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
     cfg.obs_type = obs_type
@@ -32,7 +58,6 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
     return hydra.utils.instantiate(cfg)
-
 
 class Workspace:
     def __init__(self, cfg):
@@ -123,7 +148,7 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
-    def eval(self):
+    def eval(self, states):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
@@ -143,6 +168,13 @@ class Workspace:
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
+#        if self.global_step % int(1e5) == 0:
+#            if len(states):
+#                proto2d = visualize_prototypes(self.agent, states)
+#                plt.clf()
+#                fig, ax = plt.subplots()
+#                ax.scatter(proto2d[:,0], proto2d[:,1])
+#                plt.savefig(f"./{self.global_step}_proto2d.png")
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
@@ -165,6 +197,7 @@ class Workspace:
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
+        states = []
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -199,7 +232,7 @@ class Workspace:
             if eval_every_step(self.global_step):
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
-                self.eval()
+                self.eval(states)
 
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             # sample action
@@ -216,6 +249,7 @@ class Workspace:
 
             # take env step
             time_step = self.train_env.step(action)
+            states.append(time_step.observation)
             episode_reward += time_step.reward
             self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
