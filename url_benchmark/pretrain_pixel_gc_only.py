@@ -270,7 +270,7 @@ class Workspace:
                                 pred_dim=cfg.pred_dim) 
         
         if self.cfg.load_model:
-            model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/050615_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             print(model.protos)
             print(model.encoder)

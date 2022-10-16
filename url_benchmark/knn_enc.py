@@ -42,7 +42,7 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/050615_proto_encoder1/', '/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
+models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
 
