@@ -6,25 +6,29 @@ import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 os.environ['MUJOCO_GL'] = 'egl'
-
+os.environ['HYDRA_FULL_ERROR']='1'
+import seaborn as sns; sns.set_theme()
 from pathlib import Path
-
+import torch.nn.functional as F
+import torch
+import torch.nn as nn
 import hydra
 import numpy as np
 import torch
 import wandb
 from dm_env import specs
-
-import dmc as dmc
+import pandas as pd
+import dmc
 import utils
-from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
+from scipy.spatial.distance import cdist
+from logger import Logger, save
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
+import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
-
 
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, batch_size=256, num_protos=512, update_gc=2, gc_only=False, offline=False):
     cfg.obs_type = obs_type
@@ -50,15 +54,16 @@ class Workspace:
         self.cfg = cfg
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
+        work_path = str(os.getcwd().split('/')[-2])+'/'+str(os.getcwd().split('/')[-1])
 
         # create logger
         if cfg.use_wandb:
             exp_name = '_'.join([
                 cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
-                str(cfg.seed)
+                str(cfg.seed), str(cfg.tmux_session),work_path 
             ])
             wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
-
+ 
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
@@ -143,6 +148,28 @@ class Workspace:
         return self._replay_iter
 
     def eval(self):
+        heatmap = self.replay_storage.state_visitation_proto
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(self.global_step)
+
+        plt.savefig(f"./{self.global_step}_proto_heatmap.png")
+        wandb.save(f"./{self.global_step}_proto_heatmap.png")
+
+
+        heatmap_pct = self.replay_storage.state_visitation_proto_pct
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(self.global_step)
+
+        plt.savefig(f"./{self.global_step}_proto_heatmap_pct.png")
+        wandb.save(f"./{self.global_step}_proto_heatmap_pct.png")
+ 
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
@@ -167,10 +194,17 @@ class Workspace:
                                             eval_mode=True)
                     else:
                         if self.cfg.obs_type=='pixels':
-                            action = self.agent.act2(time_step.observation['pixels'],
+                            if self.cfg.use_predictor:
+                                action = self.agent.act2(time_step.observation['pixels'],
                                             meta,
                                             self.global_step,
-                                            eval_mode=True)
+                                            eval_mode=True,
+                                            proto=self.agent)
+                            else:
+                                action = self.agent.act2(time_step.observation['pixels'],
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True) 
                         else:    
                             action = self.agent.act2(time_step.observation,
                                             meta,
@@ -228,6 +262,14 @@ class Workspace:
                         log('step', self.global_step)
 
                 # reset env
+                if self.cfg.const_init==False:
+                    task = PRIMAL_TASKS[self.cfg.domain]
+                    rand_init = np.random.uniform(.02,.29,size=(2,))
+                    sign = np.array([[1,1],[-1,1],[1,-1],[-1,-1]])
+                    rand = np.random.randint(4)
+                    self.train_env = dmc.make(task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                              self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
+                    
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
                 if self.cfg.obs_type=='pixels':
@@ -267,10 +309,17 @@ class Workspace:
                                             eval_mode=True)
                 else:
                     if self.cfg.obs_type=='pixels':
-                        action = self.agent.act2(time_step.observation['pixels'],
+                        if self.cfg.use_predictor:
+                            action = self.agent.act2(time_step.observation['pixels'],
                                             meta,
                                             self.global_step,
-                                            eval_mode=True)
+                                            eval_mode=True,
+                                            proto=self.agent)
+                        else:
+                            action = self.agent.act2(time_step.observation['pixels'],
+                                            meta,
+                                            self.global_step,
+                                            eval_mode=True) 
                     else:    
                         action = self.agent.act2(time_step.observation,
                                             goal,
@@ -283,7 +332,7 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent
-            if self._global_step%100000==0:
+            if (self._global_step<300000 and self._global_step%10000==0) or (self._global_step>=300000 and self._global_step%50000==0):
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
             # take env step

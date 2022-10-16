@@ -1,6 +1,11 @@
 # @package agent
+<<<<<<< HEAD
 _target_: agent.ddpg.DDPGAgent
 name: ddpg
+=======
+_target_: agent.ddpg_encoder0.DDPGEncoder0Agent
+name: ddpg_encoder0
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later

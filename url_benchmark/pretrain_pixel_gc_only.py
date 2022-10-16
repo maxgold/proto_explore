@@ -265,12 +265,23 @@ class Workspace:
                                 load_protos=False,
                                 num_protos=cfg.num_protos) 
         
-        if self.cfg.load_encoder and self.cfg.load_proto==False:
-            #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
-            encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+        if self.cfg.load_model and self.cfg.load_proto:
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+            self.agent.init_protos_from(proto)
+        if self.cfg.load_model and self.cfg.load_encoder:
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+            self.agent.init_encoder_from(proto.encoder)
+
+        if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
+
+            #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
+            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
-        if self.cfg.load_proto:
-            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+        if self.cfg.load_proto and self.cfg.load_model==False:
+            #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+            #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
+            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
@@ -843,7 +854,7 @@ class Workspace:
                     plt.savefig(f"./{self._global_step}_eval.png")
                     wandb.save("./{self._global_step}_eval.png")
 
-                if (episode_step== 0 and self.global_step!=0) or (episode_reward<50 and episode_step==250 and self.global_step!=0 and self.resampled==False):
+                if (episode_step== 0 and self.global_step!=0):
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:

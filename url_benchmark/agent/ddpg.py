@@ -226,6 +226,7 @@ class DDPGAgent:
         self.reward_free = reward_free
         self.obs_type = obs_type
         self.obs_shape = obs_shape
+        print('obs', obs_shape)
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
@@ -307,6 +308,13 @@ class DDPGAgent:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+
+    def init_gc_from(self,critic, actor):
+        utils.hard_update_params(critic, self.critic)
+        utils.hard_update_params(actor, self.actor)
+ 
     def get_meta_specs(self):
         return tuple()
 

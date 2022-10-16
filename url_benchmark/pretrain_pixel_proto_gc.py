@@ -204,14 +204,22 @@ class Workspace:
                                 stddev_clip=cfg.stddev_clip,
                                 use_closest_proto=cfg.use_closest_proto)
 
-        if self.cfg.load_encoder:
+        if self.cfg.load_model:
+            loaded = torch.load('/home/nina/proto_explore/url_benchmark/model/2022.10.09/133617_proto_greene/optimizer_proto_1000000.pth')
+            self.agent.init_encoder_from(loaded.encoder)
+            self.agent.init_protos_from(loaded)
+        
+        if self.cfg.load_encoder and self.cfg.load_model==False:
             #encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
             #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth') 
+            #encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/2022.10.09/133617_proto_greene/optimizer_proto_1000000.pth')
             encoder = torch.load('/home/nina/proto_explore/url_benchmark/model/encoder_proto_1000000.pth')
-            
             self.agent.init_encoder_from(encoder)
-        if self.cfg.load_proto:
+
+        if self.cfg.load_proto and self.cfg.load_model==False:
+            #proto = torch.load('/home/nina/proto_explore/url_benchmark/model/2022.10.09/133617_proto_greene/optimizer_proto_1000000.pth')
             proto = torch.load('/home/nina/proto_explore/url_benchmark/model/optimizer_proto_1000000.pth')
+
             #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto)  

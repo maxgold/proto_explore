@@ -1,0 +1,64 @@
+# @package agent
+_target_: agent.pggg.PGGGAgent
+name: pggg
+reward_free: ${reward_free}
+obs_type: ??? # to be specified later
+obs_shape: ??? # to be specified later
+action_shape: ??? # to be specified later
+goal_shape: ???
+goal: false
+update_every_steps: 2
+device: ${device}
+critic_target_tau: .01
+critic2_target_tau: .01
+pred_dim2: 128
+use_tb: ${use_tb}
+use_wandb: ${use_wandb}
+num_expl_steps: ??? # to be specified later
+hidden_dim: ???
+feature_dim: 50
+stddev_schedule: ???
+stddev_clip: ???
+nstep: 3
+init_critic: true
+pred_dim: 128
+proj_dim: 512
+num_protos: ???
+tau: 0.1
+topk: 3
+queue_size: 2048
+encoder_target_tau: .05
+lr: ???
+batch_size: ???
+update_gc: ???
+gc_only: ???
+offline: ???
+load_protos: ???
+update_encoder: ${update_encoder}
+task: ???
+frame_stack: ???
+action_repeat: ??? 
+replay_buffer_num_workers: ???
+discount: ??? 
+reward_nn: ???
+reward_scores: ??? 
+reward_scores_dense: ???
+reward_euclid: ???
+pos_reward: ???
+neg_reward: ???
+num_seed_frames: ??? 
+task_no_goal: ???
+work_dir: ??? 
+goal_queue_size: ???
+tmux_session: ???
+eval_every_frames: ???
+seed: ???
+eval_after_step: ???
+episode_length: ???
+hybrid_gc: ???
+hybrid_pct: ???
+batch_size_gc: ???
+const_init: ???
+episode_reset_length: ???
+use_closest_proto: ???
+proto_const_init: True

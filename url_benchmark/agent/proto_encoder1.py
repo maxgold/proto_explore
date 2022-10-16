@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
 @jit.script
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoAgent(DDPGAgent):
+class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
         super().__init__(**kwargs)
@@ -173,8 +173,7 @@ class ProtoAgent(DDPGAgent):
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
-        if step%1000==0:
-            print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+
         # loss
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         if self.use_tb or self.use_wandb:
