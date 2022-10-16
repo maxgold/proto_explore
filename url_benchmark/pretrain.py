@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, batch_size=256, num_protos=512, update_gc=2, gc_only=False, offline=False):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, batch_size=256, num_protos=512, update_gc=2, gc_only=False, offline=False, feature_dim=50, pred_dim=128):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -43,6 +43,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.update_gc=update_gc
     cfg.gc_only=gc_only
     cfg.offline=offline
+    cfg.feature_dim = feature_dim
+    cfg.pred_dim = pred_dim
     return hydra.utils.instantiate(cfg)
 
 
@@ -90,7 +92,9 @@ class Workspace:
                                 cfg.num_protos,
                                 cfg.update_gc,
                                 False,
-                                cfg.offline)
+                                cfg.offline,
+                                cfg.feature_dim,
+                                cfg.pred_dim)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -269,7 +273,7 @@ class Workspace:
                     rand = np.random.randint(4)
                     self.train_env = dmc.make(task, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
-                    
+                    print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
                 if self.cfg.obs_type=='pixels':
@@ -332,7 +336,7 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent
-            if (self._global_step<300000 and self._global_step%10000==0) or (self._global_step>=300000 and self._global_step%50000==0):
+            if self._global_step%200000==0:
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
             # take env step

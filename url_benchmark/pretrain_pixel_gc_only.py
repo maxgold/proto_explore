@@ -45,7 +45,7 @@ from dmc_benchmark import PRIMAL_TASKS
 #         out += identity
 #         return out
 
-def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False,num_protos=512):
+def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False,num_protos=512, feature_dim=50, pred_dim=128):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -64,6 +64,8 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
         cfg.intr_coef = intr_coef
     cfg.load_protos = load_protos
     cfg.num_protos=num_protos
+    cfg.feature_dim=feature_dim
+    cfg.pred_dim=pred_dim
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -263,8 +265,11 @@ class Workspace:
                                 gc_only=True,
                                 intr_coef=cfg.intr_coef,
                                 load_protos=False,
-                                num_protos=cfg.num_protos) 
+                                num_protos=cfg.num_protos,
+                                feature_dim=cfg.feature_dim,
+                                pred_dim=cfg.pred_dim) 
         
+<<<<<<< HEAD
         if self.cfg.load_model and self.cfg.load_proto:
             proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_protos_from(proto)
@@ -274,11 +279,26 @@ class Workspace:
 
         if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
 
+=======
+        if self.cfg.load_model:
+            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            print(model.protos)
+            print(model.encoder)
+            print(model.projector)
+            self.agent.init_protos_from(model)
+        
+        if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
+>>>>>>> 1a59aaa80c4b09c5fdb4974962bdde0d4242275d
             #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
             #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto and self.cfg.load_model==False:
+<<<<<<< HEAD
+=======
+            
+>>>>>>> 1a59aaa80c4b09c5fdb4974962bdde0d4242275d
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
@@ -1004,6 +1024,7 @@ class Workspace:
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                     time_step_no_goal = self.train_env_no_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1) 
+                    print('time step', time_step1.observation['observations'])
                     print('sampled goal', goal_state)
 
                     with self.train_env_goal.physics.reset_context():
