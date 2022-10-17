@@ -105,72 +105,72 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
 
     
 def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
-        if gc:
+    if gc:
 
-            heatmap = self.replay_storage1.state_visitation_gc
+        heatmap = self.replay_storage1.state_visitation_gc
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_gc_heatmap.png")
-            wandb.save(f"./{model_step}_gc_heatmap.png")
-
-
-            heatmap_pct = self.replay_storage1.state_visitation_gc_pct
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-            wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_gc_heatmap.png")
+        wandb.save(f"./{model_step}_gc_heatmap.png")
 
 
-            reward_matrix = self.replay_storage1.reward_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        heatmap_pct = self.replay_storage1.state_visitation_gc_pct
 
-            plt.savefig(f"./{model_step}_gc_reward.png")
-            wandb.save(f"./{model_step}_gc_reward.png")
-            
-            goal_matrix = self.replay_storage1.goal_state_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
-            sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_goal_state_heatmap.png")
-            wandb.save(f"./{model_step}_goal_state_heatmap.png")
-        if proto:
-
-            heatmap = self.replay_storage2.state_visitation_proto
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_proto_heatmap.png")
-            wandb.save(f"./{model_step}_proto_heatmap.png")
+        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+        wandb.save(f"./{model_step}_gc_heatmap_pct.png")
 
 
-            heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+        reward_matrix = self.replay_storage1.reward_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.savefig(f"./{model_step}_gc_reward.png")
+        wandb.save(f"./{model_step}_gc_reward.png")
+        
+        goal_matrix = self.replay_storage1.goal_state_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+        sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
-            wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_goal_state_heatmap.png")
+        wandb.save(f"./{model_step}_goal_state_heatmap.png")
+    if proto:
+
+        heatmap = self.replay_storage2.state_visitation_proto
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap.png")
+        wandb.save(f"./{model_step}_proto_heatmap.png")
+
+
+        heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+        wandb.save(f"./{model_step}_proto_heatmap_pct.png")
 
         
 class Workspace:
