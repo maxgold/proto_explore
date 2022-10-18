@@ -105,72 +105,72 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
 
     
 def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
-        if gc:
+    if gc:
 
-            heatmap = self.replay_storage1.state_visitation_gc
+        heatmap = self.replay_storage1.state_visitation_gc
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_gc_heatmap.png")
-            wandb.save(f"./{model_step}_gc_heatmap.png")
-
-
-            heatmap_pct = self.replay_storage1.state_visitation_gc_pct
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-            wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_gc_heatmap.png")
+        wandb.save(f"./{model_step}_gc_heatmap.png")
 
 
-            reward_matrix = self.replay_storage1.reward_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        heatmap_pct = self.replay_storage1.state_visitation_gc_pct
 
-            plt.savefig(f"./{model_step}_gc_reward.png")
-            wandb.save(f"./{model_step}_gc_reward.png")
-            
-            goal_matrix = self.replay_storage1.goal_state_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
-            sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_goal_state_heatmap.png")
-            wandb.save(f"./{model_step}_goal_state_heatmap.png")
-        if proto:
-
-            heatmap = self.replay_storage2.state_visitation_proto
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_proto_heatmap.png")
-            wandb.save(f"./{model_step}_proto_heatmap.png")
+        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+        wandb.save(f"./{model_step}_gc_heatmap_pct.png")
 
 
-            heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+        reward_matrix = self.replay_storage1.reward_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.savefig(f"./{model_step}_gc_reward.png")
+        wandb.save(f"./{model_step}_gc_reward.png")
+        
+        goal_matrix = self.replay_storage1.goal_state_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+        sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
-            wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_goal_state_heatmap.png")
+        wandb.save(f"./{model_step}_goal_state_heatmap.png")
+    if proto:
+
+        heatmap = self.replay_storage2.state_visitation_proto
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap.png")
+        wandb.save(f"./{model_step}_proto_heatmap.png")
+
+
+        heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+        wandb.save(f"./{model_step}_proto_heatmap_pct.png")
 
         
 class Workspace:
@@ -270,7 +270,9 @@ class Workspace:
                                 pred_dim=cfg.pred_dim) 
         
         if self.cfg.load_model:
-            model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+            #2022.10.12/215751_proto_encoder3
+            #2022.10.12/215650_proto_encoder3
+            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             print(model.protos)
             print(model.encoder)
@@ -1046,7 +1048,32 @@ class Workspace:
                     self.replay_storage1.add_goal(time_step1, meta, goal)
 
                 episode_step += 1
-                
+                if episode_reward > 500 and self.cfg.resample_goal==False:
+                    if goal_state.tolist() in self.goal_array.tolist():
+                        ix = self.goal_array.tolist().index(goal_state.tolist())
+                        self.goal_array=np.delete(self.goal_array, ix, 0)
+                    print('goals left', self.goal_array.shape[0])
+                    init_state = goal_state
+
+                    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+
+                    df1=pd.DataFrame()
+                    df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
+                    df1['index'] = df1.index
+                    df1 = df1.sort_values(by='distance')
+                    goal_array_ = []
+                    for x in range(len(df1)):
+                        goal_array_.append(self.goal_array[df1.iloc[x,1]])
+
+                    for x in range(5):
+                        ptr = self.goal_queue_ptr
+                        self.goal_queue[ptr] = goal_array_[x]
+                        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
+
+
                 if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
