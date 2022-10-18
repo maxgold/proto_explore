@@ -197,8 +197,9 @@ class Workspace:
         # create envs
         #task = PRIMAL_TASKS[self.cfg.domain]
         self.no_goal_task = 'point_mass_maze_reach_no_goal'
-        idx = np.random.randint(0,400)
-        goal_array = ndim_grid(2,20)
+        goal_array = ndim_grid(2,10)
+        self.goal_array= ndim_grid(2,10)
+        idx = np.random.randint(0,goal_array.shape[0])
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=self.first_goal)
@@ -217,7 +218,7 @@ class Workspace:
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
-        self.goal_array = ndim_grid(2,20)
+        self.goal_array = ndim_grid(2,10)
         lst =[]
         for ix,x in enumerate(self.goal_array):
             print(x[0])
@@ -270,6 +271,8 @@ class Workspace:
                                 pred_dim=cfg.pred_dim) 
         
         if self.cfg.load_model:
+            #2022.10.12/215751_proto_encoder3
+            #2022.10.12/215650_proto_encoder3
             model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             print(model.protos)
@@ -368,7 +371,7 @@ class Workspace:
         self.distance_goal_dict={} 
         self.resampled=False
         self.reload_goal=False
-    
+        self.recorded=False 
     
     @property
     def global_step(self):
@@ -562,7 +565,8 @@ class Workspace:
 
         if self.goal_loaded==False:
 
-            goal_array = ndim_grid(2,20)
+            goal_array = ndim_grid(2,10)
+
             
             if init_state_idx is None:
                 if init_state==False:
@@ -571,7 +575,7 @@ class Workspace:
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
                 
                 df1=pd.DataFrame()
-                df1['distance'] = dist_goal.reshape((400,))
+                df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
                 df1['index'] = df1.index
                 df1 = df1.sort_values(by='distance')
                 goal_array_ = []
@@ -579,8 +583,8 @@ class Workspace:
                     goal_array_.append(goal_array[df1.iloc[x,1]])
                 self.distance_goal = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//1000
-                idx = np.random.randint(index,min(index+30, 400))
+                index=self.global_step//200
+                idx = np.random.randint(index,min(index+10, goal_array.shape[0]))
             else:
                 dist_goal0 = cdist(np.array([[.15,.15]]), goal_array, 'euclidean')
                 dist_goal1 = cdist(np.array([[.15,-.15]]), goal_array, 'euclidean')
@@ -589,7 +593,7 @@ class Workspace:
 
                 for ix,i in enumerate([dist_goal0,dist_goal1,dist_goal2,dist_goal3]):
                     df1=pd.DataFrame()
-                    df1['distance'] = i.reshape((400,))
+                    df1['distance'] = i.reshape((goal_array.shape[0],))
                     df1['index'] = df1.index
                     df1 = df1.sort_values(by='distance')
                     goal_array_ = []
@@ -597,17 +601,17 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400))
+                index=self.global_step//500
+                idx = np.random.randint(max(index-3,0),min(index+5, goal_array.shape[0]))
 
 
         else:
             if self.global_step<500000:
-                index=self.global_step//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400))
+                index=self.global_step//500
+                idx = np.random.randint(max(index-3,0),min(index+5, len(self.distance_goal)))
             else:
-                index=(self.global_step-500000)//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400)) 
+                index=(self.global_step-500000)//500
+                idx = np.random.randint(max(index-3,0),min(index+5, len(self.distance_goal))) 
         
         if init_state_idx is None:
             return self.distance_goal[idx]
@@ -860,6 +864,7 @@ class Workspace:
                     wandb.save("./{self._global_step}_eval.png")
 
                 if (episode_step== 0 and self.global_step!=0):
+                    self.recorded=False
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:
@@ -888,8 +893,8 @@ class Workspace:
 
                             else:
                                 print('havent sampled prototypes yet, sampling randomly')
-                                goal_array = ndim_grid(2,20)
-                                idx = np.random.randint(0,len(goal_array))
+                                goal_array = ndim_grid(2,10)
+                                idx = np.random.randint(0,goal_array.shape[0])
                                 goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                         #if self.cfg.load_proto
                         else:
@@ -926,7 +931,7 @@ class Workspace:
 
                     else:
                         
-                        goal_array = ndim_grid(2,20)
+                        goal_array = ndim_grid(2,10)
                         idx = self.count
                         print('count', self.count)
                         self.count += 1
@@ -963,7 +968,7 @@ class Workspace:
                                 
                                 if self.reload_goal ==False:
                                     self.replay_iterable.hybrid=False
-                                    self.reload_goal_array = ndim_grid(2,20)
+                                    self.reload_goal_array = ndim_grid(2,10)
                                     lst =[]
                                     for ix,x in enumerate(self.reload_goal_array):
                                         print(x[0])
@@ -1046,7 +1051,33 @@ class Workspace:
                     self.replay_storage1.add_goal(time_step1, meta, goal)
 
                 episode_step += 1
-                
+                if episode_reward > 500 and self.cfg.resample_goal==False and self.recorded==False:
+                    self.recorded=True
+                    if goal_state.tolist() in self.goal_array.tolist():
+                        ix = self.goal_array.tolist().index(goal_state.tolist())
+                        self.goal_array=np.delete(self.goal_array, ix, 0)
+                    print('goals left', self.goal_array.shape[0])
+                    init_state = goal_state
+
+                    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+
+                    df1=pd.DataFrame()
+                    df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
+                    df1['index'] = df1.index
+                    df1 = df1.sort_values(by='distance')
+                    goal_array_ = []
+                    for x in range(len(df1)):
+                        goal_array_.append(self.goal_array[df1.iloc[x,1]])
+
+                    for x in range(5):
+                        ptr = self.goal_queue_ptr
+                        self.goal_queue[ptr] = goal_array_[x]
+                        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
+
+
                 if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
@@ -1087,8 +1118,8 @@ class Workspace:
                             idx = np.random.randint(self.goal_queue.shape[0])
                         goal_state = np.array([self.goal_queue[idx][0], self.goal_queue[idx][1]])
                     else:
-                        idx = np.random.randint(0,400)
-                        goal_array = ndim_grid(2,20)
+                        goal_array = ndim_grid(2,10)
+                        idx = np.random.randint(0,goal_array.shape[0])
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
