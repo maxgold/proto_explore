@@ -599,18 +599,25 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//500
-                idx = np.random.randint(max(index-3,0),min(index+5, 100))
-
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))
 
         else:
             if self.global_step<500000:
-                index=self.global_step//500
-                idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))  
             else:
-                index=(self.global_step-500000)//500
-                idx = np.random.randint(max(index-3,0),min(index+5, 100)) 
-        
+                index=(self.global_step-500000)//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))  
         if init_state_idx is None:
             return self.distance_goal[idx]
         else:
