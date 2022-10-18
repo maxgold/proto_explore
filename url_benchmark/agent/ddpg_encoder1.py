@@ -43,7 +43,7 @@ class Actor(nn.Module):
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-                                    nn.ReLU(inplace=True))
+                                    nn.LayerNorm(feature_dim), nn.Tanh())
         policy_layers = []
         policy_layers += [
             nn.Linear(feature_dim, hidden_dim),
@@ -52,8 +52,6 @@ class Actor(nn.Module):
         # add additional hidden layer for pixels
         if obs_type == 'pixels':
             policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True),
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
@@ -115,7 +113,7 @@ class Critic(nn.Module):
         if obs_type == 'pixels':
             # for pixels actions will be added after trunk
             self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-                                        nn.ReLU(inplace=True))
+                                        nn.LayerNorm(feature_dim), nn.Tanh())
             trunk_dim = feature_dim + action_dim
         else:
             # for states actions come in the beginning
@@ -134,8 +132,6 @@ class Critic(nn.Module):
                 q_layers += [
                     nn.Linear(hidden_dim, hidden_dim),
                     nn.ReLU(inplace=True),
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
                 ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
