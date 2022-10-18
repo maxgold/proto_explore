@@ -14,15 +14,6 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-<<<<<<< HEAD
-        self.repr_dim = 32 * 35 * 35
-
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU())
-=======
         self.repr_dim = 64*7*7
         #(84-8+1)/4 -> 19*19*32
         #(19-4+1)/2 -> 8*8*64
@@ -37,7 +28,6 @@ class Encoder(nn.Module):
                                     nn.ReLU(), nn.Conv2d(64,64,kernel_size=3, stride=1),
                                     nn.ReLU())
 
->>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
 
         self.apply(utils.weight_init)
 
@@ -215,11 +205,7 @@ class Critic2(nn.Module):
 
 
 
-<<<<<<< HEAD
-class DDPGAgent:
-=======
 class DDPGEncoder2Agent:
->>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
     def __init__(self,
                  name,
                  reward_free,
@@ -328,8 +314,6 @@ class DDPGEncoder2Agent:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
-<<<<<<< HEAD
-=======
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 
@@ -337,7 +321,6 @@ class DDPGEncoder2Agent:
         utils.hard_update_params(critic, self.critic)
         utils.hard_update_params(actor, self.actor)
  
->>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
     def get_meta_specs(self):
         return tuple()
 
