@@ -269,9 +269,9 @@ class Workspace:
                                 feature_dim=cfg.feature_dim,
                                 pred_dim=cfg.pred_dim) 
         
-<<<<<<< HEAD
         if self.cfg.load_model and self.cfg.load_proto:
-            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+            #2022.10.16/011303_proto_encoder1
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.16/011303_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_protos_from(proto)
         if self.cfg.load_model and self.cfg.load_encoder:
             proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
@@ -279,26 +279,11 @@ class Workspace:
 
         if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
 
-=======
-        if self.cfg.load_model:
-            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
-            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
-            print(model.protos)
-            print(model.encoder)
-            print(model.projector)
-            self.agent.init_protos_from(model)
-        
-        if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
->>>>>>> 1a59aaa80c4b09c5fdb4974962bdde0d4242275d
             #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
             #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto and self.cfg.load_model==False:
-<<<<<<< HEAD
-=======
-            
->>>>>>> 1a59aaa80c4b09c5fdb4974962bdde0d4242275d
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
@@ -383,6 +368,7 @@ class Workspace:
         self.distance_goal_dict={} 
         self.resampled=False
         self.reload_goal=False
+        self.recorded=False
     
     
     @property
@@ -875,6 +861,7 @@ class Workspace:
                     wandb.save("./{self._global_step}_eval.png")
 
                 if (episode_step== 0 and self.global_step!=0):
+                    self.recorded=False
                     if self.cfg.curriculum:
                         print('sampling goal')
                     elif self.cfg.sample_proto:
@@ -1061,7 +1048,32 @@ class Workspace:
                     self.replay_storage1.add_goal(time_step1, meta, goal)
 
                 episode_step += 1
-                
+                if episode_reward > 500 and self.cfg.resample_goal==False and self.recorded==False:
+                    self.recorded=True
+                    if goal_state.tolist() in self.goal_array.tolist():
+                        ix = self.goal_array.tolist().index(goal_state.tolist())
+                        self.goal_array=np.delete(self.goal_array, ix, 0)
+                    print('goals left', self.goal_array.shape[0])
+                    init_state = goal_state
+
+                    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+
+                    df1=pd.DataFrame()
+                    df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
+                    df1['index'] = df1.index
+                    df1 = df1.sort_values(by='distance')
+                    goal_array_ = []
+                    for x in range(len(df1)):
+                        goal_array_.append(self.goal_array[df1.iloc[x,1]])
+
+                    for x in range(5):
+                        ptr = self.goal_queue_ptr
+                        self.goal_queue[ptr] = goal_array_[x]
+                        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+
+                    if self.goal_queue_ptr==0:
+                        self.curriculum_goal_loaded=True
+  
                 if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
