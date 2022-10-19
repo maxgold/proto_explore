@@ -1,4 +1,4 @@
-
+import scipy
 import glob
 import seaborn as sns
 import pandas as pd
@@ -87,15 +87,16 @@ for m in models:
         state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
         state = state.reshape((state.shape[0],4))
         print(state.shape)
-        
-        state_t = np.empty((20000,4))
-        proto_t = np.empty((20000,protos.shape[0]))
+        num_sample=10000
+        state_t = np.empty((num_sample,4))
+        proto_t = np.empty((num_sample,protos.shape[0]))
         
         encoded = []
         proto = []
         actual_proto = []
         lst_proto = []
-        idx = np.random.choice(state.shape[0], size=20000, replace=False)
+        
+        idx = np.random.choice(state.shape[0], size=num_sample, replace=False)
         print('starting to load 50k')
         for ix,x in enumerate(idx):
             print(ix)
@@ -131,10 +132,10 @@ for m in models:
         plt.savefig(f"./knn_output/singular_value_{model}_{model_step}.png")
            
         
-        
-        idx = np.random.randint(0, state.shape[0], size=1000)
+        num_sample=1000 
+        idx = np.random.randint(0, state.shape[0], size=num_sample)
         state=state[idx]
-        state=state.reshape(1000,4)
+        state=state.reshape(num_sample,4)
         a = state
         count10,count01,count00,count11=(0,0,0,0)
         # density estimate:
@@ -568,26 +569,25 @@ for m in models:
 
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
-            for ix, x in enumerate(protos):
+            order = self_mat[index_][0,:].cpu().numpy()
+            for ix, x in enumerate(order):
                 print('proto', ix)
                 txt=''
-                df_ = pd.DataFrame()
+                df = pd.DataFrame()
                 for i in range(a.shape[0]+1):
                     if i!=a.shape[0]:
-                        df_.loc[i,'x'] = a[i,0].cpu().numpy()
-                        df_.loc[i,'y'] = a[i,1].cpu().numpy()
-                        if i in dist_matrix[ix,:]:
-                            df_.loc[i, 'c'] = 'blue'
-                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                        df.loc[i,'x'] = a[i,0].cpu().numpy()
+                        df.loc[i,'y'] = a[i,1].cpu().numpy()
+                        df.loc[i,'distance_to_proto1'] = _proto_self[ix,0].item()
+
+                        if i in dist_matrix[x,:]:
+                            df.loc[i, 'c'] = 'blue'
+                            z=dist_matrix[x,(dist_matrix[x,:] == i).nonzero(as_tuple=True)[0]]
                             txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                         else:
-                            df_.loc[i,'c'] = 'orange'
+                            df.loc[i,'c'] = 'orange'
 
-                df = pd.DataFrame()
                 #order based on distance to first prototype
-                for i in range(protos.shape[0]):
-                    cols = list(df_.columns) 
-                    df.loc[i, cols] = df_[self_mat[index_][0,i], cols]
 
 
 
