@@ -42,7 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
+models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
+#models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
 
@@ -52,466 +53,574 @@ for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
     tmp_agent_name = m.split('/')[-2].split('_')
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
-    
-    agent  = torch.load(m+'optimizer_'+agent_name+'_1000000.pth')
+    paths = glob.glob(m+'*pth')
+    for path in paths:
+        model_step = path.split('_')[-1].split('.')[0]
+        print('model', m)
+        print('model step', model_step)
+        if model_step=='0':
+            continue
+        agent  = torch.load(path)
+        eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
+        env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
+        
+        protos = agent.protos.weight.data.detach().clone()
+        
+        if model == '2022.09.09_072830_proto':
+            replay_dir = Path(m+'buffer2/buffer_copy/')
+        else:
+            replay_dir = Path(m+'buffer/buffer_copy/')
 
-    eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
-    env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
-    
-    if model == '2022.09.09_072830_proto':
-        replay_dir = Path(m+'buffer2/buffer_copy/')
-    else:
-        replay_dir = Path(m+'buffer/buffer_copy/')
+        replay_buffer = make_replay_offline(eval_env_goal,
+                                                replay_dir,
+                                                500000,
+                                                0,
+                                                0,
+                                                .99,
+                                                goal=False,
+                                                relabel=False,
+                                                model_step = model_step,
+                                                replay_dir2=False,
+                                                obs_type = 'pixels'
+                                                )
 
-    replay_buffer = make_replay_offline(eval_env_goal,
-                                            replay_dir,
-                                            500000,
-                                            0,
-                                            0,
-                                            .99,
-                                            goal=False,
-                                            relabel=False,
-                                            model_step = 1000000,
-                                            replay_dir2=False,
-                                            obs_type = 'pixels'
-                                            )
+        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
+        state = state.reshape((state.shape[0],4))
+        print(state.shape)
+        
+        state_t = np.empty((20000,4))
+        proto_t = np.empty((20000,protos.shape[0]))
+        
+        encoded = []
+        proto = []
+        actual_proto = []
+        lst_proto = []
+        idx = np.random.choice(state.shape[0], size=20000, replace=False)
+        print('starting to load 50k')
+        for ix,x in enumerate(idx):
+            print(ix)
+            state_t[ix] = state[x]
+            fn = eps[x]
+            idx_ = index[x]
+            ep = np.load(fn)
+            #pixels.append(ep['observation'][idx_])
 
-    state, actions, rewards, eps, index = replay_buffer.parse_dataset()
-    
-    
-    idx = np.random.randint(0, state.shape[0], size=1000)
-    state=state[idx]
-    state=state.reshape(1000,4)
-    a = state
-    #fn = Path('./knn_visual/samples.npz')
-    #with io.BytesIO() as bs:
-    #    np.savez_compressed(bs, a)
-    #    bs.seek(0)
-    #    with fn.open("wb") as f:
-    #        f.write(bs.read())
+            with torch.no_grad():
+                obs = ep['observation'][idx_]
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
+                z = agent.encoder(obs)
+                encoded.append(z)
+                z = agent.predictor(z)
+                z = agent.projector(z)
+                z = F.normalize(z, dim=1, p=2)
+                
+                proto_t[ix]=z.cpu().numpy()
+
+        
+        print('data loaded in',state.shape[0])
+
+        covar = np.cov(proto_t.T)
+        print(covar.shape)
+        U, S, Vh = scipy.linalg.svd(covar)
+        print(S)
+        plt.plot(S)
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.plot(S)
+        ax.set_title('singular values')
+        plt.savefig(f"./knn_output/singular_value_{model}_{model_step}.png")
+           
+        
+        
+        idx = np.random.randint(0, state.shape[0], size=1000)
+        state=state[idx]
+        state=state.reshape(1000,4)
+        a = state
+        count10,count01,count00,count11=(0,0,0,0)
+        # density estimate:
+        df = pd.DataFrame()
+        for state_ in a:
+            if state_[0]<0:
+                if state_[1]>=0:
+                    count10+=1
+                else:
+                    count00+=1
+            else:
+                if state_[1]>=0:
+                    count11+=1
+                else:
+                    count01+=1
+                    
+        df.loc[0,0] = count00
+        df.loc[0,1] = count01
+        df.loc[1,1] = count11
+        df.loc[1,0] = count10
+        labels=df
+        plt.clf()
+        fig, ax = plt.subplots()
+        sns.heatmap(df, cmap="Blues_r",cbar=False, annot=labels).invert_yaxis()
+        ax.set_title('data percentage')
+        plt.savefig(f"./knn_output/data_pct_model{model}_{model_step}.png")
+
+        def ndim_grid(ndims, space):
+            L = [np.linspace(-.25,.25,space) for i in range(ndims)]
+            return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
+
+        lst=[]
+        goal_array = ndim_grid(2,10)
+        for ix,x in enumerate(goal_array):
+            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                lst.append(ix)
+
+        
+        goal_array=np.delete(goal_array, lst,0)
+        emp = np.zeros((goal_array.shape[0],2))
+        goal_array = np.concatenate((goal_array, emp), axis=1)
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.scatter(goal_array[:,0], goal_array[:,1])
+        plt.savefig(f"./knn_output/mesh.png")
+        lst=[]
+        goal_array = torch.as_tensor(goal_array, device=torch.device('cuda'))
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.scatter(a[:,0], a[:,1])
+        plt.savefig(f"./knn_output/samples.png")
+        a = torch.as_tensor(a,device=torch.device('cuda'))
+
+        state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
+        all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
+
+        test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
+        action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
+
+        ###############################################################################################################################
+        #.0002
+        #velocity test 
+
+        count=0
+        goal_w_vel = torch.empty((16, 9,84,84))
+        goalwvel = []
+        for x in test_states:
+            for iy, y in enumerate(action):
+                tmp_goal = []
+                with torch.no_grad():
+                    with eval_env_goal.physics.reset_context():
+                        if iy==0:
+                            time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item()-.0002, x[1].item(),0,0]))
+                        elif iy==1:
+                            time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item()+.0002, x[1].item(),0,0]))
+                        elif iy==2:
+                            time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item()-.0002,0,0]))
+                        elif iy==3:
+                            time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item()+.0002,0,0]))
+
+                    time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                    time_step_init = np.transpose(time_step_init, (2,0,1))
+                    time_step_init = torch.as_tensor(time_step_init.copy())
+                    tmp_goal.append(time_step_init)
+
+                for i in range(3):
+
+                    #time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                    #time_step_init = np.transpose(time_step_init, (2,0,1))
+
+                    if i==0:
+                        if iy==0:
+                            env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item()-.0002, x[1].item()))
+                            time_step = env.reset()
+                        elif iy==1:
+                            env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item()+.0002, x[1].item()))
+                            time_step = env.reset()
+
+                        elif iy==2:
+                            env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item(), x[1].item()-.0002))
+                            time_step = env.reset()
+                        elif iy==3:
+                            env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item(), x[1].item()+.0002))
+                            time_step = env.reset()
+                    else:
+
+                        current = time_step.observation['observations']
+                        with torch.no_grad(): 
+                            with eval_env_goal.physics.reset_context():
+
+                                time_step_init = eval_env_goal.physics.set_state(np.array([current[0], current[1],0,0]))
+                            time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                            time_step_init = np.transpose(time_step_init, (2,0,1))
+                            time_step_init = torch.as_tensor(time_step_init.copy())
+                            tmp_goal.append(time_step_init)
 
 
-    def ndim_grid(ndims, space):
-        L = [np.linspace(-.25,.25,space) for i in range(ndims)]
-        return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
+                        env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=current[:2])
+                        time_step = env.reset()
 
-    lst=[]
-    goal_array = ndim_grid(2,10)
-    for ix,x in enumerate(goal_array):
-        if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
-            lst.append(ix)
+                    time_step = env.step(y)
 
-    protos = agent.protos.weight.data.detach().clone()
-    goal_array=np.delete(goal_array, lst,0)
-    emp = np.zeros((goal_array.shape[0],2))
-    goal_array = np.concatenate((goal_array, emp), axis=1)
+                tmp_goal = torch.cat(tmp_goal, axis=0)
+                goal_w_vel[count] = tmp_goal
+                goalwvel.append(tmp_goal)
+                count+=1
 
-    plt.clf()
-    fig, ax = plt.subplots()
-    ax.scatter(goal_array[:,0], goal_array[:,1])
-    plt.savefig(f"./knn_output/mesh.png")
-    lst=[]
-    goal_array = torch.as_tensor(goal_array, device=torch.device('cuda'))
+        # final_encoded = np.array([i.detach().clone().cpu().numpy() for i in goal_w_vel])
+        # fn = [Path('./test_frames.npz')]
+        # for ix,x in enumerate(fn):
+        #     with io.BytesIO() as bs:
+        #         np.savez_compressed(bs, final_encoded)
+        #         bs.seek(0)
+        #         with x.open("wb") as f:
+        #             f.write(bs.read())
 
-    plt.clf()
-    fig, ax = plt.subplots()
-    ax.scatter(a[:,0], a[:,1])
-    plt.savefig(f"./knn_output/samples.png")
-    a = torch.as_tensor(a,device=torch.device('cuda'))
 
-    state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
-    all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
 
-    test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
-    action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
+        encoded_v=[]
+        proto_v = []
+        lst_proto = []
+        actual_proto_v = []
+        for x in range(16):
+            with torch.no_grad(): 
+                obs = goal_w_vel[x]
+                obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
+                z = agent.encoder(obs)
+                encoded_v.append(z)
+                z = agent.predictor(z)
+                z = agent.projector(z)
+                z = F.normalize(z, dim=1, p=2)
+                proto_v.append(z)
+                sim = agent.protos(z)
+                idx_ = sim.argmax()
+                lst_proto.append(idx_)
+                actual_proto_v.append(protos[idx_][None,:])
 
-    ###############################################################################################################################
-    #.0002
-    #velocity test 
 
-    count=0
-    goal_w_vel = torch.empty((16, 9,84,84))
-    goalwvel = []
-    for x in test_states:
-        for iy, y in enumerate(action):
-            tmp_goal = []
+        print('test states w/ velocity: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), 16))
+
+        encoded_v = torch.cat(encoded_v,axis=0)
+        proto_v = torch.cat(proto_v,axis=0)
+        actual_proto_v = torch.cat(actual_proto_v,axis=0)
+
+
+
+        vel_encode_dist = torch.norm(encoded_v[:,None, :] - encoded_v[None,:, :], dim=2, p=2)
+        vel_proto_dist = torch.norm(proto_v[:,None,:] - proto_v[None,:, :], dim=2, p=2)
+        all_dists_encode_v, _encode_v = torch.topk(vel_encode_dist, 16, dim=1, largest=False)
+        all_dists_proto_v, _proto_v = torch.topk(vel_proto_dist, 16, dim=1, largest=False)
+
+        print(all_dists_proto_v)
+    #     df = pd.DataFrame(vel_encode_dist.cpu().numpy())
+    #     df.to_csv(f'./knn_output/encode_dist_{model}.csv', index=False)
+    #     df = pd.DataFrame(vel_proto_dist.cpu().numpy())
+    #     df.to_csv(f'./knn_output/proto_dist_{model}.csv', index=False)
+
+        ##########################################################################################################################        
+
+        ##encoded goals w/ no velocity 
+
+        actual_proto_no_v=[]
+        encoded_no_v=[]
+        proto_no_v = []
+        #no velocity goals 
+        actual_proto_no_v = []
+        goal_array = ndim_grid(2,10)
+        for ix,x in enumerate(goal_array):
+            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                lst.append(ix)
+        goal_array=np.delete(goal_array, lst,0)
+
+        lst_proto = []
+        for x in goal_array:
             with torch.no_grad():
                 with eval_env_goal.physics.reset_context():
-                    if iy==0:
-                        time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item()-.0002, x[1].item(),0,0]))
-                    elif iy==1:
-                        time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item()+.0002, x[1].item(),0,0]))
-                    elif iy==2:
-                        time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item()-.0002,0,0]))
-                    elif iy==3:
-                        time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item()+.0002,0,0]))
+                    time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item(),0,0]))
 
                 time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
                 time_step_init = np.transpose(time_step_init, (2,0,1))
-                time_step_init = torch.as_tensor(time_step_init.copy())
-                tmp_goal.append(time_step_init)
+                time_step_init = np.tile(time_step_init, (3,1,1))
 
-            for i in range(3):
+                obs = time_step_init
+                obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
+                z = agent.encoder(obs)
+                encoded_no_v.append(z)
+                z = agent.predictor(z)
+                z = agent.projector(z)
+                z = F.normalize(z, dim=1, p=2)
+                proto_no_v.append(z)
+                sim = agent.protos(z)
+                idx_ = sim.argmax()
+                lst_proto.append(idx_)
+                actual_proto_no_v.append(protos[idx_][None,:])
 
-                #time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                #time_step_init = np.transpose(time_step_init, (2,0,1))
-
-                if i==0:
-                    if iy==0:
-                        env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item()-.0002, x[1].item()))
-                        time_step = env.reset()
-                    elif iy==1:
-                        env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item()+.0002, x[1].item()))
-                        time_step = env.reset()
-
-                    elif iy==2:
-                        env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item(), x[1].item()-.0002))
-                        time_step = env.reset()
-                    elif iy==3:
-                        env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=(x[0].item(), x[1].item()+.0002))
-                        time_step = env.reset()
-                else:
-
-                    current = time_step.observation['observations']
-                    with torch.no_grad(): 
-                        with eval_env_goal.physics.reset_context():
-
-                            time_step_init = eval_env_goal.physics.set_state(np.array([current[0], current[1],0,0]))
-                        time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                        time_step_init = np.transpose(time_step_init, (2,0,1))
-                        time_step_init = torch.as_tensor(time_step_init.copy())
-                        tmp_goal.append(time_step_init)
+        print('ndim_grid no velocity: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), goal_array.shape[0]))
 
 
-                    env=dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None, init_state=current[:2])
-                    time_step = env.reset()
+        encoded_no_v = torch.cat(encoded_no_v,axis=0)
+        proto_no_v = torch.cat(proto_no_v,axis=0)
+        actual_proto_no_v = torch.cat(actual_proto_no_v,axis=0)
 
-                time_step = env.step(y)
+        #pixels = []
+        encoded = []
+        proto = []
+        actual_proto = []
+        lst_proto = []
 
-            tmp_goal = torch.cat(tmp_goal, axis=0)
-            goal_w_vel[count] = tmp_goal
-            goalwvel.append(tmp_goal)
-            count+=1
+        for x in idx:
+            fn = eps[x]
+            idx_ = index[x]
+            ep = np.load(fn)
+            #pixels.append(ep['observation'][idx_])
 
-    # final_encoded = np.array([i.detach().clone().cpu().numpy() for i in goal_w_vel])
-    # fn = [Path('./test_frames.npz')]
-    # for ix,x in enumerate(fn):
-    #     with io.BytesIO() as bs:
-    #         np.savez_compressed(bs, final_encoded)
-    #         bs.seek(0)
-    #         with x.open("wb") as f:
-    #             f.write(bs.read())
-
-    encoded_v=[]
-    proto_v = []
-    lst_proto = []
-    actual_proto_v = []
-    for x in range(16):
-        with torch.no_grad(): 
-            obs = goal_w_vel[x]
-            obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
-            z = agent.encoder(obs)
-            encoded_v.append(z)
-            z = agent.predictor(z)
-            z = agent.projector(z)
-            z = F.normalize(z, dim=1, p=2)
-            proto_v.append(z)
-            sim = agent.protos(z)
-            idx_ = sim.argmax()
-            lst_proto.append(idx_)
-            actual_proto_v.append(protos[idx_][None,:])
-    
-
-    print('test states w/ velocity: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), 16))
-
-    encoded_v = torch.cat(encoded_v,axis=0)
-    proto_v = torch.cat(proto_v,axis=0)
-    actual_proto_v = torch.cat(actual_proto_v,axis=0)
+            with torch.no_grad():
+                obs = ep['observation'][idx_]
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
+                z = agent.encoder(obs)
+                encoded.append(z)
+                z = agent.predictor(z)
+                z = agent.projector(z)
+                z = F.normalize(z, dim=1, p=2)
+                proto.append(z)
+                sim = agent.protos(z)
+                idx_ = sim.argmax()
+                actual_proto.append(protos[idx_][None,:])
 
 
+        print('data from buffer: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), a.shape[0]))
 
-    # vel_encode_dist = torch.norm(encoded_v[:,None, :] - encoded_v[None,:, :], dim=2, p=2)
-    vel_proto_dist = torch.norm(proto_v[:,None,:] - proto_v[None,:, :], dim=2, p=2)
-    # all_dists_encode_v, _encode_v = torch.topk(vel_encode_dist, 16, dim=1, largest=False)
-    all_dists_proto_v, _proto_v = torch.topk(vel_proto_dist, 16, dim=1, largest=False)
-
-    print(all_dists_proto_v)
-#     df = pd.DataFrame(vel_encode_dist.cpu().numpy())
-#     df.to_csv(f'./knn_output/encode_dist_{model}.csv', index=False)
-    df = pd.DataFrame(vel_proto_dist.cpu().numpy())
-    df.to_csv(f'./knn_output/proto_dist_{model}.csv', index=False)
-
-    ##########################################################################################################################        
-
-    ##encoded goals w/ no velocity 
-
-    actual_proto_no_v=[]
-    encoded_no_v=[]
-    proto_no_v = []
-    #no velocity goals 
-    actual_proto_no_v = []
-    goal_array = ndim_grid(2,10)
-    for ix,x in enumerate(goal_array):
-        if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
-            lst.append(ix)
-    goal_array=np.delete(goal_array, lst,0)
-
-    lst_proto = []
-    for x in goal_array:
-        with torch.no_grad():
-            with eval_env_goal.physics.reset_context():
-                time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item(),0,0]))
-
-            time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-            time_step_init = np.transpose(time_step_init, (2,0,1))
-            time_step_init = np.tile(time_step_init, (3,1,1))
-
-            obs = time_step_init
-            obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
-            z = agent.encoder(obs)
-            encoded_no_v.append(z)
-            z = agent.predictor(z)
-            z = agent.projector(z)
-            z = F.normalize(z, dim=1, p=2)
-            proto_no_v.append(z)
-            sim = agent.protos(z)
-            idx_ = sim.argmax()
-            lst_proto.append(idx_)
-            actual_proto_no_v.append(protos[idx_][None,:])
-
-    print('ndim_grid no velocity: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), goal_array.shape[0]))
-
-
-    encoded_no_v = torch.cat(encoded_no_v,axis=0)
-    proto_no_v = torch.cat(proto_no_v,axis=0)
-    actual_proto_no_v = torch.cat(actual_proto_no_v,axis=0)
-
-    #pixels = []
-    encoded = []
-    proto = []
-    actual_proto = []
-    lst_proto = []
-
-    for x in idx:
-        fn = eps[x]
-        idx_ = index[x]
-        ep = np.load(fn)
-        #pixels.append(ep['observation'][idx_])
+        encoded = torch.cat(encoded,axis=0)
+        proto = torch.cat(proto,axis=0)
+        actual_proto = torch.cat(actual_proto,axis=0)
+        encoded_vdist = torch.norm(encoded_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
+        proto_vdist = torch.norm(proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
+        actual_proto_vdist = torch.norm(actual_proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
+        all_dists_encode_v, _encode_v = torch.topk(encoded_vdist, 10, dim=1, largest=False)
+        all_dists_proto_v, _proto_v = torch.topk(proto_vdist, 10, dim=1, largest=False)
+        actual_all_dists_proto_v, _actual_proto_v = torch.topk(actual_proto_vdist, 10, dim=1, largest=False)
 
         with torch.no_grad():
-            obs = ep['observation'][idx_]
-            obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
-            z = agent.encoder(obs)
-            encoded.append(z)
-            z = agent.predictor(z)
-            z = agent.projector(z)
-            z = F.normalize(z, dim=1, p=2)
-            proto.append(z)
-            sim = agent.protos(z)
-            idx_ = sim.argmax()
-            actual_proto.append(protos[idx_][None,:])
-    
+            proto_v_sim = agent.protos(proto_v)
+            actual_proto_v_sim = agent.protos(actual_proto_v)
+        all_dists_proto_v_sim, _proto_v_sim = torch.topk(proto_v_sim, 10, dim=1, largest=True)
+        actual_all_dists_proto_v_sim, _actual_proto_v_sim = torch.topk(actual_proto_v_sim, 10, dim=1, largest=True)
 
-    print('data from buffer: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), a.shape[0]))
+        dist_matrices = [_proto_v, _actual_proto_v, _proto_v_sim, _actual_proto_v_sim, _encode_v]
+        names = [f"{model}_{model_step}_proto_w_vel.gif", f"{model}_{model_step}_actual_proto_w_vel.gif", f"{model}_{model_step}_sim_proto_w_vel.gif", f"{model}_{model_step}_sim_actual_proto_w_vel.gif", f"{model}_{model_step}_encoded_w_vel.gif"]
+        for index_, dist_matrix in enumerate(dist_matrices):
+            filenames=[]
+            for ix, x in enumerate(test_states):
+                for iy, y in enumerate(action):
+                    txt=''
+                    df = pd.DataFrame()
+                    for i in range(a.shape[0]+1):
+                        if i!=a.shape[0]:
+                            df.loc[i,'x'] = a[i,0].cpu().numpy()
+                            df.loc[i,'y'] = a[i,1].cpu().numpy()
+                            if i in dist_matrix[ix,:]:
+                                df.loc[i, 'c'] = 'blue'
+                                z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                                txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+                            else:
+                                df.loc[i,'c'] = 'orange'
+                        else:
+                            df.loc[i,'x'] = x[0].item()
+                            df.loc[i,'y'] = x[1].item()
+                            df.loc[i,'c'] = 'green'
 
-    encoded = torch.cat(encoded,axis=0)
-    proto = torch.cat(proto,axis=0)
-    actual_proto = torch.cat(actual_proto,axis=0) 
-    # encoded_vdist = torch.norm(encoded_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
-    proto_vdist = torch.norm(proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
-    actual_proto_vdist = torch.norm(actual_proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
-    # all_dists_encode_v, _encode_v = torch.topk(encoded_vdist, 10, dim=1, largest=False)
-    all_dists_proto_v, _proto_v = torch.topk(proto_vdist, 10, dim=1, largest=False)
-    actual_all_dists_proto_v, _actual_proto_v = torch.topk(actual_proto_vdist, 10, dim=1, largest=False)
 
-    with torch.no_grad():
-        proto_v_sim = agent.protos(proto_v)
-        actual_proto_v_sim = agent.protos(actual_proto_v)
-    all_dists_proto_v_sim, _proto_v_sim = torch.topk(proto_v_sim, 10, dim=1, largest=True)
-    actual_all_dists_proto_v_sim, _actual_proto_v_sim = torch.topk(actual_proto_v_sim, 10, dim=1, largest=True)
+                    plt.clf()
+                    fig, ax = plt.subplots()
+                    palette = {
+                                    'blue': 'tab:blue',
+                                    'orange': 'tab:orange',
+                                    'green': 'tab:green'
+                                }
+                    ax=sns.scatterplot(x="x", y="y",
+                              hue="c", palette=palette,
+                              data=df,legend=False)
+                    ax.set_title("\n".join(wrap(txt,75)))
+                    if index_==0:
+                        file1= f"./knn_output/10nn_proto_goals_w_vel_w_{ix}_{iy}_model{model}_{model_step}.png"
+                    elif index_==1:
+                        file1= f"./knn_output/10nn_actual_proto_goals_w_vel_{ix}_{iy}_model{model}_{model_step}.png"
+                    elif index_==2:
+                        file1= f"./knn_output/10nn_sim_proto_goals_w_vel_{ix}_{iy}_model{model}_{model_step}.png"
+                    elif index_==3:
+                        file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel_{ix}_{iy}_model{model}_{model_step}.png"
+                    elif index ==4:
+                        file1= f"./knn_output/10nn_encoded_w_vel_{ix}_{iy}_model{model}_{model_step}.png"
+                    plt.savefig(file1)
+                    filenames.append(file1)
 
-    dist_matrices = [_proto_v, _actual_proto_v, _proto_v_sim, _actual_proto_v_sim]
-    names = [f"{model}_proto_w_vel.gif", f"{model}_actual_proto_w_vel.gif", f"{model}_sim_proto_w_vel.gif", f"{model}_sim_actual_proto_w_vel.gif"]
-    for index_, dist_matrix in enumerate(dist_matrices):
-        filenames=[]
-        for ix, x in enumerate(test_states):
-            txt=''
-            df = pd.DataFrame()
-            for i in range(a.shape[0]+1):
-                if i!=a.shape[0]:
-                    df.loc[i,'x'] = a[i,0].cpu().numpy()
-                    df.loc[i,'y'] = a[i,1].cpu().numpy()
-                    if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'orange'
-                        z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
-                        txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+            if len(filenames)>100:
+                filenames=filenames[:100]
+            with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
+                for file in filenames:
+                    image = imageio.imread(file)
+                    writer.append_data(image)
+
+            gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
+
+            imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+
+        ################################################################
+
+
+        #no velocity goals 
+
+
+        encoded_no_vdist = torch.norm(encoded_no_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
+        proto_no_vdist = torch.norm(proto_no_v[:,None,:] - proto[None,:, :], dim=2, p=2)
+        actual_proto_no_vdist = torch.norm(actual_proto_no_v[:,None,:] - proto[None,:, :], dim=2, p=2)
+
+        all_dists_encode_no_v, _encode_no_v = torch.topk(encoded_no_vdist, 10, dim=1, largest=False)
+        all_dists_proto_no_v, _proto_no_v = torch.topk(proto_no_vdist, 10, dim=1, largest=False)
+        all_dists_actual_proto_no_v, _actual_proto_no_v = torch.topk(actual_proto_no_vdist, 10, dim=1, largest=False)
+
+        with torch.no_grad():
+            proto_no_v_sim = agent.protos(proto_no_v)
+            actual_proto_no_v_sim = agent.protos(actual_proto_no_v)
+        all_dists_proto_no_v_sim, _proto_no_v_sim = torch.topk(proto_no_v_sim, 10, dim=1, largest=True)
+        actual_all_dists_proto_no_v_sim, _actual_proto_no_v_sim = torch.topk(actual_proto_no_v_sim, 10, dim=1, largest=True)
+
+
+        dist_matrices = [_proto_no_v, _actual_proto_no_v, _proto_no_v_sim, _actual_proto_no_v_sim]
+        names = [f"{model}_{model_step}_proto_no_vel.gif", f"{model}_{model_step}_actual_proto_no_vel.gif", f"{model}_{model_step}_sim_proto_no_vel.gif", f"{model}_{model_step}_sim_actual_proto_no_vel.gif", f"{model}_{model_step}_encoded_no_vel.gif"]
+
+        for index_, dist_matrix in enumerate(dist_matrices):
+            filenames=[]
+            for ix, x in enumerate(goal_array):
+                print('no vel',ix)
+                txt=''
+                df = pd.DataFrame()
+                for i in range(a.shape[0]+1):
+                    if i!=a.shape[0]:
+                        df.loc[i,'x'] = a[i,0].cpu().numpy()
+                        df.loc[i,'y'] = a[i,1].cpu().numpy()
+                        if i in dist_matrix[ix,:]:
+                            df.loc[i, 'c'] = 'blue'
+                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                            txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+                        else:
+                            df.loc[i,'c'] = 'orange'
                     else:
-                        df.loc[i,'c'] = 'blue'
-                else:
-                    df.loc[i,'x'] = x[0].item()
-                    df.loc[i,'y'] = x[1].item()
-                    df.loc[i,'c'] = 'green'
+                        df.loc[i,'x'] = x[0].item()
+                        df.loc[i,'y'] = x[1].item()
+                        df.loc[i,'c'] = 'green'
 
 
-            plt.clf()
-            fig, ax = plt.subplots()
-            ax=sns.scatterplot(x="x", y="y",
-                      hue="c", 
-                      data=df,legend=False)
-            ax.set_title("\n".join(wrap(txt,75)))
-            if index_==0:
-                file1= f"./knn_output/10nn_proto_goals_w_vel_w_{ix}_model{model}.png"
-            elif index_==1:
-                file1= f"./knn_output/10nn_actual_proto_goals_w_vel_{ix}_model{model}.png"
-            elif index_==2:
-                file1= f"./knn_output/10nn_sim_proto_goals_w_vel_{ix}_model{model}.png"
-            elif index_==3:
-                file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel_{ix}_model{model}.png"
-            plt.savefig(file1)
-            filenames.append(file1)
+                plt.clf()
+                fig, ax = plt.subplots()
+                palette = {
+                                    'blue': 'tab:blue',
+                                    'orange': 'tab:orange',
+                                    'green': 'tab:green'
+                                }
+                ax=sns.scatterplot(x="x", y="y",
+                          hue="c", palette=palette,
+                          data=df,legend=False)
+                ax.set_title("\n".join(wrap(txt,75)))
+                if index_==0:
+                    file1= f"./knn_output/10nn_proto_goals_no_vel_{ix}_model{model}_{model_step}.png"
+                elif index_==1:
+                    file1= f"./knn_output/10nn_actual_proto_goals_no_vel_{ix}_model{model}_{model_step}.png"
+                elif index_==2:
+                    file1= f"./knn_output/10nn_sim_proto_goals_no_vel{ix}_model{model}_{model_step}.png"
+                elif index_==3:
+                    file1= f"./knn_output/10nn_sim_actual_proto_goals_no_vel{ix}_model{model}_{model_step}.png"
+                elif index_==4:
+                    file1= f"./knn_output/10nn_encoded_no_vel{ix}_model{model}_{model_step}.png"
+                plt.savefig(file1)
+                filenames.append(file1)
 
-        if len(filenames)>100:
-            filenames=filenames[:100]
-        with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
-            for file in filenames:
-                image = imageio.imread(file)
-                writer.append_data(image)
+            if len(filenames)>100:
+                filenames=filenames[:100]
+            with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
+                for file in filenames:
+                    image = imageio.imread(file)
+                    writer.append_data(image)
 
-        gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
+            gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 
-        imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
-
-    ################################################################
-
-
-    #no velocity goals 
-
-
-    # encoded_no_vdist = torch.norm(encoded_no_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
-    proto_no_vdist = torch.norm(proto_no_v[:,None,:] - proto[None,:, :], dim=2, p=2)
-    actual_proto_no_vdist = torch.norm(actual_proto_no_v[:,None,:] - proto[None,:, :], dim=2, p=2)
-
-    # all_dists_encode_no_v, _encode_no_v = torch.topk(encoded_no_vdist, 10, dim=1, largest=False)
-    all_dists_proto_no_v, _proto_no_v = torch.topk(proto_no_vdist, 10, dim=1, largest=False)
-    all_dists_actual_proto_no_v, _actual_proto_no_v = torch.topk(actual_proto_no_vdist, 10, dim=1, largest=False)
-
-    with torch.no_grad():
-        proto_no_v_sim = agent.protos(proto_no_v)
-        actual_proto_no_v_sim = agent.protos(actual_proto_no_v)
-    all_dists_proto_no_v_sim, _proto_no_v_sim = torch.topk(proto_no_v_sim, 10, dim=1, largest=True)
-    actual_all_dists_proto_no_v_sim, _actual_proto_no_v_sim = torch.topk(actual_proto_no_v_sim, 10, dim=1, largest=True)
-
-
-    dist_matrices = [_proto_no_v, _actual_proto_no_v, _proto_no_v_sim, _actual_proto_no_v_sim]
-    names = [f"{model}_proto_no_vel.gif", f"{model}_actual_proto_no_vel.gif", f"{model}_sim_proto_no_vel.gif", f"{model}_sim_actual_proto_no_vel.gif"]
-
-    for index_, dist_matrix in enumerate(dist_matrices):
-        filenames=[]
-        for ix, x in enumerate(goal_array):
-            print('no vel',ix)
-            txt=''
-            df = pd.DataFrame()
-            for i in range(a.shape[0]+1):
-                if i!=a.shape[0]:
-                    df.loc[i,'x'] = a[i,0].cpu().numpy()
-                    df.loc[i,'y'] = a[i,1].cpu().numpy()
-                    if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'orange'
-                        z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
-                        txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
-                    else:
-                        df.loc[i,'c'] = 'blue'
-                else:
-                    df.loc[i,'x'] = x[0].item()
-                    df.loc[i,'y'] = x[1].item()
-                    df.loc[i,'c'] = 'green'
-
-
-            plt.clf()
-            fig, ax = plt.subplots()
-            ax=sns.scatterplot(x="x", y="y",
-                      hue="c", 
-                      data=df,legend=False)
-            ax.set_title("\n".join(wrap(txt,75)))
-            if index_==0:
-                file1= f"./knn_output/10nn_proto_goals_no_vel_{ix}_model{model}.png"
-            elif index_==1:
-                file1= f"./knn_output/10nn_actual_proto_goals_no_vel_{ix}_model{model}.png"
-            elif index_==2:
-                file1= f"./knn_output/10nn_sim_proto_goals_no_vel{ix}_model{model}.png"
-            elif index_==3:
-                file1= f"./knn_output/10nn_sim_actual_proto_goals_no_vel{ix}_model{model}.png"
-            plt.savefig(file1)
-            filenames.append(file1)
-
-        if len(filenames)>100:
-            filenames=filenames[:100]
-        with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
-            for file in filenames:
-                image = imageio.imread(file)
-                writer.append_data(image)
-
-        gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
-
-        imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+            imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
 
 
 
-    #swap goal & rand 1000 samples?
-    # encoded_dist = torch.norm(encoded[:,None, :] - encoded[None,:, :], dim=2, p=2)
-    proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
-    all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
+        #swap goal & rand 1000 samples?
+#         encoded_dist = torch.norm(encoded[:,None, :] - encoded[None,:, :], dim=2, p=2)
+        proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
+        all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
 
-    with torch.no_grad():
-        proto_sim = agent.protos(proto).T
-    all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
+        with torch.no_grad():
+            proto_sim = agent.protos(proto).T
+        all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
+
+        proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
+        all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
+
+        with torch.no_grad():
+            proto_sim_self = agent.protos(protos).T
+        all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
+
+        dist_matrices = [_proto, _proto_sim]
+        self_mat = [_proto_self, _proto_sim_self]
+        names = [f"{model}_{model_step}_prototypes.gif", f"{model}_{model_step}_prototypes_sim.gif"]
+
+        for index_, dist_matrix in enumerate(dist_matrices):
+            filenames=[]
+            for ix, x in enumerate(protos):
+                print('proto', ix)
+                txt=''
+                df_ = pd.DataFrame()
+                for i in range(a.shape[0]+1):
+                    if i!=a.shape[0]:
+                        df_.loc[i,'x'] = a[i,0].cpu().numpy()
+                        df_.loc[i,'y'] = a[i,1].cpu().numpy()
+                        if i in dist_matrix[ix,:]:
+                            df_.loc[i, 'c'] = 'blue'
+                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                            txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+                        else:
+                            df_.loc[i,'c'] = 'orange'
+
+                df = pd.DataFrame()
+                #order based on distance to first prototype
+                for i in range(protos.shape[0]):
+                    cols = list(df_.columns) 
+                    df.loc[i, cols] = df_[self_mat[index_][0,i], cols]
 
 
-    dist_matrices = [_proto, _proto_sim]
-    names = [f"{model}_prototypes.gif", f"{model}_prototypes_sim.gif"]
 
-    for index_, dist_matrix in enumerate(dist_matrices):
-        filenames=[]
-        for ix, x in enumerate(protos):
-            print('proto', ix)
-            txt=''
-            df = pd.DataFrame()
-            for i in range(a.shape[0]+1):
-                if i!=a.shape[0]:
-                    df.loc[i,'x'] = a[i,0].cpu().numpy()
-                    df.loc[i,'y'] = a[i,1].cpu().numpy()
-                    if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'orange'
-                        z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
-                        txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
-                    else:
-                        df.loc[i,'c'] = 'blue'
 
-            plt.clf()
-            fig, ax = plt.subplots()
-            ax=sns.scatterplot(x="x", y="y",
-                      hue="c", 
-                      data=df,legend=False)
-            ax.set_title("\n".join(wrap(txt,75)))
-            if index_==0:
-                file1= f"./knn_output/10nn_actual_prototypes_{ix}_model{model}.png"
-            elif index_==1:
-                file1= f"./knn_output/10nn_actual_prototypes_sim_{ix}_model{model}.png"
+                plt.clf()
+                palette = {
+                                    'blue': 'tab:blue',
+                                    'orange': 'tab:orange'
+                                }
+                fig, ax = plt.subplots()
+                ax=sns.scatterplot(x="x", y="y",
+                          hue="c", palette=palette,
+                          data=df,legend=False)
+                ax.set_title("\n".join(wrap(txt,75)))
+                if index_==0:
+                    file1= f"./knn_output/10nn_actual_prototypes_{ix}_model{model}_{model_step}.png"
+                elif index_==1:
+                    file1= f"./knn_output/10nn_actual_prototypes_sim_{ix}_model{model}_{model_step}.png"
 
-            plt.savefig(file1)
-            filenames.append(file1)
+                plt.savefig(file1)
+                filenames.append(file1)
 
-        if len(filenames)>100:
-            filenames=filenames[:100]
-        with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
-            for file in filenames:
-                image = imageio.imread(file)
-                writer.append_data(image)
+            if len(filenames)>100:
+                filenames=filenames[:100]
+            with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
+                for file in filenames:
+                    image = imageio.imread(file)
+                    writer.append_data(image)
 
-        gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
+            gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 
-        imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+            imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+
 
 
 
