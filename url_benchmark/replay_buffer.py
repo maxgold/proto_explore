@@ -210,7 +210,7 @@ class ReplayBufferStorage:
             print('storing episode, w/ goal')
             
             
-    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None):
+    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False):
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
         for spec in self._data_specs:
@@ -231,14 +231,17 @@ class ReplayBufferStorage:
                 self.state_visitation_gc_pct[idx_x,idx_y]+=1
 
             elif spec.name=='reward':
-                value = np.array([reward]).reshape((-1,))
+                value = np.array([reward]).reshape((-1,))*2
                 self._current_episode_goal['reward'].append(value)
 
                 value = time_step['observation']
                 tmp_state = value['observations']*100
                 idx_x = int(tmp_state[0])+29
                 idx_y = int(tmp_state[1])+29
-                self.reward_matrix[idx_x,idx_y]+=reward
+                if neg_reward:
+                    self.reward_matrix[idx_x,idx_y]+=reward+1
+                else:
+                    self.reward_matrix[idx_x,idx_y]+=reward
             else:
                 value = time_step[spec.name]
                 if np.isscalar(value):
@@ -359,7 +362,8 @@ class ReplayBuffer(IterableDataset):
         replay_dir2=False,
         model_step=False,
         goal_proto=False,
-        agent=None):
+        agent=None,
+        neg_reward=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -384,6 +388,7 @@ class ReplayBuffer(IterableDataset):
         self._replay_dir2=replay_dir2
         self.goal_proto = goal_proto
         self.agent = agent
+        self.neg_reward = neg_reward
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -602,25 +607,40 @@ class ReplayBuffer(IterableDataset):
                 
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
+            #fix
             idx = np.random.randint(episode_len(episode)//2,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode["observation"][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
+            goal=episode['observation'][idx_goal]
             z = episode["observation"][idx_goal][None,:]
-            protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
-            z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-            _ = np.argsort(z_to_proto, axis=1)[:,0]
-            goal = protos[_].reshape((128,))
+            protos = self.agent.proto_goal.detach().clone().cpu().numpy()
+            z_to_proto = np.linalg.norm(obs[None, :] - protos[:, :], axis=1, ord=2)
+            z_to_proto_ = np.argsort(z_to_proto)
+            protos[z_to_proto_[0]] = z
+            z_to_proto = np.sort(z_to_proto)
+            #print('state_no_reward', episode['state'][idx-1])
+            #print('goal_no_reward', episode['state'][idx_goal])
 
             for i in range(1):
-                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
+                obs_to_proto = np.linalg.norm(obs[None, :] - protos[:, :], axis=1, ord=2)
+                obs_to_proto_sort = np.sort(obs_to_proto)
+                dist = -(obs_to_proto[z_to_proto_[0]] - obs_to_proto_sort[0])/(obs_to_proto_sort[-1] - obs_to_proto_sort[0])
+
+                if self.neg_reward:
+                    if dist > -.05:
+                        reward=dist
+                        #print(reward)
+                    else:
+                        reward=-1
                 
-                if np.array_equal(goal,protos[dists_idx]):
-                    reward=1
                 else:
-                    reward=0
+                    if dist > -.05:
+                        reward=dist+1
+                        print(reward)
+                    else:
+                        reward=0
                     
                 step_reward = reward*2
                 reward += discount * step_reward
@@ -811,7 +831,7 @@ class OfflineReplayBuffer(IterableDataset):
             if self.load_once:
                 if self._size > self._max_size:
                     break
-
+                print(eps_fn.stem.split("_")[1:])
                 eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
                 if eps_idx % self._num_workers != worker_id:
                     continue
@@ -1135,12 +1155,13 @@ class OfflineReplayBuffer(IterableDataset):
                 yield self._sample()
 
 
-    def parse_dataset(self, start_ind=0, end_ind=-1,goal_state=None):
+    def parse_dataset(self, start_ind=0, end_ind=-1,goal_state=None, proto_goal=False):
         states = []
         actions = []
         rewards = []
         episode_name = []
         index = []
+        proto=[]
         if goal_state:
             goal_states=[]
         if len(self._episode_fns)>0:
@@ -1156,6 +1177,8 @@ class OfflineReplayBuffer(IterableDataset):
                     actions.append(episode["action"][idx][None])
                     rewards.append(episode["reward"][idx][None])
                     episode_name.append(str(eps_fn))
+                    if proto_goal:
+                        proto.append(episode["observation"][idx - 1][None])
                     
                     index.append(idx)
                     
@@ -1170,13 +1193,21 @@ class OfflineReplayBuffer(IterableDataset):
                         np.concatenate(episode_name, 0),
                         np.concatenate(index, 0)
                         )
+            elif proto:
+                return (np.concatenate(states,0),
+                        np.concatenate(proto,0),
+                        np.concatenate(actions, 0),
+                        np.concatenate(rewards, 0),
+                        episode_name,
+                        index
+                        )
             else:
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
                         episode_name,
                         index
-                        )  
+                        )
         else:
             return ('', '')
 
@@ -1292,7 +1323,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, return_iterable=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1311,6 +1342,7 @@ def make_replay_loader(
         model_step=model_step,
         goal_proto=goal_proto,
         agent=agent,
+        neg_reward=neg_reward,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )
