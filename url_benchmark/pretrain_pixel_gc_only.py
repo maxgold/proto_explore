@@ -105,72 +105,72 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
 
     
 def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=False,proto=False):
-        if gc:
+    if gc:
 
-            heatmap = self.replay_storage1.state_visitation_gc
+        heatmap = self.replay_storage1.state_visitation_gc
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_gc_heatmap.png")
-            wandb.save(f"./{model_step}_gc_heatmap.png")
-
-
-            heatmap_pct = self.replay_storage1.state_visitation_gc_pct
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-            wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_gc_heatmap.png")
+        wandb.save(f"./{model_step}_gc_heatmap.png")
 
 
-            reward_matrix = self.replay_storage1.reward_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        heatmap_pct = self.replay_storage1.state_visitation_gc_pct
 
-            plt.savefig(f"./{model_step}_gc_reward.png")
-            wandb.save(f"./{model_step}_gc_reward.png")
-            
-            goal_matrix = self.replay_storage1.goal_state_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
-            sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_goal_state_heatmap.png")
-            wandb.save(f"./{model_step}_goal_state_heatmap.png")
-        if proto:
-
-            heatmap = self.replay_storage2.state_visitation_proto
-
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
-
-            plt.savefig(f"./{model_step}_proto_heatmap.png")
-            wandb.save(f"./{model_step}_proto_heatmap.png")
+        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+        wandb.save(f"./{model_step}_gc_heatmap_pct.png")
 
 
-            heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+        reward_matrix = self.replay_storage1.reward_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + reward_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,10))
-            labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-            sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(model_step)
+        plt.savefig(f"./{model_step}_gc_reward.png")
+        wandb.save(f"./{model_step}_gc_reward.png")
+        
+        goal_matrix = self.replay_storage1.goal_state_matrix
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+        sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
 
-            plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
-            wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_goal_state_heatmap.png")
+        wandb.save(f"./{model_step}_goal_state_heatmap.png")
+    if proto:
+
+        heatmap = self.replay_storage2.state_visitation_proto
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap.png")
+        wandb.save(f"./{model_step}_proto_heatmap.png")
+
+
+        heatmap_pct = self.replay_storage2.state_visitation_proto_pct
+
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,10))
+        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        ax.set_title(model_step)
+
+        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+        wandb.save(f"./{model_step}_proto_heatmap_pct.png")
 
         
 class Workspace:
@@ -197,8 +197,8 @@ class Workspace:
         # create envs
         #task = PRIMAL_TASKS[self.cfg.domain]
         self.no_goal_task = 'point_mass_maze_reach_no_goal'
-        idx = np.random.randint(0,400)
-        goal_array = ndim_grid(2,20)
+        idx = np.random.randint(0,100)
+        goal_array = ndim_grid(2,10)
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=self.first_goal)
@@ -217,7 +217,7 @@ class Workspace:
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
-        self.goal_array = ndim_grid(2,20)
+        self.goal_array = ndim_grid(2,10)
         lst =[]
         for ix,x in enumerate(self.goal_array):
             print(x[0])
@@ -271,7 +271,7 @@ class Workspace:
         
         if self.cfg.load_model and self.cfg.load_proto:
             #2022.10.16/011303_proto_encoder1
-            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.16/011303_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_protos_from(proto)
         if self.cfg.load_model and self.cfg.load_encoder:
             proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
@@ -369,7 +369,6 @@ class Workspace:
         self.resampled=False
         self.reload_goal=False
         self.recorded=False
-    
     
     @property
     def global_step(self):
@@ -563,7 +562,7 @@ class Workspace:
 
         if self.goal_loaded==False:
 
-            goal_array = ndim_grid(2,20)
+            goal_array = ndim_grid(2,10)
             
             if init_state_idx is None:
                 if init_state==False:
@@ -572,7 +571,7 @@ class Workspace:
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
                 
                 df1=pd.DataFrame()
-                df1['distance'] = dist_goal.reshape((400,))
+                df1['distance'] = dist_goal.reshape((100,))
                 df1['index'] = df1.index
                 df1 = df1.sort_values(by='distance')
                 goal_array_ = []
@@ -581,7 +580,7 @@ class Workspace:
                 self.distance_goal = goal_array_
                 self.goal_loaded=True
                 index=self.global_step//1000
-                idx = np.random.randint(index,min(index+30, 400))
+                idx = np.random.randint(index,min(index+10, 100))
             else:
                 dist_goal0 = cdist(np.array([[.15,.15]]), goal_array, 'euclidean')
                 dist_goal1 = cdist(np.array([[.15,-.15]]), goal_array, 'euclidean')
@@ -590,7 +589,7 @@ class Workspace:
 
                 for ix,i in enumerate([dist_goal0,dist_goal1,dist_goal2,dist_goal3]):
                     df1=pd.DataFrame()
-                    df1['distance'] = i.reshape((400,))
+                    df1['distance'] = i.reshape((100,))
                     df1['index'] = df1.index
                     df1 = df1.sort_values(by='distance')
                     goal_array_ = []
@@ -598,18 +597,26 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400))
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100)) 
 
 
         else:
             if self.global_step<500000:
-                index=self.global_step//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400))
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100)) 
             else:
-                index=(self.global_step-500000)//2000
-                idx = np.random.randint(max(index-10,0),min(index+20, 400)) 
-        
+                index=(self.global_step-500000)//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))	 
         if init_state_idx is None:
             return self.distance_goal[idx]
         else:
@@ -890,7 +897,7 @@ class Workspace:
 
                             else:
                                 print('havent sampled prototypes yet, sampling randomly')
-                                goal_array = ndim_grid(2,20)
+                                goal_array = ndim_grid(2,10)
                                 idx = np.random.randint(0,len(goal_array))
                                 goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
                         #if self.cfg.load_proto
@@ -928,7 +935,7 @@ class Workspace:
 
                     else:
                         
-                        goal_array = ndim_grid(2,20)
+                        goal_array = ndim_grid(2,10)
                         idx = self.count
                         print('count', self.count)
                         self.count += 1
@@ -965,7 +972,7 @@ class Workspace:
                                 
                                 if self.reload_goal ==False:
                                     self.replay_iterable.hybrid=False
-                                    self.reload_goal_array = ndim_grid(2,20)
+                                    self.reload_goal_array = ndim_grid(2,10)
                                     lst =[]
                                     for ix,x in enumerate(self.reload_goal_array):
                                         print(x[0])
@@ -1073,7 +1080,6 @@ class Workspace:
 
                     if self.goal_queue_ptr==0:
                         self.curriculum_goal_loaded=True
-  
                 if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
@@ -1114,8 +1120,8 @@ class Workspace:
                             idx = np.random.randint(self.goal_queue.shape[0])
                         goal_state = np.array([self.goal_queue[idx][0], self.goal_queue[idx][1]])
                     else:
-                        idx = np.random.randint(0,400)
-                        goal_array = ndim_grid(2,20)
+                        idx = np.random.randint(0,100)
+                        goal_array = ndim_grid(2,10)
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,

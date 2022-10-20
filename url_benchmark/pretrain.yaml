@@ -84,8 +84,8 @@ use_predictor: False
 load_model: False
 pred_dim: 128
 feature_dim: 50
+sl: False
 proj_dim: 512
-
 # experiment
 experiment: exp
 
