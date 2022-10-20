@@ -49,23 +49,25 @@ def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
-    cfg.num_expl_steps = num_expl_steps
     cfg.goal_shape = goal_shape
-    cfg.goal = goal
-    cfg.hidden_dim = hidden_dim
-    cfg.batch_size = batch_size
-    cfg.update_gc = update_gc
     cfg.lr = lr
-    cfg.offline = offline
-    cfg.gc_only = gc_only
+    cfg.critic_target_tau=.01
+    cfg.num_expl_steps = num_expl_steps
+    cfg.hidden_dim = hidden_dim
+    cfg.feature_dim=feature_dim 
+    cfg.batch_size = batch_size
     if self.cfg.film_gc:
         cfg.switch_gc = switch_gc
     if cfg.name=='proto_intr':
         cfg.intr_coef = intr_coef
-    cfg.load_protos = load_protos
-    cfg.num_protos=num_protos
-    cfg.feature_dim=feature_dim
-    cfg.pred_dim=pred_dim
+    if self.cfg.agent.name.startswith('proto'):
+        cfg.load_protos = load_protos
+        cfg.num_protos=num_protos
+        cfg.pred_dim=pred_dim
+        cfg.proj_dim=proj_dim
+        cfg.update_gc = update_gc
+        cfg.offline = offline
+        cfg.gc_only = gc_only
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -248,7 +250,7 @@ class Workspace:
                                 intr_coef=cfg.intr_coef,
                                 switch_gc=cfg.switch_gc,
                                 )
-        else:
+        elif self.cfg.agent.name.startswith('proto'):
             self.agent = make_agent(self,
                                 cfg.obs_type,
                                 self.train_env1.observation_spec(),
@@ -267,7 +269,20 @@ class Workspace:
                                 load_protos=False,
                                 num_protos=cfg.num_protos,
                                 feature_dim=cfg.feature_dim,
-                                pred_dim=cfg.pred_dim) 
+                                pred_dim=cfg.pred_dim)
+        else:
+            self.agent = make_agent(self,
+                                cfg.obs_type,
+                                self.train_env1.observation_spec(),
+                                self.train_env1.action_spec(),
+                                (9, 84, 84),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                True,
+                                cfg.agent,
+                                cfg.hidden_dim,
+                                cfg.batch_size,
+                                cfg.lr,
+                                cfg.feature_dim)
         
         if self.cfg.load_model:
             #2022.10.12/215751_proto_encoder3
@@ -307,22 +322,19 @@ class Workspace:
       #                                            self.work_dir / 'buffer2')
         self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/buffer2/buffer_copy/') 
 
-        # create replay buffer
+        self.replay_offline = Path()    
+    # create replay buffer
         if cfg.offline:
             #might have conflict 
-            self.replay_loader1 = make_replay_loader(self.replay_storage2,
-                                                    False,
-                                                    False,
+            self.replay_loader1 = make_replay_offline(self.eval_env,
+                                                    self.replay_offline,
                                                     cfg.replay_buffer_size,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
-                                                    False,
-                                                    cfg.nstep,
                                                     cfg.discount,
-                                                    True,
-                                                    False,
-                                                    cfg.obs_type,
-                                                    0)
+                                                    goal=True,
+                                                    obs_type=cfg.obs_type,
+                                                    offline=True)
         elif cfg.offline_online or cfg.hybrid:
             print('making it later')
         else:
