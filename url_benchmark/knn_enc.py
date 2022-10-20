@@ -89,7 +89,7 @@ for m in models:
         print(state.shape)
         num_sample=10000
         state_t = np.empty((num_sample,4))
-        proto_t = np.empty((num_sample,protos.shape[0]))
+        proto_t = np.empty((num_sample,protos.shape[1]))
         
         encoded = []
         proto = []
