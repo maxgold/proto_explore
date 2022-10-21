@@ -292,7 +292,7 @@ class Workspace:
             print(model.protos)
             print(model.encoder)
             print(model.projector)
-            self.agent.init_protos_from(model)
+            self.agent.init_model_from(model)
         
         if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
             #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')

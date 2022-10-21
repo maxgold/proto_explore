@@ -119,7 +119,7 @@ class Critic(nn.Module):
         q1 = self.Q1(h)
         q2 = self.Q2(h)
 
-        return q1, 
+        return q1,q2 
 
     
 
@@ -152,7 +152,7 @@ class WGCSLAgent:
         self.obs_type = obs_type
         self.obs_shape = obs_shape
         self.action_dim = action_shape[0]
-        self.hidden_dim = hidden_dim
+        #self.hidden_dim = hidden_dim
         self.lr = lr
         print('lr', lr)
         self.device = device
@@ -165,7 +165,7 @@ class WGCSLAgent:
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
         self.init_critic = init_critic
-        self.feature_dim = feature_dim
+        #self.feature_dim = feature_dim
         self.solved_meta = None
         
         # models
@@ -181,19 +181,16 @@ class WGCSLAgent:
             self.goal_dim = goal_shape[0]
 
         # models
-        self.actor = Actor(obs_shape[0], goal_shape[0], action_shape[0],
-                           hidden_dim).to(device)
-        
-        self.actor_target = Actor(obs_shape[0], goal_shape[0], action_shape[0],
-                           hidden_dim).to(device)
-        self.actor_target.load_state_dict(self.actor.state_dict())
-
-        self.critic = Critic(obs_shape[0], goal_shape[0], action_shape[0],
-                             hidden_dim).to(device)
-        self.critic_target = Critic(obs_shape[0], goal_shape[0], action_shape[0],
-                                    hidden_dim).to(device)
-        self.critic_target.load_state_dict(self.critic.state_dict())
-
+        self.actor = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+                           feature_dim, hidden_dim).to(device)
+        self.actor_target = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+                           feature_dim, hidden_dim).to(device)
+        self.actor_target.load_state_dict(self.actor.state_dict()) 
+        self.critic = Critic(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+                             feature_dim, hidden_dim).to(device)
+        self.critic_target = Critic(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
+                                    feature_dim, hidden_dim).to(device)
+        self.critic_target.load_state_dict(self.critic.state_dict())        
 #         if obs_type == 'pixels':
 #             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
 #                                                 lr=lr)
@@ -217,6 +214,9 @@ class WGCSLAgent:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
+    def init_model_from(self, agent):
+        utils.hard_update_params(agent.encoder, self.encoder)
+    
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 
@@ -238,26 +238,41 @@ class WGCSLAgent:
         self.actor.train(training)
         self.critic.train(training)
 
-    def act(self, obs, goal, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        stddev = utils.schedule(self.stddev_schedule, step)
-        policy = self.actor(obs, goal, stddev)
-        
-        if eval_mode:
-            action = policy.mean
+    def act(self, obs, goal, meta, step, eval_mode):
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         else:
-            action = policy.sample(clip=None)
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            goal = torch.tile(goal, (1,3,1,1))
+
+        h = self.encoder(obs)
+        g = self.encoder(goal)
+        inputs = [h]
+        inputs2 = g
+        for value in meta.values():
+            value = torch.as_tensor(value, device=self.device).unsqueeze(0)
+            inputs.append(value)
+        inpt = torch.cat(inputs, dim=-1)
+        assert obs.shape[-1] == self.obs_shape[-1]
+        stddev = utils.schedule(self.stddev_schedule, step)
+
+        dist = self.actor(inpt, inputs2, stddev)
+        if eval_mode:
+            action = dist.mean
+        else:
+            action = dist.sample(clip=None)
             if step < self.num_expl_steps:
                 action.uniform_(-1.0, 1.0)
-        return action.cpu().numpy()[0]
+        return action.cpu().numpy()[0] 
 
     def update_critic_actor(self, obs, goal, action, reward, discount, next_obs, offset, step):
         metrics = dict()
         
-        weights = pow(discount, offset)
+        weights = torch.pow(discount[:,0], offset)
         weights = torch.tensor(weights[:, None])
-
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
             dist = self.actor_target(next_obs, goal, stddev)
@@ -267,8 +282,8 @@ class WGCSLAgent:
             target_Q = reward + (discount * target_V)
             target_Q = target_Q.detach()
             # clip the q value
-            clip_return = 1 / (1 - discount)
-            target_Q = torch.clamp(target_Q, -clip_return, 0)
+            #clip_return = 1 / (1 - discount)
+            #target_Q = torch.clamp(target_Q, -clip_return, 0)
             
 
         Q1, Q2 = self.critic(obs, goal, action)
@@ -276,13 +291,14 @@ class WGCSLAgent:
 
         policy = self.actor(obs, goal, stddev)
         with torch.no_grad():
-            v = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
-            v = torch.clamp(v, -clip_return, 0)
+            v1, v2 = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
+            v = torch.min(v1,v2).detach()
+            #v = torch.clamp(v, -clip_return, 0)
             adv = target_Q - v
             adv = torch.clamp(torch.exp(adv.detach()), 0, 10)
         weights = weights * adv
-        
-        actor_loss = torch.mean(weights * torch.square(policy.sample(clip=self.stddev_clip) - action))
+        weights = weights.float()
+        actor_loss = torch.mean(weights * torch.square(torch.subtract(policy.sample(clip=self.stddev_clip), action)))
             
         if self.use_tb:
             metrics['critic_target_q'] = target_Q.mean().item()
@@ -301,14 +317,21 @@ class WGCSLAgent:
         self.critic_opt.step()
         return metrics
 
+    def aug_and_encode(self, obs):
+        obs = self.aug(obs)
+        return self.encoder(obs)
 
-    def update(self, replay_iter, step):
+    def update(self, replay_iter, step, actor1=True):
         metrics = dict()
 
         batch = next(replay_iter)
         obs, action, reward, discount, next_obs, goal, offset = utils.to_torch(
             batch, self.device)
-
+        discount=discount.float()
+        action = action.float()
+        reward = reward.float()
+        next_obs = next_obs.float()
+        offset=offset.float()
         # augment and encode
         with torch.no_grad():
             next_obs = self.aug_and_encode(next_obs)
