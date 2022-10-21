@@ -42,7 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
+models = ['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/232220_proto_encoder1/', '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/2022.10.18/231653_proto_encoder1/', '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/2022.10.18/232252_proto_encoder1/']
+#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
@@ -620,6 +621,7 @@ for m in models:
             gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 
             imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+
 
 
 
