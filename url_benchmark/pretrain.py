@@ -17,7 +17,6 @@ import numpy as np
 import torch
 import wandb
 from dm_env import specs
-import pandas as pd
 import dmc
 import utils
 from scipy.spatial.distance import cdist

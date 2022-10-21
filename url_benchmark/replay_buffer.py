@@ -623,13 +623,6 @@ class ReplayBuffer(IterableDataset):
             next_obs = episode['observation'][idx + self._nstep - 1]
             idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
             
-            while episode["goal_state"][idx][0]!=episode["goal_state"][idx_goal][0] and episode["goal_state"][idx][1]!=episode["goal_state"][idx_goal][1]:
-                idx = np.random.randint(episode_len(episode)-self._nstep)
-                obs = episode["observation"][idx-1]
-                action = episode["action"][idx]
-                next_obs = episode['observation'][idx + self._nstep - 1]
-                idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
-            
             offset=idx_goal-idx
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
@@ -650,9 +643,9 @@ class ReplayBuffer(IterableDataset):
             protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
             z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
             _ = np.argsort(z_to_proto, axis=1)[:,0]
-            goal = protos[_].reshape((128,))
+            goal = protos[_].reshape((protos.shape[1],))
             offset=idx_goal-idx
-            for i in range(1):
+            for i in range(self._nstep):
                 obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
                 dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
                 
@@ -671,8 +664,10 @@ class ReplayBuffer(IterableDataset):
         #goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
-        return (obs, action, reward, discount, next_obs, goal, offset, *meta)
-
+        if self.sl:
+            return (obs, action, reward, discount, next_obs, goal, offset, *meta)
+        else:
+            return (obs, action, reward, discount, next_obs, goal, *meta)
     def _sample_goal_offline(self):
         try:
             self._try_fetch()

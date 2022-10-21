@@ -45,7 +45,7 @@ from dmc_benchmark import PRIMAL_TASKS
 #         out += identity
 #         return out
 
-def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False,num_protos=512, feature_dim=50, pred_dim=128):
+def make_agent(self,obs_type, obs_spec, action_spec, goal_shape,num_expl_steps, goal, cfg, hidden_dim, batch_size, update_gc, lr, offline=False, gc_only=False, intr_coef=0,switch_gc=500000, load_protos=False,num_protos=512, feature_dim=50, pred_dim=128, proj_dim=512):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -1062,42 +1062,44 @@ class Workspace:
                 time_step_no_goal = self.train_env_no_goal.step(action1)
                 episode_reward += time_step1.reward
 
-                if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_reward <= 100:
                     self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
                 elif self.cfg.obs_type == 'states':
                     self.replay_storage1.add_goal(time_step1, meta, goal)
 
                 episode_step += 1
-                if episode_reward > 500 and self.cfg.resample_goal==False and self.recorded==False:
-                    self.recorded=True
-                    if goal_state.tolist() in self.goal_array.tolist():
-                        ix = self.goal_array.tolist().index(goal_state.tolist())
-                        self.goal_array=np.delete(self.goal_array, ix, 0)
-                    print('goals left', self.goal_array.shape[0])
-                    init_state = goal_state
+                #if episode_reward > 500 and self.cfg.resample_goal==False and self.recorded==False:
+                #    self.recorded=True
+                #    if goal_state.tolist() in self.goal_array.tolist():
+                #        ix = self.goal_array.tolist().index(goal_state.tolist())
+                #        self.goal_array=np.delete(self.goal_array, ix, 0)
+                #    print('goals left', self.goal_array.shape[0])
+                #    init_state = goal_state
 
-                    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
+                #    dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), self.goal_array, 'euclidean')
 
-                    df1=pd.DataFrame()
-                    df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
-                    df1['index'] = df1.index
-                    df1 = df1.sort_values(by='distance')
-                    goal_array_ = []
-                    for x in range(len(df1)):
-                        goal_array_.append(self.goal_array[df1.iloc[x,1]])
+                #    df1=pd.DataFrame()
+                #    df1['distance'] = dist_goal.reshape((dist_goal.shape[1],))
+                #    df1['index'] = df1.index
+                #    df1 = df1.sort_values(by='distance')
+                #    goal_array_ = []
+                #    for x in range(len(df1)):
+                #        goal_array_.append(self.goal_array[df1.iloc[x,1]])
 
-                    for x in range(5):
-                        ptr = self.goal_queue_ptr
-                        self.goal_queue[ptr] = goal_array_[x]
-                        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
+                #    for x in range(5):
+                #        ptr = self.goal_queue_ptr
+                #        self.goal_queue[ptr] = goal_array_[x]
+                #        self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
 
-                    if self.goal_queue_ptr==0:
-                        self.curriculum_goal_loaded=True
+                #    if self.goal_queue_ptr==0:
+                #        self.curriculum_goal_loaded=True
 
 
                 if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
+                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                        self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                     episode_reward=0
                     if goal_state.tolist() in self.goal_array.tolist():
                         ix = self.goal_array.tolist().index(goal_state.tolist())
@@ -1159,7 +1161,7 @@ class Workspace:
                     time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
 
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
-                        self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
+                        self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=False)
 
                 if not seed_until_step(self.global_step):
 
