@@ -566,7 +566,6 @@ class Workspace:
         if self.goal_loaded==False:
 
             goal_array = ndim_grid(2,10)
-
             
             if init_state_idx is None:
                 if init_state==False:
@@ -583,8 +582,8 @@ class Workspace:
                     goal_array_.append(goal_array[df1.iloc[x,1]])
                 self.distance_goal = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//200
-                idx = np.random.randint(index,min(index+10, goal_array.shape[0]))
+                index=self.global_step//1000
+                idx = np.random.randint(index,min(index+10, 100))
             else:
                 dist_goal0 = cdist(np.array([[.15,.15]]), goal_array, 'euclidean')
                 dist_goal1 = cdist(np.array([[.15,-.15]]), goal_array, 'euclidean')
@@ -601,18 +600,25 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//500
-                idx = np.random.randint(max(index-3,0),min(index+5, goal_array.shape[0]))
-
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))
 
         else:
             if self.global_step<500000:
-                index=self.global_step//500
-                idx = np.random.randint(max(index-3,0),min(index+5, len(self.distance_goal)))
+                index=self.global_step//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))  
             else:
-                index=(self.global_step-500000)//500
-                idx = np.random.randint(max(index-3,0),min(index+5, len(self.distance_goal))) 
-        
+                index=(self.global_step-500000)//5000
+                if max(index-3,0) +1< min(index+5, 100):
+                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                else:
+                    idx = np.random.randint(0,min(index+5, 100))  
         if init_state_idx is None:
             return self.distance_goal[idx]
         else:

@@ -201,6 +201,8 @@ for m in models:
     #         bs.seek(0)
     #         with x.open("wb") as f:
     #             f.write(bs.read())
+    
+    
 
     encoded_v=[]
     proto_v = []
@@ -238,8 +240,8 @@ for m in models:
     print(all_dists_proto_v)
 #     df = pd.DataFrame(vel_encode_dist.cpu().numpy())
 #     df.to_csv(f'./knn_output/encode_dist_{model}.csv', index=False)
-    df = pd.DataFrame(vel_proto_dist.cpu().numpy())
-    df.to_csv(f'./knn_output/proto_dist_{model}.csv', index=False)
+#     df = pd.DataFrame(vel_proto_dist.cpu().numpy())
+#     df.to_csv(f'./knn_output/proto_dist_{model}.csv', index=False)
 
     ##########################################################################################################################        
 
@@ -316,11 +318,11 @@ for m in models:
 
     encoded = torch.cat(encoded,axis=0)
     proto = torch.cat(proto,axis=0)
-    actual_proto = torch.cat(actual_proto,axis=0) 
-    # encoded_vdist = torch.norm(encoded_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
+    actual_proto = torch.cat(actual_proto,axis=0)
+    encoded_vdist = torch.norm(encoded_v[:,None, :] - encoded[None,:, :], dim=2, p=2)
     proto_vdist = torch.norm(proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
     actual_proto_vdist = torch.norm(actual_proto_v[:,None,:] - proto[None,:, :], dim=2, p=2)
-    # all_dists_encode_v, _encode_v = torch.topk(encoded_vdist, 10, dim=1, largest=False)
+    all_dists_encode_v, _encode_v = torch.topk(encoded_vdist, 10, dim=1, largest=False)
     all_dists_proto_v, _proto_v = torch.topk(proto_vdist, 10, dim=1, largest=False)
     actual_all_dists_proto_v, _actual_proto_v = torch.topk(actual_proto_vdist, 10, dim=1, largest=False)
 
@@ -330,45 +332,48 @@ for m in models:
     all_dists_proto_v_sim, _proto_v_sim = torch.topk(proto_v_sim, 10, dim=1, largest=True)
     actual_all_dists_proto_v_sim, _actual_proto_v_sim = torch.topk(actual_proto_v_sim, 10, dim=1, largest=True)
 
-    dist_matrices = [_proto_v, _actual_proto_v, _proto_v_sim, _actual_proto_v_sim]
-    names = [f"{model}_proto_w_vel.gif", f"{model}_actual_proto_w_vel.gif", f"{model}_sim_proto_w_vel.gif", f"{model}_sim_actual_proto_w_vel.gif"]
+    dist_matrices = [_proto_v, _actual_proto_v, _proto_v_sim, _actual_proto_v_sim, _encode_v]
+    names = [f"{model}_proto_w_vel.gif", f"{model}_actual_proto_w_vel.gif", f"{model}_sim_proto_w_vel.gif", f"{model}_sim_actual_proto_w_vel.gif", f"{model}_encoded_w_vel.gif"]
     for index_, dist_matrix in enumerate(dist_matrices):
         filenames=[]
         for ix, x in enumerate(test_states):
-            txt=''
-            df = pd.DataFrame()
-            for i in range(a.shape[0]+1):
-                if i!=a.shape[0]:
-                    df.loc[i,'x'] = a[i,0].cpu().numpy()
-                    df.loc[i,'y'] = a[i,1].cpu().numpy()
-                    if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'orange'
-                        z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
-                        txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+            for iy, y in enumerate(action):
+                txt=''
+                df = pd.DataFrame()
+                for i in range(a.shape[0]+1):
+                    if i!=a.shape[0]:
+                        df.loc[i,'x'] = a[i,0].cpu().numpy()
+                        df.loc[i,'y'] = a[i,1].cpu().numpy()
+                        if i in dist_matrix[ix,:]:
+                            df.loc[i, 'c'] = 'orange'
+                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                            txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+                        else:
+                            df.loc[i,'c'] = 'blue'
                     else:
-                        df.loc[i,'c'] = 'blue'
-                else:
-                    df.loc[i,'x'] = x[0].item()
-                    df.loc[i,'y'] = x[1].item()
-                    df.loc[i,'c'] = 'green'
+                        df.loc[i,'x'] = x[0].item()
+                        df.loc[i,'y'] = x[1].item()
+                        df.loc[i,'c'] = 'green'
 
 
-            plt.clf()
-            fig, ax = plt.subplots()
-            ax=sns.scatterplot(x="x", y="y",
-                      hue="c", 
-                      data=df,legend=False)
-            ax.set_title("\n".join(wrap(txt,75)))
-            if index_==0:
-                file1= f"./knn_output/10nn_proto_goals_w_vel_w_{ix}_model{model}.png"
-            elif index_==1:
-                file1= f"./knn_output/10nn_actual_proto_goals_w_vel_{ix}_model{model}.png"
-            elif index_==2:
-                file1= f"./knn_output/10nn_sim_proto_goals_w_vel_{ix}_model{model}.png"
-            elif index_==3:
-                file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel_{ix}_model{model}.png"
-            plt.savefig(file1)
-            filenames.append(file1)
+                plt.clf()
+                fig, ax = plt.subplots()
+                ax=sns.scatterplot(x="x", y="y",
+                          hue="c", 
+                          data=df,legend=False)
+                ax.set_title("\n".join(wrap(txt,75)))
+                if index_==0:
+                    file1= f"./knn_output/10nn_proto_goals_w_vel_w_{ix}_{iy}_model{model}.png"
+                elif index_==1:
+                    file1= f"./knn_output/10nn_actual_proto_goals_w_vel_{ix}_{iy}_model{model}.png"
+                elif index_==2:
+                    file1= f"./knn_output/10nn_sim_proto_goals_w_vel_{ix}_{iy}_model{model}.png"
+                elif index_==3:
+                    file1= f"./knn_output/10nn_sim_actual_proto_goals_w_vel_{ix}_{iy}_model{model}.png"
+                elif index ==4:
+                    file1= f"./knn_output/10nn_encoded_w_vel_{ix}_{iy}_model{model}.png"
+                plt.savefig(file1)
+                filenames.append(file1)
 
         if len(filenames)>100:
             filenames=filenames[:100]
@@ -466,9 +471,16 @@ for m in models:
     with torch.no_grad():
         proto_sim = agent.protos(proto).T
     all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
+    
+    proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
+    all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
 
+    with torch.no_grad():
+        proto_sim_self = agent.protos(protos).T
+    all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
 
     dist_matrices = [_proto, _proto_sim]
+    self_mat = [_proto_self, _proto_sim_self]
     names = [f"{model}_prototypes.gif", f"{model}_prototypes_sim.gif"]
 
     for index_, dist_matrix in enumerate(dist_matrices):
@@ -476,17 +488,26 @@ for m in models:
         for ix, x in enumerate(protos):
             print('proto', ix)
             txt=''
-            df = pd.DataFrame()
+            df_ = pd.DataFrame()
             for i in range(a.shape[0]+1):
                 if i!=a.shape[0]:
-                    df.loc[i,'x'] = a[i,0].cpu().numpy()
-                    df.loc[i,'y'] = a[i,1].cpu().numpy()
+                    df_.loc[i,'x'] = a[i,0].cpu().numpy()
+                    df_.loc[i,'y'] = a[i,1].cpu().numpy()
                     if i in dist_matrix[ix,:]:
-                        df.loc[i, 'c'] = 'orange'
+                        df_.loc[i, 'c'] = 'orange'
                         z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
                         txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                     else:
-                        df.loc[i,'c'] = 'blue'
+                        df_.loc[i,'c'] = 'blue'
+                        
+            df = pd.DataFrame()
+            #order based on distance to first prototype
+            for i in range(protos.shape[0]):
+                cols = list(df_.columns) 
+                df.loc[i, cols] = df_[self_mat[index_][0,i], cols]
+            
+            
+            
 
             plt.clf()
             fig, ax = plt.subplots()
@@ -512,6 +533,7 @@ for m in models:
         gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 
         imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+
 
 
 
