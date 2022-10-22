@@ -87,6 +87,7 @@ proj_dim: 512
 feature_dim: 50
 num_iterations: 3
 tau: .1
+sl: False
 # experiment
 experiment: exp
 

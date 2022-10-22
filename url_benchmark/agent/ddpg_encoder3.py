@@ -14,19 +14,25 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32*9*9
+        self.repr_dim = 64*2*2
         #40*40*32
-        #19*19*32
-        #17*17*32
-        #9*9*32
+        #19*19*64
+        #15*15*64
+        #7*7*64
+        #3*3*64
+        #2*2*64
+        
         
         #number of parameters:
         #(3*3*3+1)*32 = 896
         #(3*3*32+1)*32 = 9248
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
+        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 5, stride=2),
                                      nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
-                                     nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2))
+                                     nn.Conv2d(32, 64, 4, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(64, 64, 3, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(64, 64, 2, stride=1),nn.ReLU())
 
         self.apply(utils.weight_init)
 
@@ -42,8 +48,9 @@ class Actor(nn.Module):
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-                                    nn.LayerNorm(feature_dim), nn.Tanh())
+        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim),
+                                    nn.ReLU(inplace=True))                           
+
         policy_layers = []
         policy_layers += [
             nn.Linear(feature_dim, hidden_dim),
@@ -52,6 +59,8 @@ class Actor(nn.Module):
         # add additional hidden layer for pixels
         if obs_type == 'pixels':
             policy_layers += [
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(inplace=True),
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.ReLU(inplace=True)
             ]
@@ -77,7 +86,8 @@ class Actor2(nn.Module):
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
 
         self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
-                                    nn.LayerNorm(feature_dim), nn.Tanh())
+                                   nn.LayerNorm(feature_dim), nn.Tanh())
+
         policy_layers = []
         policy_layers += [
             nn.Linear(feature_dim, hidden_dim),
@@ -87,7 +97,7 @@ class Actor2(nn.Module):
         if obs_type == 'pixels':
             policy_layers += [
                 nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True),
+                nn.ReLU(inplace=True)
             ]
         policy_layers += [nn.Linear(hidden_dim, action_dim)]
 
@@ -113,7 +123,7 @@ class Critic(nn.Module):
         if obs_type == 'pixels':
             # for pixels actions will be added after trunk
             self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-                                        nn.LayerNorm(feature_dim), nn.Tanh())
+                                                       nn.ReLU(inplace=True))
             trunk_dim = feature_dim + action_dim
         else:
             # for states actions come in the beginning
@@ -132,6 +142,8 @@ class Critic(nn.Module):
                 q_layers += [
                     nn.Linear(hidden_dim, hidden_dim),
                     nn.ReLU(inplace=True),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(inplace=True)
                 ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
@@ -202,7 +214,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGEncoder1Agent:
+class DDPGEncoder3Agent:
     def __init__(self,
                  name,
                  reward_free,

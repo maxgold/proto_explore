@@ -491,53 +491,54 @@ class DDPGEncoder2Agent:
         obs = self.aug(obs)
         return self.encoder(obs)
 
-#    def update(self, replay_iter, step, goal):
-#        metrics = dict()
-#        #import ipdb; ipdb.set_trace()
-#
-#        if step % self.update_every_steps != 0:
-#            return metrics
-#
-#        batch = next(replay_iter)
-#        obs, action, reward, discount, next_obs = utils.to_torch(
-#            batch, self.device)
-#         obs = obs.reshape(-1, 4).float()
-#         next_obs = next_obs.reshape(-1, 4).float()
-#         action = action.reshape(-1, 2).float()
-#         reward = reward.reshape(-1, 1).float()
-#         discount = discount.reshape(-1, 1).float()
-#         reward = reward.float()
-#         goal = goal.reshape(-1,2).float()
+    def update(self, replay_iter, step, goal):
+        metrics = dict()
+        #import ipdb; ipdb.set_trace()
 
-#         # augment and encode
-#         obs = self.aug_and_encode(obs)
-#         with torch.no_grad():
-#             next_obs = self.aug_and_encode(next_obs)
+        if step % self.update_every_steps != 0:
+            return metrics
 
-#         if self.use_tb or self.use_wandb:
-#             metrics['batch_reward'] = reward.mean().item()
+        batch = next(replay_iter)
+        obs, action, reward, discount, next_obs = utils.to_torch(
+            batch, self.device)
+        # obs = obs.reshape(-1, 4).float()
+        # next_obs = next_obs.reshape(-1, 4).float()
+        # action = action.reshape(-1, 2).float()
+        # reward = reward.reshape(-1, 1).float()
+        # discount = discount.reshape(-1, 1).float()
+        # reward = reward.float()
+        # goal = goal.reshape(-1,2).float()
 
-#         # update critic
-#         metrics.update(
-#             self.update_critic(obs, goal, action, reward, discount, next_obs, step))
+         # augment and encode
+         obs = self.aug_and_encode(obs)
+         with torch.no_grad():
+             goal = self.encode(goal)
+             next_obs = self.aug_and_encode(next_obs)
 
-#         # update actor
-#         metrics.update(self.update_actor(obs.detach(), goal, action, step))
+         if self.use_tb or self.use_wandb:
+             metrics['batch_reward'] = reward.mean().item()
 
-#         # update critic target
-#         utils.soft_update_params(self.critic, self.critic_target,
-#                                  self.critic_target_tau)
-#         # update critic
-#         metrics.update(
-#             self.update_critic2(obs, action, reward, discount, next_obs, step))
+         # update critic
+         metrics.update(
+             self.update_critic(obs, goal, action, reward, discount, next_obs, step))
 
-#         # update actor
-#         metrics.update(self.update_actor2(obs.detach(), step))
+         # update actor
+         metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
 
-#         # update critic target
-#         utils.soft_update_params(self.critic2, self.critic2_target,
-#                                  self.critic2_target_tau)
-#         return metrics
+         # update critic target
+         utils.soft_update_params(self.critic, self.critic_target,
+                                  self.critic_target_tau)
+         #update critic
+         #metrics.update(
+             self.update_critic2(obs, action, reward, discount, next_obs, step))
+
+         # update actor
+         #metrics.update(self.update_actor2(obs.detach(), step))
+
+         # update critic target
+         #utils.soft_update_params(self.critic2, self.critic2_target,
+         #                         self.critic2_target_tau)
+         return metrics
 
 def get_q_value(self, obs,action):
     Q1, Q2 = self.critic2(torch.tensor(obs).cuda(), torch.tensor(action).cuda())

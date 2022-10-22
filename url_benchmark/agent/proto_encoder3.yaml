@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.proto_encoder1.ProtoEncoder1Agent
-name: proto_encoder1
+_target_: agent.proto_encoder3.ProtoEncoder3Agent
+name: proto_encoder3
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
@@ -33,5 +33,4 @@ update_gc: ???
 gc_only: ???
 offline: ???
 load_protos: False
-num_iterations: 3
 update_encoder: ${update_encoder}

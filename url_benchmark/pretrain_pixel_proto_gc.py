@@ -33,7 +33,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
                work_dir=None,goal_queue_size=10, tmux_session=None, eval_every_frames=10000, seed=None,
                eval_after_step=990000, episode_length=100, reward_nn=True, reward_euclid=False, pos_reward=True,
                neg_reward=False,hybrid_gc=False, hybrid_pct=0, batch_size_gc=256, const_init=False, episode_reset_length=100, 
-               num_protos=512,stddev_schedule=.2, stddev_clip=.3, use_closest_proto=True):
+               num_protos=512,stddev_schedule=.2, stddev_clip=.3, use_closest_proto=True, pred_dim=128, proj_dim=512, feature_dim=50):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -72,10 +72,14 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, goal
     cfg.batch_size_gc = batch_size_gc
     cfg.const_init = const_init
     cfg.episode_reset_length = episode_reset_length
-    cfg.num_protos=512
+    cfg.num_protos=num_protos
     cfg.stddev_schedule=stddev_schedule
     cfg.stddev_clip=stddev_clip
     cfg.use_closest_proto=use_closest_proto
+    cfg.pred_dim=pred_dim
+    cfg.proj_dim=proj_dim
+    cfg.feature_dim=feature_dim
+    cfg.pred_dim2=pred_dim
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -202,10 +206,13 @@ class Workspace:
                                 num_protos=cfg.num_protos,
                                 stddev_schedule=cfg.stddev_schedule,
                                 stddev_clip=cfg.stddev_clip,
-                                use_closest_proto=cfg.use_closest_proto)
+                                use_closest_proto=cfg.use_closest_proto,
+                                pred_dim=cfg.pred_dim,
+                                proj_dim=cfg.proj_dim,
+                                feature_dim=cfg.feature_dim)
 
         if self.cfg.load_model:
-            loaded = torch.load('/home/nina/proto_explore/url_benchmark/model/2022.10.09/133617_proto_greene/optimizer_proto_1000000.pth')
+            loaded = torch.load('/home/nina/proto_explore/url_benchmark/model/2022.10.14/050615_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_encoder_from(loaded.encoder)
             self.agent.init_protos_from(loaded)
         

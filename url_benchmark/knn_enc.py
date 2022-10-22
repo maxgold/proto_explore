@@ -42,7 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/nina/proto_explore/url_benchmark/exp_local/'
+models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.18/232252_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181717_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181638_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231802_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231631_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231602_proto_encoder1/']
+#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
@@ -52,12 +53,17 @@ models = ['/home/nina/proto_explore/url_benchmark/exp_local/'
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
     tmp_agent_name = m.split('/')[-2].split('_')
+    print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
-    paths = glob.glob(m+'*pth')
+    paths = glob.glob(m+'*00000.pth')
     for path in paths:
         model_step = path.split('_')[-1].split('.')[0]
-        agent  = torch.load(m+'optimizer_'+agent_name+'_1000000.pth')
-
+        print('model', m)
+        print('model step', model_step)
+        if model_step=='0':
+            continue
+        print(path)
+        agent  = torch.load(path,map_location='cuda')
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
@@ -70,33 +76,33 @@ for m in models:
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 replay_dir,
-                                                500000,
+                                                100000,
                                                 0,
                                                 0,
                                                 .99,
                                                 goal=False,
                                                 relabel=False,
-                                                model_step = 1000000,
+                                                model_step = model_step,
                                                 replay_dir2=False,
                                                 obs_type = 'pixels'
                                                 )
 
-        state, actions, rewards, eps, index = replay_buffer.parse_dataset()
-        
+        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
         state = state.reshape((state.shape[0],4))
         print(state.shape)
+        num_sample=10000
+        state_t = np.empty((num_sample,4))
+        proto_t = np.empty((num_sample,protos.shape[1]))
         
-        state_t = np.empty((50000,4))
-        proto_t = np.empty((50000,protos.shape[0]))
-        
-        #pixels = []
         encoded = []
         proto = []
         actual_proto = []
         lst_proto = []
-        idx = np.random.choice(state.shape[0], size=(50000,), replace=False)
+        
+        idx = np.random.choice(state.shape[0], size=num_sample, replace=False)
         print('starting to load 50k')
         for ix,x in enumerate(idx):
+            print(ix)
             state_t[ix] = state[x]
             fn = eps[x]
             idx_ = index[x]
@@ -110,8 +116,7 @@ for m in models:
                 encoded.append(z)
                 z = agent.predictor(z)
                 z = agent.projector(z)
-                z = F.normalize(z, dim=1, p=2)
-                
+                z = F.normalize(z, dim=1, p=2) 
                 proto_t[ix]=z.cpu().numpy()
 
         
@@ -129,10 +134,10 @@ for m in models:
         plt.savefig(f"./knn_output/singular_value_{model}_{model_step}.png")
            
         
-        
-        idx = np.random.randint(0, state.shape[0], size=1000)
+        num_sample=1000 
+        idx = np.random.randint(0, state.shape[0], size=num_sample)
         state=state[idx]
-        state=state.reshape(1000,4)
+        state=state.reshape(num_sample,4)
         a = state
         count10,count01,count00,count11=(0,0,0,0)
         # density estimate:
@@ -566,26 +571,25 @@ for m in models:
 
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
-            for ix, x in enumerate(protos):
+            order = self_mat[index_][0,:].cpu().numpy()
+            for ix, x in enumerate(order):
                 print('proto', ix)
                 txt=''
-                df_ = pd.DataFrame()
+                df = pd.DataFrame()
                 for i in range(a.shape[0]+1):
                     if i!=a.shape[0]:
-                        df_.loc[i,'x'] = a[i,0].cpu().numpy()
-                        df_.loc[i,'y'] = a[i,1].cpu().numpy()
-                        if i in dist_matrix[ix,:]:
-                            df_.loc[i, 'c'] = 'blue'
-                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                        df.loc[i,'x'] = a[i,0].cpu().numpy()
+                        df.loc[i,'y'] = a[i,1].cpu().numpy()
+                        df.loc[i,'distance_to_proto1'] = _proto_self[ix,0].item()
+
+                        if i in dist_matrix[x,:]:
+                            df.loc[i, 'c'] = 'blue'
+                            z=dist_matrix[x,(dist_matrix[x,:] == i).nonzero(as_tuple=True)[0]]
                             txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                         else:
-                            df_.loc[i,'c'] = 'orange'
+                            df.loc[i,'c'] = 'orange'
 
-                df = pd.DataFrame()
                 #order based on distance to first prototype
-                for i in range(protos.shape[0]):
-                    cols = list(df_.columns) 
-                    df.loc[i, cols] = df_[self_mat[index_][0,i], cols]
 
 
 
@@ -619,6 +623,16 @@ for m in models:
 
             imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
+#if len(filenames)>100:
+#    filenames=filenames[:100]
+#with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
+#    for file in filenames:
+#        image = imageio.imread(file)
+#        writer.append_data(image)
+#
+#gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
+#
+#imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
 
 

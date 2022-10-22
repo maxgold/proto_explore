@@ -363,7 +363,8 @@ class ReplayBuffer(IterableDataset):
         model_step=False,
         goal_proto=False,
         agent=None,
-        neg_reward=False):
+        neg_reward=False,
+        sl=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -389,6 +390,7 @@ class ReplayBuffer(IterableDataset):
         self.goal_proto = goal_proto
         self.agent = agent
         self.neg_reward = neg_reward
+        self.sl = sl
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -548,6 +550,42 @@ class ReplayBuffer(IterableDataset):
             return (obs, action, reward, discount, next_obs, goal, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)
+    
+
+    def _sample_sl(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        obs_state = episode["state"][idx - 1]
+
+        for i in range(self._nstep):
+            step_reward = episode["reward"][idx + i]
+            reward += discount * step_reward
+            discount *= episode["discount"][idx + i] * self._discount
+
+        if self.goal:
+            goal = episode["goal"][idx-1]
+            goal_state=episode["goal_state"][idx-1]
+            if self.pixels and self.goal_proto==False:
+                goal = np.tile(goal,(3,1,1))
+            #goal = goal[None,:,:]
+            return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
+        else:
+            return (obs, obs_state, action, reward, discount, next_obs, *meta) 
 
     def _sample_goal_hybrid(self):
         try:
@@ -701,7 +739,9 @@ class ReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-            if self.hybrid:
+            if self.sl:
+                yield self._sample_sl()
+            elif self.hybrid:
                 yield self._sample_goal_hybrid()
             else:
                 yield self._sample()
@@ -831,7 +871,6 @@ class OfflineReplayBuffer(IterableDataset):
             if self.load_once:
                 if self._size > self._max_size:
                     break
-                print(eps_fn.stem.split("_")[1:])
                 eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
                 if eps_idx % self._num_workers != worker_id:
                     continue
@@ -841,11 +880,9 @@ class OfflineReplayBuffer(IterableDataset):
                     break
                 fetched_size += eps_len
                 if self.eval and self.pixels:
-                    print('eval')
                     episode = load_episode(eps_fn, eval=True)
                 else:
                     episode = load_episode(eps_fn)
-                    print('loading eps', eps_fn)
                 if relabel:
                     episode = self._relabel_reward(episode)
                 self._episode_fns.append(eps_fn)
@@ -1323,7 +1360,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1343,6 +1380,7 @@ def make_replay_loader(
         goal_proto=goal_proto,
         agent=agent,
         neg_reward=neg_reward,
+        sl=sl,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )
