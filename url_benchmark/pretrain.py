@@ -39,7 +39,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.hidden_dim = hidden_dim
     cfg.batch_size = batch_size
     cfg.num_protos=num_protos
-    if self.cfg.agent.name.startswith('proto'):
+    if cfg.name.startswith('proto'):
         cfg.update_gc=update_gc
     cfg.gc_only=gc_only
     cfg.offline=offline
