@@ -102,6 +102,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
 
+    def init_model_from(self, agent):
+        utils.hard_update_params(agent.encoder, self.encoder)
+
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 

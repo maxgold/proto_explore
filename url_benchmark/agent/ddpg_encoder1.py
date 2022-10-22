@@ -47,6 +47,8 @@ class Actor(nn.Module):
         policy_layers = []
         policy_layers += [
             nn.Linear(feature_dim, hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(inplace=True)
         ]
         # add additional hidden layer for pixels

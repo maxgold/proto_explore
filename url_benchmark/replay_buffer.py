@@ -602,10 +602,10 @@ class ReplayBuffer(IterableDataset):
         next_obs = episode["observation"][idx]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
-
+        offset = 0 
         #hybrid where we use hybrid_pct of relabeled gc data in each batch
         #100-hybrid_pct*10 is just original gc data
-        key = np.random.randint(0,10)
+        key = np.random.uniform()
         if key > self.hybrid_pct:
             goal = episode["goal"][idx-1]
             goal = np.tile(goal,(3,1,1))
@@ -619,8 +619,10 @@ class ReplayBuffer(IterableDataset):
             idx = np.random.randint(250,episode_len(episode))
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
-            idx_goal = np.random.randint(idx,episode_len(episode))
+            next_obs = episode['observation'][idx + self._nstep - 1]
+            idx_goal = np.random.randint(min(idx + self._nstep - 1, episode_len(episode)-1),episode_len(episode))
+            
+            offset=idx_goal-idx
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
             for i in range(1):
@@ -633,20 +635,18 @@ class ReplayBuffer(IterableDataset):
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
             idx_goal = np.random.randint(idx,episode_len(episode))
-            z = episode["observation"][idx_goal]
-            protos = self.agent.protos.weight.data.detach().clone()
-            z_to_proto = torch.norm(z[:, None, :] - protos[None, :, :], dim=2, p=2)
-            all_dists, _ = torch.topk(z_to_proto, 1, dim=1, largest=False)
-            goal = protos[_]
-            goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal]
-
-            for i in range(1):
-
-                obs_to_proto = torch.norm(obs[:, None, :] - protos[None, :, :], dim=2, p=2)
-                dists, dists_idx = torch.topk(obs_to_proto, 1, dim=1, largest=False)
-                if torch.all(goal.eq(protos[dists_idx])):
-                    self.reward=torch.as_tensor(1)
+            z = episode["observation"][idx_goal][None,:]
+            protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
+            z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+            _ = np.argsort(z_to_proto, axis=1)[:,0]
+            goal = protos[_].reshape((protos.shape[1],))
+            offset=idx_goal-idx
+            for i in range(self._nstep):
+                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
+                
+                if np.array_equal(goal,protos[dists_idx]):
+                    reward=1
                 else:
                     self.reward=torch.as_tensor(0)
 
@@ -659,9 +659,12 @@ class ReplayBuffer(IterableDataset):
 
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
-        return (obs, action, reward, discount, next_obs, goal, *meta)
-   
-
+        offset = np.array(offset).astype(float)
+        if self.sl:
+            return (obs, action, reward, discount, next_obs, goal, offset, *meta)
+        else:
+            return (obs, action, reward, discount, next_obs, goal, *meta)
+    
     def _sample_goal_offline(self):
         try:
             self._try_fetch()
@@ -762,8 +765,13 @@ class OfflineReplayBuffer(IterableDataset):
         self.model_step = int(int(model_step)/500)
         self.model_step_lb = int(int(model_step_lb)/500)
         self.offline = offline
+        
         self.hybrid = hybrid
-        self.hybrid_pct = hybrid_pct
+        if self.offline:
+            self.hybrid_pct = 1
+        else:
+            
+            self.hybrid_pct = hybrid_pct
         self._nstep=nstep
         self.count=0
         self.iz=1
@@ -779,132 +787,120 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
 
-    def _load(self, relabel=False):
-        #space: e.g. .2 apart for uniform observation from -1 to 1
-        #print("Labeling data...")
-        if self._samples_since_last_load < self._load_every:
-            return
-        self._samples_since_last_load=0
-        self.model_step+=1
-        print('model step', self.model_step)
+    def _load(self, relabel=True):
+        print("Labeling data...")
         try:
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
+        eps_fns = sorted(self._replay_dir.glob("*.npz"))
+        # for eps_fn in tqdm.tqdm(eps_fns):
+        for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
+            if self._size > self._max_size:
+                break
+            eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
+            if eps_idx % self._num_workers != worker_id:
+                continue
+            episode = load_episode(eps_fn)
+            if relabel:
+                episode = self._relabel_reward(episode)
+            self._episode_fns.append(eps_fn)
+            self._episodes[eps_fn] = episode
+            self._size += episode_len(episode)
 
-        if self.offline and self._size+500 >= self._max_size and self.switch==False:
-            print('swtiching to hybrid')
-            self.hybrid=True
-            self.switch=True
+    def _sample_episode(self):
+        if not self._loaded:
+            self._load()
+            self._loaded = True
+        eps_fn = random.choice(self._episode_fns)
+        return self._episodes[eps_fn]
 
-        if self.hybrid and self.offline==False:
-            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
-            tmp_fns_offline = sorted(self._replay_dir2.glob("*.npz"))
-        elif self.hybrid and self.offline:
-            tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
-        else:
-            tmp_fns = sorted(self._replay_dir.glob("*.npz"))
-        
-        tmp_fns_=[]
-        tmp_fns2 = []
-        
-        for x in tmp_fns:
-            tmp_fns_.append(str(x))
-            tmp_fns2.append(x)
-        if self.model_step and self.model_step_lb:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (self.model_step_lb<=int(re.findall('\d+', x)[-2]) < self.model_step)]
-        elif self.model_step:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-        else:
-            eps_fns = tmp_fns
-        if self.hybrid and self.offline==False:
-            tmp_fns_off=[]
-            tmp_fns2_off = []
-
-            for x in tmp_fns_offline:
-                tmp_fns_off.append(str(x))
-                tmp_fns2_off.append(x)
-            if self.hybrid_pct>0:
-                num = len(tmp_fns_)
-                step = int(num*(.1*self.hybrid_pct))
-                eps_fns_off = [tmp_fns2_off[ix] for ix,x in enumerate(tmp_fns_off) if (int(re.findall('\d+', x)[-2]) <= step)]
+    def _relabel_reward(self, episode):
+        return relabel_episode(self._env, episode)
+    
+    def _sample_her(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) +1
+        action = episode["action"][idx]
+        obs = episode["observation"][idx - 1]
+        next_obs = episode["observation"][idx]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        goal = episode["goal"][idx]
+        future_offset=0
+        if np.random.uniform()<self.hybrid_pct:
+            future_offset = np.random.uniform()*(episode_len(episode) - idx +1)
+            future_offset = future_offset.astype(int)
+            goal = episode["goal"][idx]
+            
+            if self.pixels:
+            
+                reward = my_reward(action, episode["state"][idx], episode["goal_state"][idx])
             else:
-                eps_fns_off = tmp_fns_offline
+                reward = my_reward(action, next_obs, goal)
+            
+        return (obs, action, reward, discount, next_obs, goal, future_offset)
+            
+    
+    def _sample(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode)) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
+        #        control_reward = rewards.tolerance(
+        #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
+        #        ).mean()
+        #        small_control = (control_reward + 4) / 5
+        #        near_target = rewards.tolerance(
+        #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
+        #            bounds=(0, .015),
+        #            margin=.015,
+        #        )
+        #        reward = near_target * small_control
+        return (obs, action, reward, discount, next_obs)
+    
+    def _sample_goal(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
 
-        if self.hybrid and self.offline==False:
+        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx]
+        goal = episode["observation"][idx + self.offset][:2]
+        rewards = []
+        cand_goals = np.random.uniform(-.2,.2, size=(50,2))
+        cand_goals = cand_goals[np.abs(cand_goals[:,0])>.05]
+        cand_goals = cand_goals[np.abs(cand_goals[:,1])>.05]
+        cand_goals = cand_goals[:4]
+        for goal in cand_goals:
+            rewards.append(my_reward(action, next_obs, goal))
+        #rewards.append(my_reward(action, next_obs, GOAL_ARRAY[0]))
+        discount = np.ones_like(episode["discount"][idx])
+        obs = np.tile(obs, (4, 1))
+        action = np.tile(action, (4, 1))
+        discount = np.tile(discount, (4, 1))
+        next_obs = np.tile(next_obs, (4, 1))
+        reward = np.array(rewards)
 
-            eps_fns = eps_fns+eps_fns_off
-        
-        np.random.shuffle(eps_fns)
-
-        fetched_size = 0
-        for eps_fn in eps_fns:
-            if self.load_once:
-                if self._size > self._max_size:
-                    break
-
-                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-                if eps_idx % self._num_workers != worker_id:
-                    continue
-                if eps_fn in self._episodes.keys():
-                    continue
-                if fetched_size + eps_len > self._max_size:
-                    break
-                fetched_size += eps_len
-                if self.eval and self.pixels:
-                    print('eval')
-                    episode = load_episode(eps_fn, eval=True)
-                else:
-                    episode = load_episode(eps_fn)
-                    print('loading eps', eps_fn)
-                if relabel:
-                    episode = self._relabel_reward(episode)
-                self._episode_fns.append(eps_fn)
-                self._episodes[eps_fn] = episode
-                self._size += episode_len(episode)
-            else:
-                eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
-                if eps_idx % self._num_workers != worker_id:
-                    continue
-                if eps_fn in self._episodes.keys():
-                    continue
-                #should this be break or continue? 
-                if fetched_size + eps_len > self._max_size:
-                    break
-                fetched_size += eps_len
-                if not self._store_episode(eps_fn,relabel=relabel):
-                    break
-
-
-    def _store_episode(self, eps_fn, relabel=False):
-        try: 
-            if self.eval and self.pixels:
-                print('eval')
-                episode = load_episode(eps_fn, eval=True)
-            else:
-                episode = load_episode(eps_fn)
-                print('loading eps', eps_fn)
-
-        except:
-            return False
-        
-        eps_len = episode_len(episode)
-        while eps_len + self._size > self._max_size:
-            early_eps_fn = self._episode_fns.pop(0)
-            early_eps = self._episodes.pop(early_eps_fn)
-            print('getting rid of', early_eps_fn)
-            self._size -= episode_len(early_eps)
-            early_eps_fn.unlink(missing_ok=True)
- 
-        if relabel:
-            episode = self._relabel_reward(episode)
-        self._episode_fns.append(eps_fn)
-        self._episode_fns.sort()
-        self._episodes[eps_fn] = episode
-        self._size += episode_len(episode)
-        
-        return True
-        
+        return (obs, action, reward, discount, next_obs, cand_goals)
+    
+    def _sample_future(self):
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
+        obs = episode["observation"][idx - 1]
+        action = ["action"][idx]
+        next_obs = episode["observation"][idx + self.offset]
+        reward = episode["reward"][idx]
+        discount = episode["discount"][idx] * self._discount
+        return (obs, action, reward, discount, next_obs)
     
     def _get_goal_array(self, eval_mode=False, space=6):
         #assuming max & min are 1, -1, but position vector can be 2d or more dim.
@@ -926,52 +922,6 @@ class OfflineReplayBuffer(IterableDataset):
             return goal_array
         
 
-    def _sample_episode(self):
-        if self.load_once and self._loaded==False:
-            self._load()
-            self._loaded = True
-        eps_fn = random.choice(self._episode_fns)
-        return self._episodes[eps_fn]
-
-    def _relabel_reward(self, episode):
-        return relabel_episode(self._env, episode)
-
-    def _sample(self, eval_pixel=False):
-        try:
-            self._load()
-        except:
-            traceback.print_exc()
-
-        self._samples_since_last_load += 1
-        if eval_pixel:
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            state = episode["state"][idx - 1]
-            action = episode["action"][idx]
-            return (obs, state, action)
-        else:
-            episode = self._sample_episode()
-            # add +1 for the first dummy transition
-            idx = np.random.randint(0, episode_len(episode)) + 1
-            obs = episode["observation"][idx - 1]
-            action = episode["action"][idx]
-            next_obs = episode["observation"][idx]
-            reward = episode["reward"][idx]
-            discount = episode["discount"][idx] * self._discount
-            reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
-            #        control_reward = rewards.tolerance(
-            #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-            #        ).mean()
-            #        small_control = (control_reward + 4) / 5
-            #        near_target = rewards.tolerance(
-            #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
-            #            bounds=(0, .015),
-            #            margin=.015,
-            #        )
-            #        reward = near_target * small_control
-            return (obs, action, reward, discount, next_obs)
-    
     def _sample_pixel_goal(self, time_step):
         episode = self._sample_episode()
         if time_step<1000000:
@@ -1020,52 +970,6 @@ class OfflineReplayBuffer(IterableDataset):
         goal = np.array(zip(x_coor, y_coor))
         
         return (obs, action, reward, discount, next_obs, goal, q)
-    
-
-    def _sample_goal(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
-        goal = episode["observation"][idx + self.offset][:2]
-        rewards = []
-
-        #sampling 5 goals from uniform goal matrix
-        
-        if not self._goal_array:
-            self._get_goal_array()
-            self._goal_array = True
-        
-        goal_array = random.sample(np.ndarray.tolist(self.goal_array),5)
-        #goal_array = np.array([[-0.15, 0.15], [-0.15, -0.15], [0.15, -0.15], [0.15, 0.15]])
-        for goal in goal_array:
-            rewards.append(my_reward(action, next_obs, goal))
-
-        discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (5, 1))
-        action = np.tile(action, (5, 1))
-        discount = np.tile(discount, (5, 1))
-        next_obs = np.tile(next_obs, (5, 1))
-        reward = np.array(rewards)
-        goal_array = np.array(goal_array)
-        return (obs, action, reward, discount, next_obs, goal_array)
-
-
-    def _sample_future(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self.offset]
-        reward = episode["reward"][idx]
-        discount = episode["discount"][idx] * self._discount
-        return (obs, action, reward, discount, next_obs)
-    
-
 
     def _sample_goal_hybrid(self):
         try:
@@ -1118,50 +1022,12 @@ class OfflineReplayBuffer(IterableDataset):
         obs = np.array(obs)
         return (obs, action, reward, discount, next_obs, goal)
     
-    def _sample_goal_offline(self):
-        try:
-            self._try_fetch()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_fetch += 1
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
-
-        obs = episode["observation"][idx - 1]
-
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-
-        iz = np.random.randint(idx, episode_len(episode))+1
-        goal = episode["observation"][iz]
-        goal_state = episode["state"][iz]
-        reward = my_reward(action,episode["state"][idx] , goal_state)*2
-        #for i in range(self._nstep):
-        #    step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
-        #    reward += discount * step_reward
-        #    discount *= episode["discount"][idx+i] * self._discount
-
-        return (obs, action, reward, discount, next_obs, goal, *meta) 
-                
+       
                 
     def __iter__(self):
         while True:
-            if (self.offline and self.goal and self.pixels) or (self.hybrid and self.goal and self.pixels):
-                yield self._sample_goal_hybrid()
-            elif self.offline:
-                yield self._sample_goal_offline()
-            elif self.pixels:
-                yield self._sample_pixel_goal()
-            elif self.goal:
-                yield self._sample_goal()
-            elif self.vae:
-                yield self._sample_future()
+            if (self.offline and self.goal) or (self.hybrid and self.goal):
+                yield self._sample_her()
             else:
                 yield self._sample()
 

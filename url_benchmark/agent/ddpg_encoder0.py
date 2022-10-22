@@ -10,17 +10,29 @@ import utils
 
 
 class Encoder(nn.Module):
+<<<<<<< HEAD
+    def __init__(self, obs_shape, feature_dim):
+=======
     def __init__(self, obs_shape):
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
         super().__init__()
 
         assert len(obs_shape) == 3
         self.repr_dim = 32 * 35 * 35
+<<<<<<< HEAD
+=======
 
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
         self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+<<<<<<< HEAD
+                                     nn.ReLU(), nn.Flatten(), nn.Linear(self.repr_dim,512),
+                                     nn.ReLU(), nn.Linear(512,self.feature_dim))
+=======
                                      nn.ReLU())
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
 
         self.apply(utils.weight_init)
 
@@ -198,7 +210,11 @@ class Critic2(nn.Module):
 
 
 
+<<<<<<< HEAD
+class DDPGAgent:
+=======
 class DDPGEncoder0Agent:
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
     def __init__(self,
                  name,
                  reward_free,
@@ -246,8 +262,13 @@ class DDPGEncoder0Agent:
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
             self.encoder = Encoder(obs_shape).to(device)
+<<<<<<< HEAD
+            self.obs_dim = self.encoder.repr_dim + meta_dim
+            self.goal_dim = self.encoder.repr_dim + meta_dim
+=======
             self.obs_dim = 128 + meta_dim
             self.goal_dim = 128 + meta_dim
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
@@ -307,6 +328,8 @@ class DDPGEncoder0Agent:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
+<<<<<<< HEAD
+=======
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 
@@ -314,6 +337,7 @@ class DDPGEncoder0Agent:
         utils.hard_update_params(critic, self.critic)
         utils.hard_update_params(actor, self.actor)
  
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
     def get_meta_specs(self):
         return tuple()
 
@@ -353,6 +377,11 @@ class DDPGEncoder0Agent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
+<<<<<<< HEAD
+    def act2(self, obs, meta, step, eval_mode):
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+        h = self.encoder(obs)
+=======
     def act2(self, obs, meta, step, eval_mode, proto=None):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         h = self.encoder(obs)
@@ -360,6 +389,7 @@ class DDPGEncoder0Agent:
             with torch.no_grad():
                 h=proto.predictor(h)
                 h=proto.projector(h) 
+>>>>>>> 9277f0cb6621de196e54a5761a53143fc4dc4b47
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
