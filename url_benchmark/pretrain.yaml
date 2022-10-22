@@ -65,6 +65,7 @@ reward_scores: False
 reward_euclid: True
 goal_queue_size: 10
 const_init: True
+resample_goal: False
 # experiment
 experiment: exp
 

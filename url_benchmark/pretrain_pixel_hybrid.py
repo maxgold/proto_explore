@@ -473,7 +473,7 @@ class Workspace:
  #           return self.uniform_goal[self.count_uniform-1], self.uniform_state[self.count_uniform-1][:2]
     
     def sample_goal_distance(self, init_state=None):
-        if self.goal_loaded==False:
+        if self.goal_loaded==False and init_state is None:
             goal_array = ndim_grid(2,20)
             if init_state is None:
                 dist_goal = cdist(np.array([[-.15,.15]]), goal_array, 'euclidean')
@@ -491,18 +491,39 @@ class Workspace:
             self.distance_goal = goal_array_
             self.goal_loaded=True
             index=self.global_step//1000
-            idx = np.random.randint(index,min(index+30, 400))
+            idx = np.random.randint(max(index-10,0),min(index+30, 400))
 
-        else:
+        
+        elif self.goal_loaded and init_state is None:
             if self.global_step<500000:
                 index=self.global_step//1000
                 if index<400:
-                    idx = np.random.randint(index,min(index+30, 400))
+                    idx = np.random.randint(max(index-10,0),min(index+30, 400))
                 else:
                     idx = np.random.randint(0,400)
             else:
                 idx = np.random.randint(0,400)
 
+        else:
+            goal_array = ndim_grid(2,20)
+            dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
+
+            df1 = pd.DataFrame()
+            df1['distance'] = dist_goal.reshape((400,))
+            df1['index'] = df1.index
+            df1 = df1.sort_values(by='distance')
+            goal_array_ = []
+            for x in range(len(df1)):
+                goal_array_.append(goal_array[df1.iloc[x,1]])
+            self.distance_goal = goal_array_
+            if self.global_step<500000:
+                index=self.global_step//2000
+                if index<400:
+                    idx = np.random.randint(max(index-10,0),min(index+30, 400))
+                else:
+                    idx = np.random.randint(0,400)
+            else:
+                idx = np.random.randint(0,400) 		
         return self.distance_goal[idx]
     
         
@@ -702,6 +723,7 @@ class Workspace:
 
         #self.train_video_recorder.init(time_step.observation)
         metrics = None
+        goal_array = ndim_grid(2,20)
         while train_until_step(self.global_step):
             
             if (time_step1.last() and time_step2.last()) or episode_step==500:
@@ -767,8 +789,14 @@ class Workspace:
             if episode_step== 0 and self.global_step!=0:
                 
                 if self.cfg.curriculum:
-                    goal_=self.sample_goal_distance()
-                    goal_state = np.array([goal_[0], goal_[1]])
+                    if self.cfg.const_init==False and self.global_step%5000!=0:
+                        init_state = time_step1.observation['observations'][:2]
+                        print('init', init_state)
+                        goal_=self.sample_goal_distance(init_state)
+                        goal_state = np.array([goal_[0], goal_[1]])
+                    else:
+                        goal_=self.sample_goal_distance()
+                        goal_state = np.array([goal_[0], goal_[1]])
                     
                 elif self.cfg.sample_proto:
                     if (self.cfg.num_seed_frames==self.global_step) or (self.global_step < 100000 and self.global_step%2000==0) or (300000>self.global_step >100000 and self.global_step%50000==0):
@@ -795,7 +823,11 @@ class Workspace:
                         self.count = 0
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
-                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                if self.cfg.const_init==False and self.global_step%5000!=0:
+                    self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, init_state=init_state)
+                else:
+                    self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state)
                 time_step1 = self.train_env1.reset()
                 self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -852,7 +884,7 @@ class Workspace:
             
             episode_step += 1
             
-            if episode_reward > 100 and self.cfg.const_init==False:
+            if episode_reward > 100 and self.cfg.resample_goal:
                 print('reached making new env')
                 episode_reward=0
                 current_state = time_step1.observation['observations'][:2]

@@ -576,92 +576,94 @@ class Workspace:
             print('saving')
             print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
             save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
-
+    
     def eval(self):
-        heatmaps(self, self.eval_env, self.global_step, False, True)
-
+        #self.encode_proto(heatmap_only=True) 
+        heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=False)
         goal_array = ndim_grid(2,10)
         success=0
-        df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
+        df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
 
-        for ix, x in enumerate(goal_array):
-            step, episode, total_reward = 0, 0, 0
-         #   goal_pix, goal_state = self.sample_goal_uniform(eval=True)
-            goal_state = np.array([x[0], x[1]])
-            self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=goal_state)
-            self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None)
-            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None)
-            eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
-            meta = self.agent.init_meta()
+        for iz, z in enumerate(goal_array):
+            dist_goal = cdist(np.array([z]), goal_array, 'euclidean')
+            df1=pd.DataFrame()
+            df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
+            df1['index'] = df1.index
+            df1 = df1.sort_values(by='distance')
+            goal_array_ = []
+            for x in range(len(df1)):
+                goal_array_.append(goal_array[df1.iloc[x,1]])
+            goals=goal_array_[1:10]
+            success=0
+            for ix, x in enumerate(goals):
+                step, episode, total_reward = 0, 0, 0
+            #   goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+                goal_state = np.array([x[0], x[1]])
+                self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                        self.cfg.action_repeat, seed=None, goal=goal_state, init_state=z)
+                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                        self.cfg.action_repeat, seed=None, goal=None, init_state=z)
+                self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
+                        self.cfg.action_repeat, seed=None, goal=None, init_state=z)
+                eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+                meta = self.agent.init_meta()
 
-            while eval_until_episode(episode):
-                time_step = self.eval_env.reset()
-                time_step_no_goal = self.eval_env_no_goal.reset()
+                while eval_until_episode(episode):
+                    time_step = self.eval_env.reset()
+                    time_step_no_goal = self.eval_env_no_goal.reset()
+ 
+                    with self.eval_env_goal.physics.reset_context():
+                        time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
+                    time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                    self.video_recorder.init(self.eval_env, enabled=(episode == 0))
 
-                with self.eval_env_goal.physics.reset_context():
-                    time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
-                time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-         
-                while not time_step.last():
-                    with torch.no_grad(), utils.eval_mode(self.agent):
-                        if self.cfg.goal:
-                            action = self.agent.act(time_step_no_goal.observation['pixels'],
+                    while step!=self.cfg.episode_length:
+                        with torch.no_grad(), utils.eval_mode(self.agent):
+                            if self.cfg.goal:
+                                action = self.agent.act(time_step_no_goal.observation['pixels'],
                                                     time_step_goal,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True)
-                        else:
-                            action = self.agent.act(time_step.observation,
+                            else:
+                                action = self.agent.act(time_step.observation,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True)
-                    time_step = self.eval_env.step(action)
-                    time_step_no_goal = self.eval_env_no_goal.step(action)
-                    #time_step_goal = self.eval_env_goal.step(action)
-                    self.video_recorder.record(self.eval_env)
-                    total_reward += time_step.reward
-                    step += 1
+                        time_step = self.eval_env.step(action)
+                        time_step_no_goal = self.eval_env_no_goal.step(action)
+                        #time_step_goal = self.eval_env_goal.step(action)
+                        self.video_recorder.record(self.eval_env)
+                        total_reward += time_step.reward
+                        step += 1
 
-                episode += 1
-                self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
-                
-                if ix%10==0:
-                    wandb.save(f'{self.global_frame}_{ix}.mp4')
+                    episode += 1
 
-                if self.cfg.eval:
-                    print('saving')
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
 
-                else:
-                    print('saving')
-                    print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
-            
-            if total_reward > 200*self.cfg.num_eval_episodes:
-                success+=1
-            
-            df.loc[ix, 'x'] = x[0]
-            df.loc[ix, 'y'] = x[1]
-            df.loc[ix, 'r'] = total_reward
+                    if iz%10==0:
+                        self.video_recorder.save(f'{self.global_frame}_{iz}.mp4')
+                    if self.cfg.eval:
+                        save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+
+                    else:
+                        save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+
+                if total_reward > 20*self.cfg.num_eval_episodes:
+                    success+=1
+
+            df.loc[iz, 'x'] = z[0]
+            df.loc[iz, 'y'] = z[1]
+            df.loc[iz, 'r'] = success
+            print('num success', success)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         plt.clf()
         fig, ax = plt.subplots()
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        plt.savefig(f"./{self.global_step}_heatmap.png")
-        wandb.save(f"./{self.global_step}_heatmap.png")
-        success_rate = success/len(goal_array)
-        self.global_success_rate.append(success_rate)
-        self.global_index.append(self.global_step)
-        print('success_rate of current eval', success_rate)
-        
-        
-        
-        
+        plt.savefig(f"./{self.global_step}_heatmap_goal.png")
+        wandb.save(f"./{self.global_step}_heatmap_goal.png")
+  
+
 
 
  
