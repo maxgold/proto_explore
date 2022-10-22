@@ -510,35 +510,35 @@ class DDPGEncoder2Agent:
         # goal = goal.reshape(-1,2).float()
 
          # augment and encode
-         obs = self.aug_and_encode(obs)
-         with torch.no_grad():
-             goal = self.encode(goal)
-             next_obs = self.aug_and_encode(next_obs)
+        obs = self.aug_and_encode(obs)
+        with torch.no_grad():
+            goal = self.encode(goal)
+            next_obs = self.aug_and_encode(next_obs)
 
-         if self.use_tb or self.use_wandb:
-             metrics['batch_reward'] = reward.mean().item()
+        if self.use_tb or self.use_wandb:
+            metrics['batch_reward'] = reward.mean().item()
 
-         # update critic
-         metrics.update(
-             self.update_critic(obs, goal, action, reward, discount, next_obs, step))
+        # update critic
+        metrics.update(
+            self.update_critic(obs, goal, action, reward, discount, next_obs, step))
 
-         # update actor
-         metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
+        # update actor
+        metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
 
-         # update critic target
-         utils.soft_update_params(self.critic, self.critic_target,
-                                  self.critic_target_tau)
-         #update critic
-         #metrics.update(
-             self.update_critic2(obs, action, reward, discount, next_obs, step))
+        # update critic target
+        utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
+        #update critic
+        metrics.update(
+            self.update_critic2(obs, action, reward, discount, next_obs, step))
 
-         # update actor
-         #metrics.update(self.update_actor2(obs.detach(), step))
+        # update actor
+        metrics.update(self.update_actor2(obs.detach(), step))
 
-         # update critic target
-         #utils.soft_update_params(self.critic2, self.critic2_target,
-         #                         self.critic2_target_tau)
-         return metrics
+        # update critic target
+        utils.soft_update_params(self.critic2, self.critic2_target,
+                                 self.critic2_target_tau)
+        return metrics
 
 def get_q_value(self, obs,action):
     Q1, Q2 = self.critic2(torch.tensor(obs).cuda(), torch.tensor(action).cuda())
