@@ -197,11 +197,11 @@ class ProtoAgent(DDPGAgent):
         extr_reward = extr_reward.float()
 
         # augment and encode
-        with torch.no_grad():
-            obs = self.aug(obs)
-            next_obs = self.aug(next_obs)
-            if actor1:
-                goal = self.aug(goal)
+        #with torch.no_grad():
+            #obs = self.aug(obs)
+            #next_obs = self.aug(next_obs)
+         #   if actor1:
+          #      goal = self.aug(goal)
            
         if actor1==False:
 
