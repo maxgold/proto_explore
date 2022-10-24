@@ -504,6 +504,7 @@ class ReplayBuffer(IterableDataset):
         #hybrid where we use hybrid_pct of relabeled gc data in each batch
         #100-hybrid_pct*10 is just original gc data
         key = np.random.randint(0,10)
+        print('sampling hybrid')
         if key > self.hybrid_pct:
             goal = episode["goal"][idx-1]
             if self.pixels and self.goal_proto==False:
@@ -515,7 +516,7 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx + i] * self._discount
 
         elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(250,episode_len(episode))
+            idx = np.random.randint(episode_len(episode)-1)
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]
@@ -528,7 +529,7 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
                 
         elif key <= self.hybrid_pct and self.goal_proto:
-            idx = np.random.randint(250,episode_len(episode))
+            idx = np.random.randint(episode_len(episode)-1)
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx]

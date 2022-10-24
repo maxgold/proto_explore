@@ -66,6 +66,7 @@ reward_euclid: True
 goal_queue_size: 10
 const_init: True
 resample_goal: False
+episode_length: 499
 # experiment
 experiment: exp
 

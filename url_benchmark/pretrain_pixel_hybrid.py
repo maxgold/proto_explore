@@ -170,8 +170,8 @@ class Workspace:
         # create envs
         task = self.cfg.task
         self.no_goal_task = self.cfg.task_no_goal
-        idx = np.random.randint(0,400)
         goal_array = ndim_grid(2,20)
+        idx = np.random.randint(0,goal_array.shape[0])
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]]) 
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=self.first_goal)
@@ -482,7 +482,7 @@ class Workspace:
                 
                 
             df1 = pd.DataFrame()
-            df1['distance'] = dist_goal.reshape((400,))
+            df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
             df1['index'] = df1.index
             df1 = df1.sort_values(by='distance')
             goal_array_ = []
@@ -491,25 +491,26 @@ class Workspace:
             self.distance_goal = goal_array_
             self.goal_loaded=True
             index=self.global_step//1000
-            idx = np.random.randint(max(index-10,0),min(index+30, 400))
+            idx = np.random.randint(max(index-10,0),min(index+30, goal_array.shape[0]))
 
         
         elif self.goal_loaded and init_state is None:
+            goal_array = ndim_grid(2,20)
             if self.global_step<500000:
                 index=self.global_step//1000
-                if index<400:
-                    idx = np.random.randint(max(index-10,0),min(index+30, 400))
+                if index<goal_array.shape[0]:
+                    idx = np.random.randint(max(index-10,0),min(index+30, goal_array.shape[0]))
                 else:
-                    idx = np.random.randint(0,400)
+                    idx = np.random.randint(0,goal_array.shape[0])
             else:
-                idx = np.random.randint(0,400)
+                idx = np.random.randint(0,goal_array.shape[0])
 
         else:
             goal_array = ndim_grid(2,20)
             dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
 
             df1 = pd.DataFrame()
-            df1['distance'] = dist_goal.reshape((400,))
+            df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
             df1['index'] = df1.index
             df1 = df1.sort_values(by='distance')
             goal_array_ = []
@@ -518,12 +519,12 @@ class Workspace:
             self.distance_goal = goal_array_
             if self.global_step<500000:
                 index=self.global_step//2000
-                if index<400:
-                    idx = np.random.randint(max(index-10,0),min(index+30, 400))
+                if index<goal_array.shape[0]:
+                    idx = np.random.randint(max(index-10,0),min(index+30, goal_array.shape[0]))
                 else:
-                    idx = np.random.randint(0,400)
+                    idx = np.random.randint(0,goal_array.shape[0])
             else:
-                idx = np.random.randint(0,400) 		
+                idx = np.random.randint(0,goal_array.shape[0]) 		
         return self.distance_goal[idx]
     
         
@@ -725,8 +726,7 @@ class Workspace:
         metrics = None
         goal_array = ndim_grid(2,20)
         while train_until_step(self.global_step):
-            
-            if (time_step1.last() and time_step2.last()) or episode_step==500:
+            if (time_step1.last() and time_step2.last()) or episode_step==self.cfg.episode_length:
                 print('last')
                 self._global_episode += 1
                 #self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -754,8 +754,8 @@ class Workspace:
                 if self.cfg.obs_type =='pixels':
                     self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
                     self.replay_storage2.add(time_step2, meta,True, last=True)
-                else:
-                    self.replay_storage.add(time_step, meta)
+                #else:
+                #    self.replay_storage.add(time_step, meta)
 
                 #self.train_video_recorder.init(time_step.observation)
                 # try to save snapshot
@@ -768,14 +768,14 @@ class Workspace:
             if eval_every_step(self.global_step) and self.global_step!=0:
                 #print('trying to evaluate')
                 self.eval()
-                plt.clf()
-                fig, ax = plt.subplots()
-                sr, idx = zip(*sorted(zip(self.global_success_rate, self.global_index)))
+                #plt.clf()
+                #fig, ax = plt.subplots()
+                #sr, idx = zip(*sorted(zip(self.global_success_rate, self.global_index)))
 
-                ax.ticklabel_format(style='plain')
-                ax.plot(idx,sr)
-                plt.savefig(f"./{self._global_step}_eval.png")
-                wandb.save("./{self._global_step}_eval.png")
+                #ax.ticklabel_format(style='plain')
+                #ax.plot(idx,sr)
+                #plt.savefig(f"./{self._global_step}_eval.png")
+                #wandb.save("./{self._global_step}_eval.png")
                     #self.eval_intrinsic(model)
                 #else:
                     #self.logger.log('eval_total_time', self.timer.total_time(),
@@ -874,8 +874,11 @@ class Workspace:
             episode_reward += time_step1.reward
             
             
-            if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+            if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
+                self.replay_storage2.add(time_step2, meta, True)
+            elif (self.cfg.obs_type == 'pixels' and time_step1.last()) or (self.cfg.obs_type == 'pixels' and episode_step==self.cfg.episode_length):
+                self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                 self.replay_storage2.add(time_step2, meta, True)
             elif self.cfg.obs_type == 'states':
                 self.replay_storage1.add_goal(time_step1, meta, goal)
@@ -884,17 +887,20 @@ class Workspace:
             
             episode_step += 1
             
-            if episode_reward > 100 and self.cfg.resample_goal:
+            if episode_reward > 100 and self.cfg.resample_goal and time_step1.last()==False and episode_step<(self.cfg.episode_length-50):
                 print('reached making new env')
                 episode_reward=0
                 current_state = time_step1.observation['observations'][:2]
+
+                self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+                self.replay_storage2.add(time_step2,meta,True, last=True)
 
                 if self.cfg.curriculum:
                     goal_=self.sample_goal_distance(current_state)
                     goal_state = np.array([goal_[0], goal_[1]])
                 else:
-                    idx = np.random.randint(0,400)
                     goal_array = ndim_grid(2,20)
+                    idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
@@ -917,10 +923,12 @@ class Workspace:
 
                 time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
 
-                if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
                     self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
                     self.replay_storage2.add(time_step2,meta,True)
-
+                elif (self.cfg.obs_type == 'pixels' and time_step1.last()) or (self.cfg.obs_type == 'pixels' and episode_step==self.cfg.episode_length):
+                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+                    self.replay_storage2.add(time_step2,meta,True)
 
             if not seed_until_step(self.global_step):
                 
