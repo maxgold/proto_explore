@@ -43,7 +43,8 @@ class Projector(nn.Module):
 
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
+                 num_iterations, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -55,7 +56,10 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.offline = offline
         self.gc_only = gc_only
         #self.load_protos = load_protos
-        
+        self.num_iterations = num_iterations
+        print('tau', tau)
+        print('it', num_iterations)
+
         # models
         #if self.gc_only==False:
         self.encoder_target = deepcopy(self.encoder)

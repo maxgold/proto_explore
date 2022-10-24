@@ -53,6 +53,7 @@ models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/models/2022.10.20/
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
     tmp_agent_name = m.split('/')[-2].split('_')
+    print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
     paths = glob.glob(m+'*00000.pth')
     for path in paths:
@@ -632,6 +633,10 @@ for m in models:
 #gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 #
 #imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 0a348c280638c28e0aa650817b5deaf9670a74f6
 
 
 
