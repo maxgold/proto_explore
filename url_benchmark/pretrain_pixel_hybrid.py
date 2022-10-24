@@ -815,13 +815,13 @@ class Workspace:
 
                     
                 else:
-                    goal_array = ndim_grid(2,20)
-                    idx = self.count
-                    print('count', self.count)
-                    self.count += 1
-                    if self.count == len(goal_array):
-                        self.count = 0
-                    goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+                    if self.global_step<100000:
+                        init_state = np.random.uniform(.02,.29,(2,))
+                        goal_state = np.array([-init_state[0], init_state[1]])
+                    else:
+                        goal_array = ndim_grid(2,20)
+                        idx = np.random.randint(0, goal_array.shape[0])
+                        goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                 if self.cfg.const_init==False and self.global_step%5000!=0:
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
