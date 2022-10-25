@@ -699,17 +699,17 @@ class ReplayBuffer(IterableDataset):
             for i in range(self._nstep):
                 obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
                 dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
-                
-                else:
-                    if dist > -.05:
-                        reward=dist+1
-                        print(reward)
-                    else:
-                        reward=0
-                    
-                step_reward = reward*2
-                reward += discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount
+                #
+                #else:
+                #    if dist > -.05:
+                #        reward=dist+1
+                #        print(reward)
+                #    else:
+                #        reward=0
+                #    
+                #step_reward = reward*2
+                #reward += discount * step_reward
+                #discount *= episode["discount"][idx+i] * self._discount
             
         else:
             print('sth went wrong in replay buffer')
@@ -848,7 +848,7 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
 
-    def _load(self, relabel=True):
+    def _load(self, relabel=False):
         print("Labeling data...")
         try:
             worker_id = torch.utils.data.get_worker_info().id
