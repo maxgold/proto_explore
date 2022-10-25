@@ -201,8 +201,8 @@ class Workspace:
         # create envs
         #task = PRIMAL_TASKS[self.cfg.domain]
         self.no_goal_task = 'point_mass_maze_reach_no_goal'
-        idx = np.random.randint(0,100)
-        goal_array = ndim_grid(2,10)
+        goal_array = ndim_grid(2,20)
+        idx = np.random.randint(0,goal_array.shape[0])
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=self.first_goal)
@@ -221,7 +221,7 @@ class Workspace:
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
-        self.goal_array = ndim_grid(2,10)
+        self.goal_array = ndim_grid(2,20)
         lst =[]
         for ix,x in enumerate(self.goal_array):
             print(x[0])
@@ -385,7 +385,6 @@ class Workspace:
         self.goal_loaded = False
         self.distance_goal = []
         self.count=0
-        self.global_success_rate = []
         self.global_index=[]
         self.storage1=False
         self.proto_goal = []
@@ -586,7 +585,7 @@ class Workspace:
 
         if init_state is None and self.goal_loaded==False:
 
-            goal_array = ndim_grid(2,10)
+            goal_array = ndim_grid(2,20)
             
             if init_state_idx is None:
                 if init_state is None:
@@ -595,7 +594,7 @@ class Workspace:
                     dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
                 
                 df1=pd.DataFrame()
-                df1['distance'] = dist_goal.reshape((100,))
+                df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
                 df1['index'] = df1.index
                 df1 = df1.sort_values(by='distance')
                 goal_array_ = []
@@ -604,7 +603,7 @@ class Workspace:
                 self.distance_goal = goal_array_
                 self.goal_loaded=True
                 index=self.global_step//1000
-                idx = np.random.randint(index,min(index+10, 100))
+                idx = np.random.randint(index,min(index+10, goal_array.shape[0]))
             else:
                 dist_goal0 = cdist(np.array([[.15,.15]]), goal_array, 'euclidean')
                 dist_goal1 = cdist(np.array([[.15,-.15]]), goal_array, 'euclidean')
@@ -613,7 +612,7 @@ class Workspace:
 
                 for ix,i in enumerate([dist_goal0,dist_goal1,dist_goal2,dist_goal3]):
                     df1=pd.DataFrame()
-                    df1['distance'] = i.reshape((100,))
+                    df1['distance'] = i.reshape((goal_array.shape[0],))
                     df1['index'] = df1.index
                     df1 = df1.sort_values(by='distance')
                     goal_array_ = []
@@ -621,49 +620,40 @@ class Workspace:
                         goal_array_.append(goal_array[df1.iloc[x,1]])
                     self.distance_goal_dict[ix] = goal_array_
                 self.goal_loaded=True
-                index=self.global_step//5000
-                if max(index-3,0) +1< min(index+5, 100):
-                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                index=self.global_step//1250
+                if max(index-3,0) +1< min(index+5, goal_array.shape[0]):
+                    idx = np.random.randint(max(index-3,0),min(index+5, goal_array.shape[0]))
                 else:
-                    idx = np.random.randint(0,min(index+5, 100))
+                    idx = np.random.randint(0,min(index+5, goal_array.shape[0]))
 
         
         if init_state is None and self.goal_loaded:
             if self.global_step<500000:
-                index=self.global_step//10000
-                if max(index-3,0) +1< min(index+5, 100):
-                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                index=self.global_step//2000
+                if index<400:
+                    idx = np.random.randint(max(index-10,0),min(index+30, 400))
                 else:
-                    idx = np.random.randint(0,min(index+5, 100))
+                    idx = np.random.randint(0,400)
             else:
-                index=(self.global_step-500000)//10000
-                if max(index-3,0) +1< min(index+5, 100):
-                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
-                else:
-                    idx = np.random.randint(0,min(index+5, 100)) 
+                idx = np.random.randint(0,400)  
             return self.distance_goal[idx]
         
         elif init_state is not None:
             
-            goal_array = ndim_grid(2,10)
-            
+            goal_array = ndim_grid(2,20)
             if self.global_step<500000:
-                index=self.global_step//10000
-                if max(index-3,0) +1< min(index+5, 100):
-                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
+                index=self.global_step//1000
+                if index<400:
+                    idx = np.random.randint(index,min(index+30, 400))
                 else:
-                    idx = np.random.randint(0,min(index+5, 100))
+                    idx = np.random.randint(0,400)
             else:
-                index=(self.global_step-500000)//10000
-                if max(index-3,0) +1< min(index+5, 100):
-                    idx = np.random.randint(max(index-3,0),min(index+5, 100))
-                else:
-                    idx = np.random.randint(0,min(index+5, 100))
+                idx = np.random.randint(0,400)  
  	
             dist_goal = cdist(np.array([[init_state[0],init_state[1]]]), goal_array, 'euclidean')
 
             df1=pd.DataFrame()
-            df1['distance'] = dist_goal.reshape((100,))
+            df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
             df1['index'] = df1.index
             df1 = df1.sort_values(by='distance')
             goal_array_ = []
@@ -742,7 +732,7 @@ class Workspace:
         for iz, z in enumerate(goal_array):
             dist_goal = cdist(np.array([z]), goal_array, 'euclidean')
             df1=pd.DataFrame()
-            df1['distance'] = dist_goal.reshape((100,))
+            df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
             df1['index'] = df1.index
             df1 = df1.sort_values(by='distance')
             goal_array_ = []
@@ -799,12 +789,9 @@ class Workspace:
                         self.video_recorder.save(f'{self.global_frame}_{iz}.mp4')
 
                     if self.cfg.eval:
-                        print('saving')
                         save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
 
                     else:
-                        print('saving')
-                        print(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step))
                         save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
             
                 if total_reward > 20*self.cfg.num_eval_episodes:
@@ -821,16 +808,6 @@ class Workspace:
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
         plt.savefig(f"./{self.global_step}_heatmap_goal.png")
         wandb.save(f"./{self.global_step}_heatmap_goal.png")
-        #success_rate = success/len(goal_array)
-        #self.global_success_rate.append(success_rate)
-        #self.global_index.append(self.global_step)
-        #print('success_rate of current eval', success_rate)
-        
-        
-        
-        
-
-
  
     def train(self):
         # predicates
@@ -865,7 +842,7 @@ class Workspace:
 
         #self.train_video_recorder.init(time_step.observation)
         metrics = None
-        goal_array = ndim_grid(2,10)
+        goal_array = ndim_grid(2,20)
         while train_until_step(self.global_step):
             #self.train_video_recorder.init(self.train_env_goal, enabled=(episode_step == 0))
 
@@ -925,25 +902,20 @@ class Workspace:
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     #print('trying to evaluate')
                     self.eval()
-                    plt.clf()
-                    fig, ax = plt.subplots()
-                    sr, idx = zip(*sorted(zip(self.global_success_rate, self.global_index)))
-
-                    ax.ticklabel_format(style='plain')
-                    ax.plot(idx,sr)
-                    plt.savefig(f"./{self._global_step}_eval.png")
-                    wandb.save("./{self._global_step}_eval.png")
 
                 if (episode_step== 0 and self.global_step!=0):
+                    
                     self.recorded=False
+                    
                     if self.cfg.curriculum==False:
-                        goal_array = ndim_grid(2,10)
-                        idx = self.count
-                        print('count', self.count)
-                        self.count += 1
-                        if self.count == len(goal_array):
-                            self.count = 0
-                        goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
+                        if self.global_step<100000:
+                            init_state = np.random.uniform(.02,.29,(2,))
+                            goal_state = np.array([-init_state[0], init_state[1]])
+                        
+                        else:
+                            goal_array = ndim_grid(2,20)
+                            idx = np.random.randint(0, goal_array.shape[0])
+                            goal_state = np.array([goal_array[idx][0], goal_array[idx][1]]) 
                     
                     if self.cfg.const_init==False:
                         #initiation = np.array([[1,1],[1,-1],[-1,1],[-1,-1]])
@@ -968,8 +940,8 @@ class Workspace:
                             if self.goal_array.shape[0]>10:
                                 if self.global_step%5000==0:
                                     ix = np.random.uniform(.02,.29,(2,))
-                                    sign = np.array([[1,1],[1,-1],[-1,-1]])
-                                    rand = np.random.randint(3)
+                                    sign = np.array([[-1,1],[1,1],[1,-1],[-1,-1]])
+                                    rand = np.random.randint(4)
                                     goal_state = np.array([ix[0]*sign[rand][0], ix[1]*sign[rand][1]])
                                 else:
                                     idx = np.random.randint(self.goal_queue.shape[0])
@@ -978,7 +950,7 @@ class Workspace:
                                 
                                 if self.reload_goal ==False:
                                     self.replay_iterable.hybrid=False
-                                    self.reload_goal_array = ndim_grid(2,10)
+                                    self.reload_goal_array = ndim_grid(2,20)
                                     lst =[]
                                     for ix,x in enumerate(self.reload_goal_array):
                                         print(x[0])
@@ -1115,8 +1087,8 @@ class Workspace:
                             idx = np.random.randint(self.goal_queue.shape[0])
                         goal_state = np.array([self.goal_queue[idx][0], self.goal_queue[idx][1]])
                     else:
-                        idx = np.random.randint(0,100)
-                        goal_array = ndim_grid(2,10)
+                        goal_array = ndim_grid(2,20)
+                        idx = np.random.randint(0,goal_array.shape[0])
                         goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
