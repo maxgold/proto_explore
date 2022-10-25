@@ -42,7 +42,7 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/232220_proto_encoder1/', '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/2022.10.18/231653_proto_encoder1/', '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.18/2022.10.18/232252_proto_encoder1/']
+models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.18/232252_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181717_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181638_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231802_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231631_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231602_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
@@ -53,15 +53,17 @@ models = ['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/20
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
     tmp_agent_name = m.split('/')[-2].split('_')
+    print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
-    paths = glob.glob(m+'*pth')
+    paths = glob.glob(m+'*00000.pth')
     for path in paths:
         model_step = path.split('_')[-1].split('.')[0]
         print('model', m)
         print('model step', model_step)
         if model_step=='0':
             continue
-        agent  = torch.load(path)
+        print(path)
+        agent  = torch.load(path,map_location='cuda')
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
@@ -74,7 +76,7 @@ for m in models:
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 replay_dir,
-                                                500000,
+                                                100000,
                                                 0,
                                                 0,
                                                 .99,
@@ -114,8 +116,7 @@ for m in models:
                 encoded.append(z)
                 z = agent.predictor(z)
                 z = agent.projector(z)
-                z = F.normalize(z, dim=1, p=2)
-                
+                z = F.normalize(z, dim=1, p=2) 
                 proto_t[ix]=z.cpu().numpy()
 
         
@@ -622,6 +623,16 @@ for m in models:
 
             imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
+#if len(filenames)>100:
+#    filenames=filenames[:100]
+#with imageio.get_writer(os.path.join('./knn_output/',names[index_]), mode='I') as writer:
+#    for file in filenames:
+#        image = imageio.imread(file)
+#        writer.append_data(image)
+#
+#gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
+#
+#imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
 
 
 

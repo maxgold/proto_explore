@@ -14,13 +14,17 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32 * 35 * 35
-
+        self.repr_dim = 32*9*9
+        #self.repr_dim = 32 * 35 * 35
         self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU())
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(32, 32, 3, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2)) 
+        #self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
+        #                             nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+        #                             nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+        #                             nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+        #                             nn.ReLU())
 
         self.apply(utils.weight_init)
 
@@ -244,6 +248,8 @@ class DDPGGoalGCAgent:
         self.pred_dim=pred_dim2
         self.feature_dim = feature_dim
         self.solved_meta = None
+        print('feature dim', feature_dim)
+        print('hidden_dim', hidden_dim)
         # models
         if self.obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)

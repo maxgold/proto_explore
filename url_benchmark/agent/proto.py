@@ -12,7 +12,7 @@ from agent.ddpg import DDPGAgent
 
 
 @jit.script
-def sinkhorn_knopp(Q):
+def sinkhorn_knopp(Q, num):
     Q -= Q.max()
     Q = torch.exp(Q).T
     Q /= Q.sum()
@@ -43,7 +43,8 @@ class Projector(nn.Module):
 
 class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
+                 num_iterations, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -54,6 +55,7 @@ class ProtoAgent(DDPGAgent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
+        self.num_iterations = num_iterations
         #self.load_protos = load_protos
 
         # models
@@ -172,7 +174,7 @@ class ProtoAgent(DDPGAgent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
-            q_t = sinkhorn_knopp(scores_t / self.tau)
+            q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
         if step%1000==0:
             print(torch.argmax(q_t, dim=1).unique(return_counts=True))
         # loss
