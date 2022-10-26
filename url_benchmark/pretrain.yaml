@@ -88,8 +88,8 @@ feature_dim: 50
 num_iterations: 3
 tau: .1
 sl: False
-proj_dim: 512
 asym: False
+goal_num: 20
 # experiment
 experiment: exp
 
