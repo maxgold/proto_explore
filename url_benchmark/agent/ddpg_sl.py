@@ -405,13 +405,13 @@ class DDPGSLAgent:
             metrics['critic_loss'] = critic_loss.item()
         
         # optimize critic
-#         if self.encoder_opt is not None:
-#             self.encoder_opt.zero_grad(set_to_none=True)
+        # if self.encoder_opt is not None:
+        #self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
 #         if self.encoder_opt is not None:
-#             self.encoder_opt.step()
+        #self.encoder_opt.step()
         return metrics
 
     def update_critic2(self, obs, action, reward, discount, next_obs, step):

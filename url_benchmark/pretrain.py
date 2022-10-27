@@ -2,7 +2,7 @@ import scipy
 import warnings
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
+import pandas as pd
 import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
@@ -37,7 +37,7 @@ import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import io
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, batch_size=256, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -45,12 +45,14 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.goal_shape = goal_shape
     cfg.lr = lr
     cfg.hidden_dim = hidden_dim
-    cfg.batch_size = batch_size
     cfg.num_protos=num_protos
+    cfg.tau = tau
+
     if cfg.name.startswith('proto'):
         cfg.update_gc=update_gc
-    cfg.gc_only=gc_only
     cfg.offline=offline
+    cfg.gc_only=gc_only
+    cfg.batch_size = batch_size
     cfg.tau = tau
     cfg.num_iterations = num_iterations
     cfg.feature_dim = feature_dim
@@ -99,7 +101,6 @@ class Workspace:
                                 cfg.agent,
                                 cfg.lr,
                                 cfg.hidden_dim,
-                                cfg.batch_size,
                                 cfg.num_protos,
                                 cfg.update_gc,
                                 False,
@@ -108,7 +109,8 @@ class Workspace:
                                 cfg.num_iterations,
                                 cfg.feature_dim,
                                 cfg.pred_dim,
-                                cfg.proj_dim)
+                                cfg.proj_dim,
+                                batch_size=cfg.batch_size)
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -187,7 +189,10 @@ class Workspace:
         state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
         state = state.reshape((state.shape[0],4))
         print(state.shape)
-        num_sample=10000
+        if self.global_step<=10000:
+            num_sample=self.global_step//2
+        else:
+            num_sample=10000
         state_t = np.empty((num_sample,4))
         proto_t = np.empty((num_sample,protos.shape[1]))
 
@@ -651,7 +656,7 @@ class Workspace:
             if eval_every_step(self.global_step) and self.global_step!=0:
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
-                self.eval()
+                self.eval_proto()
             
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             # sample action

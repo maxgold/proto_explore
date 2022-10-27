@@ -184,8 +184,6 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
         weight=torch.as_tensor(weight, device=self.device)
         #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
         q_t = q_t*weight 
-        
-	# loss
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
