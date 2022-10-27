@@ -42,7 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.18/232252_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181717_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181638_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231802_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231631_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231602_proto_encoder1/']
+models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151446_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151431_proto_encoder1/']
+
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
@@ -56,6 +57,7 @@ for m in models:
     print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
     paths = glob.glob(m+'*00000.pth')
+    print(paths)
     for path in paths:
         model_step = path.split('_')[-1].split('.')[0]
         print('model', m)
