@@ -175,6 +175,16 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
             q_t = sinkhorn_knopp(scores_t / self.tau)
 
         # loss
+        #reweight
+        target = q_t.argmax(dim=1)
+        histogram=np.bincount(target.detach().cpu().numpy(), minlength=16).astype(np.float32)
+        inv_histogram=(1./(histogram))**.5
+        inv_histogram[inv_histogram==inf]=0 
+        weight = inv_histogram/inv_histogram.sum()
+        weight=torch.as_tensor(weight, device=self.device)
+        #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
+        q_t = q_t*weight
+ 
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()

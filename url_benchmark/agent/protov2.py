@@ -336,7 +336,7 @@ class ProtoV2Agent(DDPGAgent):
         #B[torch.unique(target, return_counts=True)[0]] = torch.unique(target, return_counts=True)[1].float()
         #samples_weight=1/B
         #samples_weight[samples_weight==float('inf')]=0
-        #import IPython as ipy; ipy.embed(colors='neutral')       
+        import IPython as ipy; ipy.embed(colors='neutral')       
         histogram=np.bincount(target.detach().cpu().numpy(), minlength=16).astype(np.float32)
         inv_histogram=(1./(histogram+1e-10))**.5
         weight = inv_histogram/inv_histogram.sum()
