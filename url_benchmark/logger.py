@@ -192,14 +192,9 @@ def save(file_name, records):
         csv_file = open(file_name,'a')
         csvWriter = csv.writer(csv_file,delimiter=',')
         if os.stat(file_name).st_size ==0:
-            print('writing header')
             csvWriter.writerow(['goal',"episode_reward", "final_obs", "episode_length"])
             for record in records:
                 csvWriter.writerows([record])
-                print(record)
-                print("header and  record saved to ",file_name)
         else:
             for record in records:
                 csvWriter.writerows([record])
-                print(record)                        
-                print(" record saved to ",file_name)
