@@ -51,8 +51,6 @@ def act(obs, goal, step, eval_mode):
         #g = encoder.encoder(goal)
         inputs = [obs]
         inputs2 = goal
-        print(inputs[0].shape)
-        print(inputs2.shape)
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
         if ac:
@@ -162,7 +160,7 @@ for m in models:
 #         plt.savefig(f"./knn_output/singular_value_{model}_{model_step}.png")
            
         
-        num_sample=1000
+        num_sample=500
         idx = np.random.randint(0, state.shape[0], size=num_sample)
         state=state[idx]
         state=state.reshape(num_sample,4)
@@ -271,6 +269,7 @@ for m in models:
         act_encoded = []
         critic_encoded = []
         actions = []
+        actual_goal_lst = []
 
         for x in idx:
             fn = eps[x]
@@ -282,6 +281,7 @@ for m in models:
                 obs = ep['observation'][idx_]
                 goal = ep['goal'][idx_]
                 goal = np.tile(goal, (3,1,1))
+                actual_goal_lst.append(ep['goal_state'][idx_][None,:])
                 obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
                 goal = torch.as_tensor(goal.copy(), device=torch.device('cuda')).unsqueeze(0)
                 z = encoder.encoder(obs)
@@ -291,6 +291,8 @@ for m in models:
 
         actual_obs = torch.cat(actual_obs,axis=0)
         actual_goal = torch.cat(actual_goal,axis=0)
+        actual_goal_lst = np.concatenate(actual_goal_lst, axis=0)
+        print('catual goal',actual_goal_lst.shape)
         
         obs_goal_actual = torch.cat([actual_obs, actual_goal], dim=-1)
         
@@ -333,9 +335,10 @@ for m in models:
         dist_matrices = [_actor, _critic, _action]
         names = [f"{model}_{model_step}_actor.gif", f"{model}_{model_step}_critic.gif", f"{model}_{model_step}_actions.gif"]
         final = np.concatenate([a, goal_lst], axis=1)
+        #import IPython as ipy; ipy.embed(colors='neutral')
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
-            for ix, x in enumerate(goal_lst):
+            for ix in range(num_sample):
                 print('encoded',ix)
                 txt=''
                 df = pd.DataFrame()
@@ -343,16 +346,31 @@ for m in models:
                 for iz, z in enumerate(dist_matrix[ix,:]):
                     
                     if iz ==0:
-                        df.loc[iz, 'x'] = final[z,0]
-                        df.loc[iz, 'y'] = final[z,1]
-                        df.loc[iz, 'c'] = 'orange'
-                        df.loc[dist_matrix[ix,:].shape[0], 'x'] = final[z,4]
-                        df.loc[dist_matrix[ix,:].shape[0], 'y'] = final[z,5]
-                        df.loc[dist_matrix[ix,:].shape[0], 'c'] = 'red'
-                    else:                   
+                        
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'x'] = a[ix,0]
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'y'] = a[ix,1]
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'c'] = 'orange'
+                        
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'x'] = actual_goal_lst[ix,0]
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'y'] = actual_goal_lst[ix,1]
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'c'] = 'red'
+                        
                         df.loc[iz, 'x'] = final[z,0]
                         df.loc[iz, 'y'] = final[z,1]
                         df.loc[iz, 'c'] = 'blue'
+                        
+                        df.loc[dist_matrix[ix,:].shape[0], 'x'] = final[z,4]
+                        df.loc[dist_matrix[ix,:].shape[0], 'y'] = final[z,5]
+                        df.loc[dist_matrix[ix,:].shape[0], 'c'] = 'green'
+                        
+                        txt += ' ['+str(np.round(a[ix,0],2))+','+str(np.round(a[ix,1],2))+'] '
+                        txt += ' goal: ['+str(np.round(actual_goal_lst[ix,0],4))+','+str(np.round(actual_goal_lst[ix,1],2))+'] '
+                    else:                   
+                        
+                        df.loc[iz, 'x'] = final[z,0]
+                        df.loc[iz, 'y'] = final[z,1]
+                        df.loc[iz, 'c'] = 'blue'
+                        
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'x'] = final[z,4]
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'y'] = final[z,5]
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'c'] = 'green'
@@ -366,10 +384,12 @@ for m in models:
                                     'red' : 'tab:red'
                                 }
                 
+            
                 ax=sns.scatterplot(x="x", y="y",
                           hue="c", palette=palette,
-                          data=df,legend=False, alpha=.3)
-#                 ax.set_title("\n".join(wrap(txt,75)))
+                          data=df,legend=False)
+                ax.set_title("\n".join(wrap(txt,75)))
+                
                 if index_==0:
                     file1= f"./gc_knn_output/actor_{ix}_model{model}_{model_step}.png"
                 elif index_==1:
