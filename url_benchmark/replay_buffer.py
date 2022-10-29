@@ -794,7 +794,7 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
 
-    def _load(self, relabel=True):
+    def _load(self, relabel=False):
         print("Labeling data...")
         try:
             worker_id = torch.utils.data.get_worker_info().id
