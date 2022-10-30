@@ -144,7 +144,7 @@ class ProtoAgent(DDPGAgent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-
+        print('reward', dist)
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')

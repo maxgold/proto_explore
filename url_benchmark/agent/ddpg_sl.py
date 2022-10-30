@@ -29,6 +29,7 @@ class Encoder(nn.Module):
                                     nn.Flatten(),nn.Linear(3136, 512), nn.ReLU(),
                                     nn.Linear(512, feature_dim))
 
+        self.fc1 = nn.Linear(feature_dim, 4)
         self.apply(utils.weight_init)
 
     def forward(self, obs):
@@ -493,6 +494,8 @@ class DDPGSLAgent:
 
     def update_encoder(self, obs, obs_state, goal, goal_state, step):
         metrics = dict() 
+        obs=self.encoder.fc1(obs)
+        goal=self.encoder.fc1(goal)
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
         if self.use_tb or self.use_wandb:
