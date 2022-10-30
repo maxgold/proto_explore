@@ -71,7 +71,7 @@ class Actor(nn.Module):
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
-        
+        import IPython as ipy; ipy.embed(colors='neutral') 
         return dist
 
 

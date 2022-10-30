@@ -36,20 +36,12 @@ from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_b
 import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 import io
-<<<<<<< HEAD
-
-=======
 import itertools
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
 
 torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-<<<<<<< HEAD
-models = ['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.10.20/223033_proto/']
-
-=======
 models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.16/191115_proto_encoder1/']
 
 def act(obs, goal, step, eval_mode):
@@ -59,54 +51,49 @@ def act(obs, goal, step, eval_mode):
         #g = encoder.encoder(goal)
         inputs = [obs]
         inputs2 = goal
-        print(inputs[0].shape)
-        print(inputs2.shape)
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
-        dist = actor(inpt, inputs2, .2)
+        if ac:
+            dist = actor(inpt, inputs2, .2)
+        else:
+            dist = agent.actor(inpt, inputs2, .2)
         action = dist.mean
 
         return action
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
 
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
     tmp_agent_name = m.split('/')[-2].split('_')
     print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
-<<<<<<< HEAD
-    paths = glob.glob(m+'op*1000000.pth')
-    for path in paths:
-        model_step = path.split('_')[-1].split('.')[0]
-=======
-    actor = glob.glob(m+'a*000000.pth')
-    print(actor)
-    critic = glob.glob(m+'c*000000.pth')
-    res = list(list(x) for x in zip(actor, critic))
-    print(res)
-    for i, path in enumerate(res):
-        model_step = actor[i].split('_')[-1].split('.')[0]
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
+    agents = glob.glob(m+'o*000000.pth')
+    if len(agents)==0:
+        ac=True
+        actor = glob.glob(m+'a*000000.pth')
+        print(actor)
+        critic = glob.glob(m+'c*000000.pth')
+        agents = list(list(x) for x in zip(actor, critic))
+    else:
+        ac=False
+    for i, path in enumerate(agents):
+        if ac:
+            model_step = actor[i].split('_')[-1].split('.')[0]
+        else:
+            model_step = path.split('_')[-1].split('.')[0]
         print('model', m)
         print('model step', model_step)
         if model_step=='0':
             continue
         print(path)
-<<<<<<< HEAD
-        agent  = torch.load(path,map_location='cuda')
-        meta = agent.init_meta() 
+        if ac:
+            actor  = torch.load(path[0],map_location='cuda')
+            critic = torch.load(path[1],map_location='cuda')
+            encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+        else:
+            agent  = torch.load(path,map_location='cuda')
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
-        protos = agent.protos.weight.data.detach().clone()
-=======
-        actor  = torch.load(path[0],map_location='cuda')
-        critic = torch.load(path[1],map_location='cuda')
-        encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
-        eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
-        env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
-        
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
         
         if model == '2022.09.09_072830_proto':
             replay_dir = Path(m+'buffer2/buffer_copy/')
@@ -173,7 +160,7 @@ for m in models:
 #         plt.savefig(f"./knn_output/singular_value_{model}_{model_step}.png")
            
         
-        num_sample=10
+        num_sample=500
         idx = np.random.randint(0, state.shape[0], size=num_sample)
         state=state[idx]
         state=state.reshape(num_sample,4)
@@ -213,10 +200,6 @@ for m in models:
         for ix,x in enumerate(goal_array):
             if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
                 lst.append(ix)
-<<<<<<< HEAD
-
-=======
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
         
         goal_array=np.delete(goal_array, lst,0)
         emp = np.zeros((goal_array.shape[0],2))
@@ -246,73 +229,47 @@ for m in models:
         proto_no_v = []
         #no velocity goals 
         actual_proto_no_v = []
-<<<<<<< HEAD
-        goal_array = ndim_grid(2,20)[:10]
-=======
         goal_array = ndim_grid(2,10)
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
         for ix,x in enumerate(goal_array):
             if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
                 lst.append(ix)
         goal_array=np.delete(goal_array, lst,0)
 
         lst_proto = []
-        goal_array_no_v=[]
-<<<<<<< HEAD
-        for x in goal_array:
-=======
         goal_lst = []
         for x in goal_array:
             
             goal_lst.append(np.tile(x[None,:], (num_sample,1)))
 
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
             with torch.no_grad():
                 with eval_env_goal.physics.reset_context():
                     time_step_init = eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item(),0,0]))
 
                 time_step_init = eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-<<<<<<< HEAD
-                #time_step_init = np.transpose(time_step_init, (2,0,1))
-                #time_step_init = np.tile(time_step_init, (3,1,1))
-
-                obs = time_step_init
-                goal_array_no_v.append(np.tile(x, (num_sample,1)))
-                #obs = np.transpose(obs, (2,0,1))
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
-                z = agent.encoder(obs)
-=======
                 time_step_init = np.transpose(time_step_init, (2,0,1))
                 time_step_init = np.tile(time_step_init, (3,1,1))
                 obs = torch.as_tensor(time_step_init, device=torch.device('cuda')).unsqueeze(0)
-                goal_array_no_v.append(obs.tile(num_sample,1,1,1))
                 
             
                 z = encoder.encoder(obs)
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
                 encoded_no_v.append(z.tile((num_sample,1)))
                 #x = torch.as_tensor(obs, device=torch.device('cuda'))
                 
         print('ndim_grid no velocity: therere {} unique prototypes that are neighbors to {} datapoints'.format(len(set(lst_proto)), goal_array.shape[0]))
 
         encoded_no_v = torch.cat(encoded_no_v,axis=0)
-<<<<<<< HEAD
-        goal_array_no_v = np.concatenate(goal_array_no_v,axis=0)
-=======
-        goal_array_no_v = torch.cat(goal_array_no_v,axis=0)
         goal_lst = np.concatenate(goal_lst)
         print(encoded_no_v.shape)
-        print(goal_array_no_v.shape)
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
 
-        pixels = []
-        encoded = []
-        proto = []
+
+        actual_obs = []
+        actual_goal = []
         actual_proto = []
         lst_proto = []
         act_encoded = []
         critic_encoded = []
         actions = []
+        actual_goal_lst = []
 
         for x in idx:
             fn = eps[x]
@@ -322,74 +279,66 @@ for m in models:
 
             with torch.no_grad():
                 obs = ep['observation'][idx_]
+                goal = ep['goal'][idx_]
+                goal = np.tile(goal, (3,1,1))
+                actual_goal_lst.append(ep['goal_state'][idx_][None,:])
                 obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
-                pixels.append(obs)
-<<<<<<< HEAD
-                z = agent.encoder(obs)
-                encoded.append(z)
-
-        encoded = torch.cat(encoded,axis=0)
-        encoded = encoded.tile((num_sample,1))
-        a = np.tile(state, (num_sample,1))
-        pixels = torch.cat(pixels,axis=0)
-        
-        obs_goal = torch.cat([encoded, encoded_no_v], dim=-1)
-        z = agent.actor.trunk(obs_goal)
-        h = agent.critic.trunk(obs_goal)
-        action = agent.act(encoded,  goal_array_no_v, meta=None, step=0, eval_mode=True)
-        
-=======
+                goal = torch.as_tensor(goal.copy(), device=torch.device('cuda')).unsqueeze(0)
                 z = encoder.encoder(obs)
-                encoded.append(z)
+                g = encoder.encoder(goal)
+                actual_obs.append(z)
+                actual_goal.append(g)
 
-        encoded = torch.cat(encoded,axis=0)
-        encoded = encoded.tile((goal_array.shape[0],1))
-        a = np.tile(state, (goal_array.shape[0],1))
-        print(encoded.shape)
-        pixels = torch.cat(pixels,axis=0)
+        actual_obs = torch.cat(actual_obs,axis=0)
+        actual_goal = torch.cat(actual_goal,axis=0)
+        actual_goal_lst = np.concatenate(actual_goal_lst, axis=0)
+        print('catual goal',actual_goal_lst.shape)
         
-        obs_goal = torch.cat([encoded, encoded_no_v], dim=-1)
-        z = actor.trunk(obs_goal)
-        h = critic.trunk(obs_goal)
+        obs_goal_actual = torch.cat([actual_obs, actual_goal], dim=-1)
+        
+        actual_obs_ = actual_obs.clone() 
+        actual_obs = actual_obs.tile((goal_array.shape[0],1))
+        obs_goal = torch.cat([actual_obs, encoded_no_v], dim=-1)
+        a = np.tile(state, (goal_array.shape[0],1))
+        
+        obs_goal = torch.cat([actual_obs, encoded_no_v], dim=-1)
+
+        if ac:
+            z = actor.trunk(obs_goal)
+            h = critic.trunk(obs_goal)
+
+            z_actual = actor.trunk(obs_goal_actual)
+            h_actual = critic.trunk(obs_goal_actual)
+        else:
+            z = agent.actor.trunk(obs_goal)
+            h = agent.critic.trunk(obs_goal)
+
+            z_actual = agent.actor.trunk(obs_goal_actual)
+            h_actual = agent.critic.trunk(obs_goal_actual)
         
         #for ind in range(encoded.shape[0]):
+        action = act(actual_obs, encoded_no_v, step=0, eval_mode=True)
+        action_actual = act(actual_obs_, actual_goal, step=0, eval_mode=True)
 
-        action = act(encoded,  encoded_no_v, step=0, eval_mode=True)
-        action = torch.as_tensor(action, device='cuda')
-
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
-        actor_dist = torch.norm(z[:,None,:]  - z[None,:,:], dim=2, p=2)
+        actor_dist = torch.norm(z_actual[:,None,:]  - z[None,:,:], dim=2, p=2)
         all_dists_actor, _actor = torch.topk(actor_dist, 10, dim=1, largest=False)
         
-        critic_dist = torch.norm(h[:,None,:]  - h[None,:,:], dim=2, p=2)
+        critic_dist = torch.norm(h_actual[:,None,:]  - h[None,:,:], dim=2, p=2)
         all_dists_critic, _critic = torch.topk(critic_dist, 10, dim=1, largest=False)
         
-<<<<<<< HEAD
-        action_dist = torch.norm(action[:,None,:]  - action[None,:,:], dim=2, p=2)
-        all_dists_action, _action = torch.topk(action_dist, 10, dim=1, largest=False)
-        
-        dist_matrices = [_actor, _critic, _action]
-        names = [f"{model}_{model_step}_actor.gif", f"{model}_{model_step}_critic.gif", f"{model}_{model_step}_actions.gif"]
-
-        goal_array_no_v = torch.as_tensor(goal_array_no_v,device=torch.device('cuda')) 
-        final = torch.cat([a, goal_array_no_v], dim=-1)
-        for index_, dist_matrix in enumerate(dist_matrices):
-            filenames=[]
-            for ix, x in enumerate(goal_array_no_v):
-=======
         print(action.shape)
         #import IPython as ipy; ipy.embed(colors='neutral')
-        action_dist = torch.norm(action[:, None,:]  - action[None,:,:], dim=2, p=2)
+        action_dist = torch.norm(action_actual[:, None,:]  - action[None,:,:], dim=2, p=2)
         print(action_dist.shape)
         all_dists_action, _action = torch.topk(action_dist, 10, dim=1, largest=False)
         print(_action) 
         dist_matrices = [_actor, _critic, _action]
         names = [f"{model}_{model_step}_actor.gif", f"{model}_{model_step}_critic.gif", f"{model}_{model_step}_actions.gif"]
         final = np.concatenate([a, goal_lst], axis=1)
+        #import IPython as ipy; ipy.embed(colors='neutral')
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
-            for ix, x in enumerate(goal_lst):
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
+            for ix in range(num_sample):
                 print('encoded',ix)
                 txt=''
                 df = pd.DataFrame()
@@ -397,32 +346,34 @@ for m in models:
                 for iz, z in enumerate(dist_matrix[ix,:]):
                     
                     if iz ==0:
-                        df.loc[iz, 'x'] = final[z,0]
-                        df.loc[iz, 'y'] = final[z,1]
-                        df.loc[iz, 'c'] = 'orange'
-<<<<<<< HEAD
-                        df.loc[goal_array_no_v.shape[0], 'goal_x'] = final[z,4]
-                        df.loc[goal_array_no_v.shape[0], 'goal_y'] = final[z,5]
-                        df.loc[goal_array_no_v.shape[0], 'c'] = 'red'
                         
-=======
-                        df.loc[dist_matrix[ix,:].shape[0], 'x'] = final[z,4]
-                        df.loc[dist_matrix[ix,:].shape[0], 'y'] = final[z,5]
-                        df.loc[dist_matrix[ix,:].shape[0], 'c'] = 'red'
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
-                    else:                   
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'x'] = a[ix,0]
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'y'] = a[ix,1]
+                        df.loc[dist_matrix[ix,:].shape[0]+10,'c'] = 'orange'
+                        
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'x'] = actual_goal_lst[ix,0]
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'y'] = actual_goal_lst[ix,1]
+                        df.loc[dist_matrix[ix,:].shape[0]+11,'c'] = 'red'
+                        
                         df.loc[iz, 'x'] = final[z,0]
                         df.loc[iz, 'y'] = final[z,1]
                         df.loc[iz, 'c'] = 'blue'
-<<<<<<< HEAD
-                        df.loc[goal_array_no_v.shape[0]+iz, 'goal_x'] = final[z,4]
-                        df.loc[goal_array_no_v.shape[0]+iz, 'goal_y'] = final[z,5]
-                        df.loc[goal_array_no_v.shape[0]+iz, 'c'] = 'green'
-=======
+                        
+                        df.loc[dist_matrix[ix,:].shape[0], 'x'] = final[z,4]
+                        df.loc[dist_matrix[ix,:].shape[0], 'y'] = final[z,5]
+                        df.loc[dist_matrix[ix,:].shape[0], 'c'] = 'green'
+                        
+                        txt += ' ['+str(np.round(a[ix,0],2))+','+str(np.round(a[ix,1],2))+'] '
+                        txt += ' goal: ['+str(np.round(actual_goal_lst[ix,0],4))+','+str(np.round(actual_goal_lst[ix,1],2))+'] '
+                    else:                   
+                        
+                        df.loc[iz, 'x'] = final[z,0]
+                        df.loc[iz, 'y'] = final[z,1]
+                        df.loc[iz, 'c'] = 'blue'
+                        
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'x'] = final[z,4]
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'y'] = final[z,5]
                         df.loc[dist_matrix[ix,:].shape[0]+iz, 'c'] = 'green'
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
 
                 plt.clf()
                 fig, ax = plt.subplots()
@@ -433,14 +384,12 @@ for m in models:
                                     'red' : 'tab:red'
                                 }
                 
+            
                 ax=sns.scatterplot(x="x", y="y",
                           hue="c", palette=palette,
-<<<<<<< HEAD
                           data=df,legend=False)
-=======
-                          data=df,legend=False, alpha=.3)
->>>>>>> 886cbc4e2b072c6f9416b5203e51c1d2a9fac02c
-#                 ax.set_title("\n".join(wrap(txt,75)))
+                ax.set_title("\n".join(wrap(txt,75)))
+                
                 if index_==0:
                     file1= f"./gc_knn_output/actor_{ix}_model{model}_{model_step}.png"
                 elif index_==1:

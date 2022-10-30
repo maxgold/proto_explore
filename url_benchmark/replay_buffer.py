@@ -453,10 +453,10 @@ class ReplayBuffer(IterableDataset):
             for x in tmp_fns:
                 tmp_fns_.append(str(x))
                 tmp_fns2.append(x)
-            if self.model_step:
-                eps_fns2 = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-            else:
-                eps_fns2 = tmp_fns
+            #if self.model_step:
+                #eps_fns2 = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
+            #else:
+                #eps_fns2 = tmp_fns
 
             np.random.shuffle(eps_fns2)
             fetched_size = 0
@@ -696,9 +696,9 @@ class ReplayBuffer(IterableDataset):
             _ = np.argsort(z_to_proto, axis=1)[:,0]
             goal = protos[_].reshape((protos.shape[1],))
             offset=idx_goal-idx
-            for i in range(self._nstep):
-                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
+            #for i in range(self._nstep):
+                #obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+                #dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
                 #
                 #else:
                 #    if dist > -.05:
@@ -1261,7 +1261,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
