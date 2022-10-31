@@ -28,7 +28,8 @@ class Projector(nn.Module):
 
 class ProtoV2Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, **kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, 
+                 update_proto_every,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.queue_size=queue_size
@@ -51,6 +52,8 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         self.debug=False
         self.kmeans = KMeans(n_clusters=2, random_state=0, max_iter=20)
         self.feat_dim=pred_dim
+        self.update_proto_every=update_proto_every
+        print('update proto every', update_proto_every)
         #self.load_protos = load_protos
 
         # models
@@ -354,7 +357,7 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         print('p', self.protos)
-        similarity_to_protos = torch.mm(self.protos, s.T)
+        similarity_to_protos = torch.mm(s, self.protos.T)
         #add log softmax
         #scores_s = similarity_to_protos.argmax(dim=0)
         log_p_s = F.log_softmax(similarity_to_protos, dim=1)
@@ -365,13 +368,13 @@ class ProtoV2Agent(DDPGEncoder1Agent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            q_t = torch.mm(self.protos, t.T)
+            q_t = torch.mm(t, self.protos.T)
             q_t = F.softmax(q_t, dim=1)
             #change to hard code?
         
         #using target network to add features of current samples to feature_queue
         ptr = self.feature_queue_ptr
-        self.feature_queue[ptr:ptr + obs.shape[0]] = t.detach()
+        self.feature_queue[ptr:ptr + obs.shape[0]] = t
         self.feature_queue_ptr = (ptr + obs.shape[0]) % self.feature_queue.shape[0]
 
         #if self.initialized==False and self.feature_queue[self.queue_size-1].sum()!=0:
@@ -379,12 +382,15 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         
         # loss
         #debug
-        target = q_t.argmax(dim=0)
+        print('q', q_t.shape)
+        target = q_t.argmax(dim=1)
+        print('t', target.shape)
         #B = torch.zeros((self.num_protos,), device=self.device)
         #B[torch.unique(target, return_counts=True)[0]] = torch.unique(target, return_counts=True)[1].float()
         #samples_weight=1/B
         #samples_weight[samples_weight==float('inf')]=0
         histogram=torch.bincount(target, minlength=self.num_protos)
+        print('h', histogram.shape)
         #import IPython as ipy; ipy.embed(colors='neutral')  
         inv_histogram=(1./(histogram+1e-10))**.5
         weight = inv_histogram/inv_histogram.sum()
@@ -392,7 +398,7 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
         print('q_t', q_t.shape)
         print('w', weight.shape)
-        q_t = q_t*weight
+        q_t = q_t*weight.T
         loss = - (q_t*log_p_s).sum(dim=1).mean() 
  
         if self.use_tb or self.use_wandb:
@@ -475,9 +481,9 @@ class ProtoV2Agent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            
-            if step%200==0:
-                self.update_protos_memory()
+            self.update_protos_memory()
+            if step%update_proto_every==0:
+                #self.update_protos_memory()
                 self.deal_with_small_clusters()
 
         elif actor1 and step % self.update_gc==0:
