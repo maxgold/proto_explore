@@ -37,7 +37,7 @@ import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import io
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -58,6 +58,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.feature_dim = feature_dim
     cfg.pred_dim = pred_dim
     cfg.proj_dim = proj_dim
+    if cfg.name=='protov2':
+        cfg.update_proto_every=update_proto_every
     return hydra.utils.instantiate(cfg)
 
 def heatmaps(self, model_step):
@@ -118,7 +120,28 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        self.agent = make_agent(cfg.obs_type,
+        if self.cfg.agent.name=='protov2':
+            self.agent = make_agent(cfg.obs_type,
+                                self.train_env.observation_spec(),
+                                self.train_env.action_spec(),
+                                (3,84,84),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                cfg.agent,
+                                cfg.lr,
+                                cfg.hidden_dim,
+                                cfg.num_protos,
+                                cfg.update_gc,
+                                False,
+                                cfg.offline,
+                                cfg.tau,
+                                cfg.num_iterations,
+                                cfg.feature_dim,
+                                cfg.pred_dim,
+                                cfg.proj_dim,
+                                batch_size=cfg.batch_size,
+                                update_proto_every=cfg.update_proto_every)
+        else: 
+            self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
                                 (3,84,84),
@@ -137,6 +160,7 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size)
 
+        
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -1070,7 +1094,6 @@ class Workspace:
             if self._global_step%200000==0 and self._global_step!=0:
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
-                self.eval_proto()
                 
             # take env step
             time_step = self.train_env.step(action)
