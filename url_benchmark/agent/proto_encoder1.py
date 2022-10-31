@@ -89,7 +89,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.predictor.train()
         self.projector.train()
         self.protos.train()
-        
+        self.criterion = nn.CrossEntropyLoss() 
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -172,7 +172,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-
+        p_s = F.softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
@@ -183,14 +183,17 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         # loss
         #reweight
+
         #target = q_t.argmax(dim=1)
-        #histogram=np.bincount(target.detach().cpu().numpy(), minlength=self.num_protos).astype(np.float32)
+        #histogram=torch.bincount(target, minlength=16)
         #inv_histogram=(1./(histogram+1e-10))**.5
         #weight = inv_histogram/inv_histogram.sum()
-        #weight=torch.as_tensor(weight, device=self.device)
-        #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
-        #q_t = q_t*weight 
+        #weight = weight[:,None].tile(1,256)
+        #q_t = q_t*weight.T 
+        
         loss = -(q_t * log_p_s).sum(dim=1).mean()
+        #loss2 = self.criterion(p_s, q_t)
+
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         self.proto_opt.zero_grad(set_to_none=True)

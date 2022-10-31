@@ -203,10 +203,12 @@ class ReplayBufferStorage:
                 value = self._current_episode_goal[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode_goal['goal']
-            if pixels:
+            
+            if pixels and asym==False:
                 episode['goal'] = np.array(value).astype(int) 
             else:
                 episode['goal'] = np.array(value, np.float64)
+            
             if pixels:
                 value = self._current_episode_goal['goal_state']
                 episode['goal_state'] = np.array(value, np.float64)

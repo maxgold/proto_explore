@@ -177,7 +177,7 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
         # loss
         #reweight
         target = q_t.argmax(dim=1)
-        histogram=np.bincount(target.detach().cpu().numpy(), minlength=self.num_protos).astype(np.float32)
+        histogram=np.bincount(target, minlength=self.num_protos)
         inv_histogram=(1./(histogram+1e-10))**.5
         weight = inv_histogram/inv_histogram.sum()
         weight=torch.as_tensor(weight, device=self.device)

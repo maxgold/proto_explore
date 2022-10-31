@@ -379,31 +379,32 @@ class DDPGAgent:
 
     def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
         metrics = dict()
-        with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor(next_obs, goal, stddev)
-            next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
-            target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (discount * target_V)
+        with torch.autograd.set_detect_anomaly(True):
+            with torch.no_grad():
+                stddev = utils.schedule(self.stddev_schedule, step)
+                dist = self.actor(next_obs, goal, stddev)
+                next_action = dist.sample(clip=self.stddev_clip)
+                target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
+                target_V = torch.min(target_Q1, target_Q2)
+                target_Q = reward + (discount * target_V)
 
-        Q1, Q2 = self.critic(obs, goal, action)
-        critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+                Q1, Q2 = self.critic(obs, goal, action)
+                critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
-        if self.use_tb or self.use_wandb:
-            metrics['critic_target_q'] = target_Q.mean().item()
-            metrics['critic_q1'] = Q1.mean().item()
-            metrics['critic_q2'] = Q2.mean().item()
-            metrics['critic_loss'] = critic_loss.item()
+            if self.use_tb or self.use_wandb:
+                metrics['critic_target_q'] = target_Q.mean().item()
+                metrics['critic_q1'] = Q1.mean().item()
+                metrics['critic_q2'] = Q2.mean().item()
+                metrics['critic_loss'] = critic_loss.item()
         
         # optimize critic
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
-        self.critic_opt.zero_grad(set_to_none=True)
-        critic_loss.backward()
-        self.critic_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
+            if self.encoder_opt is not None:
+                self.encoder_opt.zero_grad(set_to_none=True)
+            self.critic_opt.zero_grad(set_to_none=True)
+            critic_loss.backward()
+            self.critic_opt.step()
+            if self.encoder_opt is not None:
+                self.encoder_opt.step()
         return metrics
 
     def update_critic2(self, obs, action, reward, discount, next_obs, step):
