@@ -28,7 +28,8 @@ class Projector(nn.Module):
 
 class ProtoV2Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, **kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, 
+                 update_proto_every,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.queue_size=queue_size
@@ -51,6 +52,8 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         self.debug=False
         self.kmeans = KMeans(n_clusters=2, random_state=0, max_iter=20)
         self.feat_dim=pred_dim
+        self.update_proto_every=update_proto_every
+        print('update proto every', update_proto_every)
         #self.load_protos = load_protos
 
         # models
@@ -478,10 +481,10 @@ class ProtoV2Agent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            
-            #if step%200==0:
             self.update_protos_memory()
-            self.deal_with_small_clusters()
+            if step%self.update_proto_every==0:
+                #self.update_protos_memory()
+                self.deal_with_small_clusters()
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward

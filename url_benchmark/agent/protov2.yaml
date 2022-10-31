@@ -34,4 +34,5 @@ gc_only: ???
 offline: ???
 load_protos: False
 num_iterations: 3
+update_proto_every: 10
 update_encoder: ${update_encoder}
