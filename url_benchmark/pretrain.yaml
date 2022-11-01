@@ -37,7 +37,7 @@ use_wandb: false
 goal: false
 hybrid: false
 hybrid_gc: false
-hybrid_pct: 5 #0-10
+hybrid_pct: .5 #0-1
 batch_size: 1024
 batch_size_gc: 1024
 hidden_dim: 1024
@@ -88,6 +88,8 @@ feature_dim: 50
 num_iterations: 3
 tau: .1
 sl: False
+asym: False
+goal_num: 20
 # experiment
 experiment: exp
 
