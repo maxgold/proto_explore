@@ -369,7 +369,7 @@ class ProtoV2Agent(DDPGEncoder1Agent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             q_t = torch.mm(t, self.protos.T)
-            q_t = F.softmax(q_t, dim=1)
+            q_t = F.log_softmax(q_t, dim=1)
             #change to hard code?
         
         #using target network to add features of current samples to feature_queue
@@ -481,10 +481,10 @@ class ProtoV2Agent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            self.update_protos_memory()
+            self.deal_with_small_clusters()
             if step%self.update_proto_every==0:
-                #self.update_protos_memory()
-                self.deal_with_small_clusters()
+                self.update_protos_memory()
+                #self.deal_with_small_clusters()
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
