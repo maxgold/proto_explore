@@ -481,9 +481,9 @@ class ProtoV2Agent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            self.update_protos_memory()
-            if step%update_proto_every==0:
-                #self.update_protos_memory()
+            #self.update_protos_memory()
+            if step%self.update_proto_every==0:
+                self.update_protos_memory()
                 self.deal_with_small_clusters()
 
         elif actor1 and step % self.update_gc==0:
