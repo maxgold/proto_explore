@@ -19,7 +19,7 @@ def sinkhorn_knopp(Q, num):
 
     r = torch.ones(Q.shape[0], device=Q.device) / Q.shape[0]
     c = torch.ones(Q.shape[1], device=Q.device) / Q.shape[1]
-    for it in range(5):
+    for it in range(1):
         u = Q.sum(dim=1)
         u = r / u
         Q *= u.unsqueeze(dim=1)
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoIt5Agent(DDPGAgent):
+class ProtoItAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, **kwargs):
