@@ -91,6 +91,7 @@ sl: False
 asym: False
 goal_num: 20
 update_proto_every: 10
+loss: False
 # experiment
 experiment: exp
 

@@ -181,7 +181,8 @@ class Workspace:
                                                 cfg.replay_buffer_num_workers,
                                                 False, cfg.nstep, cfg.discount,
                                                 goal=cfg.goal,
-                                                obs_type=cfg.obs_type)
+                                                obs_type=cfg.obs_type,
+                                                loss=cfg.loss)
         self._replay_iter = None
 
         # create video recorders
