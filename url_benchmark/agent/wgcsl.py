@@ -278,9 +278,9 @@ class WGCSLAgent:
             dist = self.actor_target(next_obs, goal, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
-            target_V = torch.min(target_Q1, target_Q2).detach()
+            target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
-            target_Q = target_Q.detach()
+            target_Q = target_Q
             # clip the q value
             #clip_return = 1 / (1 - discount)
             #target_Q = torch.clamp(target_Q, -clip_return, 0)
@@ -292,15 +292,15 @@ class WGCSLAgent:
         policy = self.actor(obs, goal, stddev)
         with torch.no_grad():
             v1, v2 = self.critic(obs, goal, policy.sample(clip=self.stddev_clip))
-            v = torch.min(v1,v2).detach()
+            v = torch.min(v1,v2)
             #v = torch.clamp(v, -clip_return, 0)
             adv = target_Q - v
-            adv = torch.clamp(torch.exp(adv.detach()), 0, 10)
+            adv = torch.clamp(torch.exp(adv), 0, 10)
         weights = weights * adv
         weights = weights.float()
         actor_loss = torch.mean(weights * torch.square(torch.subtract(policy.sample(clip=self.stddev_clip), action)))
             
-        if self.use_tb:
+        if self.use_tb or self.use_wandb:
             metrics['critic_target_q'] = target_Q.mean().item()
             metrics['critic_q1'] = Q1.mean().item()
             metrics['critic_q2'] = Q2.mean().item()

@@ -720,7 +720,7 @@ class ReplayBuffer(IterableDataset):
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
         if self.sl:
-            return (obs, action, reward, discount, next_obs, goal, offset, *meta)
+            return (obs, action, reward, discount, next_obs, goal, offset)
         elif self.asym:
             
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal_state, *meta)
@@ -774,7 +774,7 @@ class ReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-            if self.sl:
+            if self.sl and self.hybrid==False:
                 yield self._sample_sl()
             elif self.asym and self.hybrid==False:
                 yield self._sample_asym()

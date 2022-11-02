@@ -10,7 +10,6 @@ import pandas as pd
 import utils
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
 from sklearn.cluster import KMeans
-torch.autograd.set_detect_anomaly(True)
 
 
 class Projector(nn.Module):
@@ -218,24 +217,23 @@ class ProtoV2Agent(DDPGEncoder1Agent):
         """Update centroids memory."""
         print('update_protos_memory')
         print('label', self.label_bank)
-        with torch.autograd.set_detect_anomaly(True): 
-            if self.rank == 0:
-                if self.debug:
-                    print('updating centroids ...')
-                if cinds is None:
-                    center = self._compute_protos()
-                    print('c',center)
-                    self.protos.copy_(center)
-                else:
-                    center = self._compute_protos_ind(cinds)
-                    print('c2', center)
-                    #import IPython as ipy; ipy.embed(colors='neutral')
-                    #tmp = torch.zeros((torch.LongTensor(cinds).cuda()-1, self.protos.shape[1]))
-                    #tmp2 = torch.zeros((self.protos.shape[0]-torch.LongTensor(cinds).cuda(), self.protos.shape[1]))
-                    #tmp_f = torch.cat([tmp, self.protos[torch.LongTensor(cinds).cuda(), :].clone(), tmp2], axis=1)
-                    #self.protos.subtract(tmp_f)
-                    #self.protos.add(center.cuda())
-                    self.protos[torch.LongTensor(cinds).cuda(), :] = torch.as_tensor(center, device=self.device)
+        if self.rank == 0:
+            if self.debug:
+                print('updating centroids ...')
+            if cinds is None:
+                center = self._compute_protos()
+                print('c',center)
+                self.protos.copy_(center)
+            else:
+                center = self._compute_protos_ind(cinds)
+                print('c2', center)
+                #import IPython as ipy; ipy.embed(colors='neutral')
+                #tmp = torch.zeros((torch.LongTensor(cinds).cuda()-1, self.protos.shape[1]))
+                #tmp2 = torch.zeros((self.protos.shape[0]-torch.LongTensor(cinds).cuda(), self.protos.shape[1]))
+                #tmp_f = torch.cat([tmp, self.protos[torch.LongTensor(cinds).cuda(), :].clone(), tmp2], axis=1)
+                #self.protos.subtract(tmp_f)
+                #self.protos.add(center.cuda())
+                self.protos[torch.LongTensor(cinds).cuda(), :] = torch.as_tensor(center, device=self.device)
                     
 
     def _partition_max_cluster(self, max_cluster):
