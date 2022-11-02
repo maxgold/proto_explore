@@ -625,7 +625,7 @@ class Workspace:
         plt.savefig(self.work_dir / f"singular_value_{self.global_step}.png")
 
 
-        num_sample=1000 
+        num_sample=600 
         idx = np.random.randint(0, state.shape[0], size=num_sample)
         state=state[idx]
         state=state.reshape(num_sample,4)
@@ -852,7 +852,9 @@ class Workspace:
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
             order = self_mat[index_][0,:].cpu().numpy()
-            for ix, x in enumerate(order):
+            plt.clf()
+            fig, ax = plt.subplots()
+            for ix in range(_proto_self.shape[1]):
                 print('proto', ix)
                 txt=''
                 df = pd.DataFrame()
@@ -862,46 +864,58 @@ class Workspace:
                         df.loc[i,'y'] = a[i,1]
                         df.loc[i,'distance_to_proto1'] = _proto_self[ix,0].item()
 
-                        if i in dist_matrix[x,:]:
-                            df.loc[i, 'c'] = 'blue'
-                            z=dist_matrix[x,(dist_matrix[x,:] == i).nonzero(as_tuple=True)[0]]
-                            txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
-                        else:
-                            df.loc[i,'c'] = 'orange'
+                        if i in dist_matrix[ix,:]:
+                            df.loc[i, 'c'] = str(ix+1)
+                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                            #txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
+                        elif ix==0 and (i not in dist_matrix[ix,:]):
+                            df.loc[i,'c'] = str(0)
 
                 #order based on distance to first prototype
-
-
-
-
-                plt.clf()
+                #plt.clf()
                 palette = {
-                                    'blue': 'tab:blue',
-                                    'orange': 'tab:orange'
+                                    '0': 'tab:blue',
+                                    '1': 'tab:orange',
+                                    '2': 'black',
+                                    '3':'silver',
+                                    '4':'green',
+                                    '5':'red', 
+                                    '6':'purple',
+                                    '7':'brown',
+                                    '8':'pink', 
+                                    '9':'gray',
+                                    '10':'olive',
+                                    '11':'cyan',
+                                    '12':'yellow',
+                                    '13':'skyblue',
+                                    '14':'magenta',
+                                    '15':'lightgreen',
+                                    '16':'blue'
                                 }
-                fig, ax = plt.subplots()
+                #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",
-                          hue="c", palette=palette,
+                          hue="c",palette=palette,
                           data=df,legend=False)
-                ax.set_title("\n".join(wrap(txt,75)))
-                if index_==0:
-                    file1= self.work_dir / f"10nn_actual_prototypes_{ix}_{self.global_step}.png"
-                elif index_==1:
-                    file1= self.work_dir / f"10nn_actual_prototypes_sim_{ix}_{self.global_step}.png"
+                #ax.set_title("\n".join(wrap(txt,75)))
+            if index_==0:
+                file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
+            elif index_==1:
+                file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
 
-                plt.savefig(file1)
-                filenames.append(file1)
+            plt.savefig(file1)
+            wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
+                #filenames.append(file1)
 
-            if len(filenames)>100:
-                filenames=filenames[:100]
-            with imageio.get_writer(os.path.join(self.work_dir ,names[index_]), mode='I') as writer:
-                for file in filenames:
-                    image = imageio.imread(file)
-                    writer.append_data(image)
+            #if len(filenames)>100:
+            #    filenames=filenames[:100]
+            #with imageio.get_writer(os.path.join(self.work_dir ,names[index_]), mode='I') as writer:
+            #    for file in filenames:
+            #        image = imageio.imread(file)
+            #        writer.append_data(image)
+#
+#            gif = imageio.mimread(os.path.join(self.work_dir ,names[index_]))
 
-            gif = imageio.mimread(os.path.join(self.work_dir ,names[index_]))
-
-            imageio.mimsave(os.path.join(self.work_dir ,names[index_]), gif, fps=.5)
+#            imageio.mimsave(os.path.join(self.work_dir ,names[index_]), gif, fps=.5)
     #######################################################################################
 
     def eval(self):
