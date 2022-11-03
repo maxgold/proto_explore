@@ -19,7 +19,7 @@ def sinkhorn_knopp(Q, num):
 
     r = torch.ones(Q.shape[0], device=Q.device) / Q.shape[0]
     c = torch.ones(Q.shape[1], device=Q.device) / Q.shape[1]
-    for it in range(1):
+    for it in range(2):
         u = Q.sum(dim=1)
         u = r / u
         Q *= u.unsqueeze(dim=1)
@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoItAgent(DDPGEncoder1Agent):
+class ProtoLoss1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, **kwargs):
@@ -152,7 +152,7 @@ class ProtoItAgent(DDPGEncoder1Agent):
         #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
-    def update_proto(self, obs, next_obs, step):
+    def update_proto(self, obs, next_obs, rand_obs, step):
         metrics = dict()
 
         # normalize prototypes
@@ -172,14 +172,29 @@ class ProtoItAgent(DDPGEncoder1Agent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
+            
+            v = self.encoder_target(rand_obs)
+            v = self.predictor_target(v)
+            v = F.normalize(v, dim=1, p=2)
+
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
-        if step%1000==0:
-            print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        
+
+            
+        #if step%1000==0:
+        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        
         # loss
-        loss = -(q_t * log_p_s).sum(dim=1).mean()
+        if step>10000:
+            loss = -(q_t * log_p_s).sum(dim=1).mean() + 1 * F.mse_loss(s, v)
+            
+        else:
+            loss = -(q_t * log_p_s).sum(dim=1).mean()
+
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
+        
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
         self.proto_opt.step()
@@ -200,7 +215,7 @@ class ProtoItAgent(DDPGEncoder1Agent):
                 goal = goal.reshape(-1, 2).float()
             
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -213,13 +228,14 @@ class ProtoItAgent(DDPGEncoder1Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
+            rand_obs = self.aug(rand_obs)
             if actor1:
                 goal = self.aug(goal)
            
         if actor1==False:
 
             if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, step))
+                metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -266,11 +282,9 @@ class ProtoItAgent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            
             goal = self.encoder(goal)
 
             if not self.update_encoder:
-            
                 obs = obs.detach()
                 next_obs = next_obs.detach()
                 goal=goal.detach()
