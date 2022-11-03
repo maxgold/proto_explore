@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg import DDPGAgent
+from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
 @jit.script
