@@ -42,8 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-
-models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150022_proto/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/145803_proto/']
+models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.22/114432_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.22/113750_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.22/113741_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151635_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151501_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151446_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151431_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151414_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231802_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231631_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231602_proto_encoder1/']
+#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150106_proto/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/150022_proto/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.09.21/145803_proto/']
 
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
@@ -64,7 +64,7 @@ for m in models:
         if model_step=='0':
             continue
         print(path)
-        agent  = torch.load(path,map_location='cuda')
+        agent  = torch.load(path,map_location='cuda:3')
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
@@ -152,7 +152,7 @@ for m in models:
 
             with torch.no_grad():
                 obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:3')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded.append(z)
                 z = agent.predictor(z)
@@ -192,7 +192,7 @@ for m in models:
                 time_step_init = np.tile(time_step_init, (3,1,1))
 
                 obs = time_step_init
-                obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs, device=torch.device('cuda:3')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded_no_v.append(z)
                 z = agent.predictor(z)
@@ -366,7 +366,8 @@ for m in models:
                                     '28':'steelblue',
                                     '29':'thistle',
                                     '30':'slateblue',
-                                    '31':'hotpink'
+                                    '31':'hotpink',
+                                    '32':'papayawhip'
                                 }
                 #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",
