@@ -175,10 +175,11 @@ class ProtoAgent(DDPGAgent):
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
-        if step%1000==0:
-            print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        #if step%1000==0:
+        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
         # loss
         loss = -(q_t * log_p_s).sum(dim=1).mean()
+        print('loss', loss)
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         self.proto_opt.zero_grad(set_to_none=True)

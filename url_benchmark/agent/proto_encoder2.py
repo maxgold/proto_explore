@@ -9,7 +9,7 @@ from torch import jit
 import pandas as pd
 import utils
 from agent.ddpg_encoder2 import DDPGEncoder2Agent
-
+from numpy import inf
 
 @jit.script
 def sinkhorn_knopp(Q):
@@ -173,17 +173,16 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
-
+        
         # loss
         #reweight
         target = q_t.argmax(dim=1)
-        histogram=np.bincount(target.detach().cpu().numpy(), minlength=16).astype(np.float32)
+        histogram=np.bincount(target, minlength=self.num_protos)
         inv_histogram=(1./(histogram+1e-10))**.5
         weight = inv_histogram/inv_histogram.sum()
         weight=torch.as_tensor(weight, device=self.device)
         #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
-        q_t = q_t*weight
- 
+        q_t = q_t*weight 
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()

@@ -42,7 +42,8 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
-models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.18/232252_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181717_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.19/181638_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231802_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231631_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231602_proto_encoder1/']
+models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/']
+
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
@@ -56,6 +57,7 @@ for m in models:
     print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
     paths = glob.glob(m+'*00000.pth')
+    print(paths)
     for path in paths:
         model_step = path.split('_')[-1].split('.')[0]
         print('model', m)
@@ -63,7 +65,7 @@ for m in models:
         if model_step=='0':
             continue
         print(path)
-        agent  = torch.load(path,map_location='cuda')
+        agent  = torch.load(path,map_location='cuda:1')
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
@@ -111,7 +113,7 @@ for m in models:
 
             with torch.no_grad():
                 obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:1')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded.append(z)
                 z = agent.predictor(z)
@@ -185,13 +187,13 @@ for m in models:
         ax.scatter(goal_array[:,0], goal_array[:,1])
         plt.savefig(f"./knn_output/mesh.png")
         lst=[]
-        goal_array = torch.as_tensor(goal_array, device=torch.device('cuda'))
+        goal_array = torch.as_tensor(goal_array, device=torch.device('cuda:1'))
 
         plt.clf()
         fig, ax = plt.subplots()
         ax.scatter(a[:,0], a[:,1])
         plt.savefig(f"./knn_output/samples.png")
-        a = torch.as_tensor(a,device=torch.device('cuda'))
+        a = torch.as_tensor(a,device=torch.device('cuda:1'))
 
         state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
         all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
@@ -285,7 +287,7 @@ for m in models:
         for x in range(16):
             with torch.no_grad(): 
                 obs = goal_w_vel[x]
-                obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs, device=torch.device('cuda:1')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded_v.append(z)
                 z = agent.predictor(z)
@@ -343,7 +345,7 @@ for m in models:
                 time_step_init = np.tile(time_step_init, (3,1,1))
 
                 obs = time_step_init
-                obs = torch.as_tensor(obs, device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs, device=torch.device('cuda:1')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded_no_v.append(z)
                 z = agent.predictor(z)
@@ -376,7 +378,7 @@ for m in models:
 
             with torch.no_grad():
                 obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda')).unsqueeze(0)
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:1')).unsqueeze(0)
                 z = agent.encoder(obs)
                 encoded.append(z)
                 z = agent.predictor(z)

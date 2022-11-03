@@ -728,7 +728,7 @@ class Workspace:
     def eval(self):
         #self.encode_proto(heatmap_only=True) 
         heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=False)
-        goal_array = ndim_grid(2,self.cfg.goal_num)
+        goal_array = ndim_grid(2, 10)
         success=0
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
 

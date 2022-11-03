@@ -15,8 +15,6 @@ import torch
 import wandb
 from dm_env import specs
 import matplotlib.pyplot as plt
-from kdtree import KNN
-
 import dmc
 import torch.nn.functional as F
 import utils
@@ -491,8 +489,8 @@ class Workspace:
                 time_step1 = self.train_env1.reset()
                 time_step2 = self.train_env2.reset()
                 meta = self.agent.init_meta()
-                self.replay_storage1.add_goal(time_step1, meta, goal)
-                self.replay_storage2.add(time_step2, meta)
+                #self.replay_storage1.add_goal(time_step1, meta, goal)
+                #self.replay_storage2.add(time_step2, meta)
                 self.train_video_recorder.init(time_step1.observation)
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:

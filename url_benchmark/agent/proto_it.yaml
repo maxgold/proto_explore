@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.proto_encoder2.ProtoEncoder2Agent
-name: proto_encoder2
+_target_: agent.proto_it.ProtoItAgent
+name: proto_it
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
@@ -16,13 +16,13 @@ use_tb: ${use_tb}
 use_wandb: ${use_wandb}
 num_expl_steps: ??? # to be specified later
 hidden_dim: ???
-feature_dim: 50
+feature_dim: ???
 stddev_schedule: 0.3
 stddev_clip: 0.3
 nstep: 3
 batch_size: ???
 init_critic: true
-pred_dim: 128
+pred_dim: ???
 proj_dim: 512
 num_protos: ???
 tau: 0.1
