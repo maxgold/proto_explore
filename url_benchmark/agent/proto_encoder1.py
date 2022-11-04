@@ -192,7 +192,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #q_t = q_t*weight.T 
         
         loss = -(q_t * log_p_s).sum(dim=1).mean()
-        print(loss)
         #loss2 = self.criterion(p_s, q_t)
 
         if self.use_tb or self.use_wandb:
