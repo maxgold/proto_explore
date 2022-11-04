@@ -702,15 +702,15 @@ class Workspace:
                 #order based on distance to first prototype
                 #plt.clf()
                 palette = {
-                                    '0': 'tab:blue',
+                           	    '0': 'tab:blue',
                                     '1': 'tab:orange',
                                     '2': 'black',
                                     '3':'silver',
                                     '4':'green',
-                                    '5':'red', 
+                                    '5':'red',
                                     '6':'purple',
                                     '7':'brown',
-                                    '8':'pink', 
+                                    '8':'pink',
                                     '9':'gray',
                                     '10':'olive',
                                     '11':'cyan',
@@ -718,8 +718,24 @@ class Workspace:
                                     '13':'skyblue',
                                     '14':'magenta',
                                     '15':'lightgreen',
-                                    '16':'blue'
-                                }
+                                    '16':'blue',
+                                    '17':'lightcoral',
+                                    '18':'maroon',
+                                    '19':'saddlebrown',
+                                    '20':'peru',
+                                    '21':'tan',
+                                    '22':'darkkhaki',
+                                    '23':'darkolivegreen',
+                                    '24':'mediumaquamarine',
+                                    '25':'lightseagreen',
+                                    '26':'paleturquoise',
+                                    '27':'cadetblue',
+                                    '28':'steelblue',
+                                    '29':'thistle',
+                                    '30':'slateblue',
+                                    '31':'hotpink',
+                                    '32':'papayawhip'
+                        }
                 #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",
                           hue="c",palette=palette,
