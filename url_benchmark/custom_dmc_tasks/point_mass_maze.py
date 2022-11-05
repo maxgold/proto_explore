@@ -51,6 +51,7 @@ TASKS = [
     ("reach_bottom", np.array([-0.15, -0.15, 0.01])),
     ("reach_vertical_no_goal", np.array([-0.15, -0.15, 0.01])),
     ("reach_bottom_no_goal", np.array([-0.15, -0.15, 0.01])),
+    ("reach_hard_no_goal", np.array([-0.15, -0.15, 0.01])),
     ]
 
 
@@ -271,6 +272,23 @@ def reach_horizontal_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
+@SUITE.add('benchmarking')
+def reach_hard_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+                init_state=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'reach_hard_no_goal'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_hard_no_goal'))
+    task = MultiTaskPointMassMaze(target_id=13, random=random, init_state=init_state)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+
 def make_target_str(goal):
     new_pos_str = 'pos="'
     for p in goal:
@@ -405,7 +423,8 @@ class MultiTaskPointMassMaze(base.Task):
         super().__init__(random=random)
         
         if init_state is None:
-            self._init_state = (np.random.uniform(-.15, -.29), np.random.uniform(0.15, .29))
+            self._init_state = (np.random.uniform(-.25, -.29), np.random.uniform(0.25, .29))
+            #self._init_state = (np.random.uniform(-.15, -.29), np.random.uniform(0.15, .29))
         else:
             self._init_state = init_state
 

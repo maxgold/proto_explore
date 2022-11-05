@@ -110,13 +110,9 @@ class Workspace:
                              use_tb=cfg.use_tb,
                              use_wandb=cfg.use_wandb)
         # create envs
-        try:
-            task = PRIMAL_TASKS[self.cfg.domain]
-        except:
-            task = self.cfg.domain
-        self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+        self.train_env = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                   cfg.action_repeat, cfg.seed)
-        self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
+        self.eval_env = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
@@ -702,15 +698,15 @@ class Workspace:
                 #order based on distance to first prototype
                 #plt.clf()
                 palette = {
-                                    '0': 'tab:blue',
+                           	    '0': 'tab:blue',
                                     '1': 'tab:orange',
                                     '2': 'black',
                                     '3':'silver',
                                     '4':'green',
-                                    '5':'red', 
+                                    '5':'red',
                                     '6':'purple',
                                     '7':'brown',
-                                    '8':'pink', 
+                                    '8':'pink',
                                     '9':'gray',
                                     '10':'olive',
                                     '11':'cyan',
@@ -718,8 +714,24 @@ class Workspace:
                                     '13':'skyblue',
                                     '14':'magenta',
                                     '15':'lightgreen',
-                                    '16':'blue'
-                                }
+                                    '16':'blue',
+                                    '17':'lightcoral',
+                                    '18':'maroon',
+                                    '19':'saddlebrown',
+                                    '20':'peru',
+                                    '21':'tan',
+                                    '22':'darkkhaki',
+                                    '23':'darkolivegreen',
+                                    '24':'mediumaquamarine',
+                                    '25':'lightseagreen',
+                                    '26':'paleturquoise',
+                                    '27':'cadetblue',
+                                    '28':'steelblue',
+                                    '29':'thistle',
+                                    '30':'slateblue',
+                                    '31':'hotpink',
+                                    '32':'papayawhip'
+                        }
                 #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",
                           hue="c",palette=palette,
@@ -866,7 +878,7 @@ class Workspace:
                     rand_init = np.random.uniform(.02,.29,size=(2,))
                     sign = np.array([[1,1],[-1,1],[1,-1],[-1,-1]])
                     rand = np.random.randint(4)
-                    self.train_env = dmc.make(task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
                     print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 time_step = self.train_env.reset()
@@ -887,7 +899,9 @@ class Workspace:
             if eval_every_step(self.global_step) and self.global_step!=0:
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
-                if self.cfg.agent.name=='protov2':
+                if self.cfg.debug:
+                    self.eval()
+                elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
                     self.eval_proto()
