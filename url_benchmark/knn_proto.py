@@ -73,7 +73,7 @@ for m in models:
         if model == '2022.09.09_072830_proto':
             replay_dir = Path(m+'buffer2/buffer_copy/')
         else:
-            replay_dir = Path(m+'buffer/buffer_copy/')
+            replay_dir = Path(m+'buffer2/buffer_copy/')
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 replay_dir,
@@ -315,7 +315,7 @@ for m in models:
             order = self_mat[index_][0,:].cpu().numpy()
             plt.clf()
             fig, ax = plt.subplots()
-            for ix in range(_proto_self.shape[1]):
+            for ix in range(min(_proto_self.shape[1], 32)):
                 print('proto', ix)
                 txt=''
                 df = pd.DataFrame()
@@ -366,7 +366,8 @@ for m in models:
                                     '28':'steelblue',
                                     '29':'thistle',
                                     '30':'slateblue',
-                                    '31':'hotpink'
+                                    '31':'hotpink',
+                                    '32':'papayawhip'
                                 }
                 #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",

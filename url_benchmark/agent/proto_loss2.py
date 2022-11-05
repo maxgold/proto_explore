@@ -187,7 +187,7 @@ class ProtoLoss2Agent(DDPGEncoder1Agent):
         
         # loss
         if step>10000:
-            loss = -(q_t * log_p_s).sum(dim=1).mean() + 1 * F.mse_loss(s, v)
+            loss = -(q_t * log_p_s).sum(dim=1).mean() - 1 * F.mse_loss(s, v)
             
         else:
             loss = -(q_t * log_p_s).sum(dim=1).mean()
