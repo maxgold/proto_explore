@@ -41,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoLossAgent(DDPGEncoder1Agent):
+class ProtoNeglossAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, **kwargs):
@@ -56,6 +56,7 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         self.offline = offline
         self.gc_only = gc_only
         self.num_iterations = num_iterations
+        self.pred_dim = pred_dim
         #self.load_protos = load_protos
 
         # models
@@ -187,19 +188,61 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         
         # loss
         if step>10000:
-            loss = -(q_t * log_p_s).sum(dim=1).mean() - 1 * F.mse_loss(s, v)
-            
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = self.neg_loss(t)
+            loss = loss1+loss2
         else:
-            loss = -(q_t * log_p_s).sum(dim=1).mean()
-
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = torch.tensor(0)
+            loss=loss1 + self.pred_dim/20*loss2
         if self.use_tb or self.use_wandb:
-            metrics['repr_loss'] = loss.item()
-        
+            
+            metrics['repr_loss1'] = loss1.item()
+            metrics['repr_loss2'] = loss2.item()
+
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
         self.proto_opt.step()
 
         return metrics
+ 
+
+    def neg_loss(self, x, c=1.0, reg=0.0):
+        
+        """
+        x: n * d.
+        sample based approximation for
+        (E[x x^T] - c * I / d)^2
+            = E[(x^T y)^2] - 2c E[x^T x] / d + c^2 / d
+        #
+        An optional regularization of
+        reg * E[(x^T x - c)^2] / n
+            = reg * E[(x^T x)^2 - 2c x^T x + c^2] / n
+        for reg in [0, 1]
+        """
+        
+        n = x.shape[0]
+        d = x.shape[1]
+        inprods = x @ x.T
+        norms = inprods[torch.arange(n), torch.arange(n)]
+        
+        part1 = inprods.pow(2).sum() - norms.pow(2).sum()
+        part1 = part1 / ((n - 1) * n)
+        part2 = - 2 * c * norms.mean() / d
+        part3 = c * c / d
+
+        # regularization
+        if reg > 0.0:
+            reg_part1 = norms.pow(2).mean()
+            reg_part2 = - 2 * c * norms.mean()
+            reg_part3 = c * c
+            reg_part = (reg_part1 + reg_part2 + reg_part3) / n
+        
+        else:
+            reg_part = 0.0
+
+        return part1 + part2 + part3 + reg * reg_part
+ 
 
     def update(self, replay_iter, step, actor1=False):
         metrics = dict()
