@@ -288,6 +288,21 @@ def reach_hard_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
+@SUITE.add('benchmarking')
+def reach_room_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+                init_state=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'reach_room_no_goal'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_room_no_goal'))
+    task = MultiTaskPointMassMaze(target_id=14, random=random, init_state=init_state)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
 
 def make_target_str(goal):
     new_pos_str = 'pos="'
