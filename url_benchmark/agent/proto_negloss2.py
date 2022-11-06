@@ -8,6 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
+import matplotlib.pyplot as plt
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
@@ -57,6 +58,8 @@ class ProtoNegloss2Agent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
+        self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
+        self.count=torch.as_tensor(0,device=self.device)
         #self.load_protos = load_protos
 
         # models
@@ -183,9 +186,19 @@ class ProtoNegloss2Agent(DDPGEncoder1Agent):
         
 
             
-        #if step%1000==0:
-        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
-        
+        if step%1000==0 and step!=0:
+            self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
+            self.count+=1
+        #test
+        if step%1000==0:
+            fig, ax = plt.subplots()
+            top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
+            df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
+            df.plot(ax=ax,figsize=(15,5))
+            ax.set_xticks(df.index)
+            ax.set_xscale('log')
+            plt.savefig(f"proto_distribution_step{step}.png")
+
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
@@ -259,7 +272,7 @@ class ProtoNegloss2Agent(DDPGEncoder1Agent):
                 goal = goal.reshape(-1, 2).float()
             
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics

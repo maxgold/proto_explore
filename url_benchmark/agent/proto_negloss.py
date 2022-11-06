@@ -57,6 +57,8 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim = pred_dim
+        self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
+        self.count=torch.as_tensor(0,device=self.device)
         #self.load_protos = load_protos
 
         # models
@@ -183,8 +185,8 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         
 
             
-        #if step%1000==0:
-        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        if step%1000==0:
+            torch.argmax(q_t, dim=1).unique(return_counts=True)
         
         # loss
         if step>10000:

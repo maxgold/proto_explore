@@ -56,6 +56,8 @@ class ProtoAgent(DDPGAgent):
         self.offline = offline
         self.gc_only = gc_only
         self.num_iterations = num_iterations
+        self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
+        self.count=torch.as_tensor(0,device=self.device)
         #self.load_protos = load_protos
 
         # models
