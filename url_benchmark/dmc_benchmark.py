@@ -35,7 +35,8 @@ POINT_MASS_MAZE_TASKS = [
         'point_mass_maze_reach_horizontal',
         'point_mass_maze_reach_vertical_no_goal',
         'point_mass_maze_reach_horizontal_no_goal',
-        'point_mass_maze_reach_hard_no_goal']
+        'point_mass_maze_reach_hard_no_goal',
+        'point_mass_maze_reach_room_no_goal']
 
 TASKS = WALKER_TASKS + QUADRUPED_TASKS + JACO_TASKS + POINT_MASS_MAZE_TASKS
 
