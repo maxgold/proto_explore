@@ -12,7 +12,7 @@ from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
 @jit.script
-def sinkhorn_knopp(Q, num):
+def sinkhorn_knopp(Q):
     Q -= Q.max()
     Q = torch.exp(Q).T
     Q /= Q.sum()
@@ -178,7 +178,7 @@ class ProtoLoss1Agent(DDPGEncoder1Agent):
             v = F.normalize(v, dim=1, p=2)
 
             scores_t = self.protos(t)
-            q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
+            q_t = sinkhorn_knopp(scores_t / self.tau)
         
 
             
