@@ -8,6 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
+import matplotlib.pyplot as plt
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
@@ -179,11 +180,17 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
+        s_ = s.clone()
+        s_ = F.normalize(s_, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
+
+        v = self.encoder(rand_obs)
+        v = self.predictor(v)
+        v = F.normalize(v, dim=1, p=2)
 
         # target network
         with torch.no_grad():
@@ -191,10 +198,6 @@ class ProtoLapAgent(DDPGEncoder1Agent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             
-            v = self.encoder_target(rand_obs)
-            v = self.predictor_target(v)
-            v = F.normalize(v, dim=1, p=2)
-
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
@@ -234,8 +237,8 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = torch.exp(-torch.norm(t-v, p=2).sum(-1)).mean()
-            loss = loss1+loss2
+            loss2 = torch.exp(-torch.norm(s_-v, p=2).sum(-1)).mean()
+            loss = loss1+.2*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.tensor(0)

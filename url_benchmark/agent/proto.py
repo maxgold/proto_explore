@@ -12,7 +12,7 @@ from agent.ddpg import DDPGAgent
 
 
 @jit.script
-def sinkhorn_knopp(Q, num):
+def sinkhorn_knopp(Q):
     Q -= Q.max()
     Q = torch.exp(Q).T
     Q /= Q.sum()
@@ -146,7 +146,6 @@ class ProtoAgent(DDPGAgent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-        print('reward', dist)
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -176,12 +175,11 @@ class ProtoAgent(DDPGAgent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
-            q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
+            q_t = sinkhorn_knopp(scores_t / self.tau)
         #if step%1000==0:
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
         # loss
         loss = -(q_t * log_p_s).sum(dim=1).mean()
-        print('loss', loss)
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         self.proto_opt.zero_grad(set_to_none=True)

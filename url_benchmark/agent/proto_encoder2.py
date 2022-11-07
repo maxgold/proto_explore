@@ -9,6 +9,7 @@ from torch import jit
 import pandas as pd
 import utils
 from agent.ddpg_encoder2 import DDPGEncoder2Agent
+import matplotlib.pyplot as plt
 from numpy import inf
 
 @jit.script

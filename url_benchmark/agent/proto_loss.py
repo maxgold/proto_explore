@@ -8,6 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
+import matplotlib.pyplot as plt
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
@@ -233,13 +234,17 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         
         # loss
         if step>10000:
-            loss = -(q_t * log_p_s).sum(dim=1).mean() - 1 * F.mse_loss(s, v)
-            
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = -F.mse_loss(s, v)
+            loss = loss1+..5*loss2
         else:
-            loss = -(q_t * log_p_s).sum(dim=1).mean()
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = torch.tensor(0)
+            loss = loss1+loss2
 
         if self.use_tb or self.use_wandb:
-            metrics['repr_loss'] = loss.item()
+            metrics['repr_loss1'] = loss1.item()
+            metrics['repr_loss2'] = loss2.item()
         
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()

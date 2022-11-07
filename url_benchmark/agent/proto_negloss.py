@@ -180,21 +180,22 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
+        s_ = s.clone()
+        s_ = F.normalize(s_, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
 
+        v = self.encoder(rand_obs)
+        v = self.predictor(v)
+        v = F.normalize(v, dim=1, p=2) 
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            
-            v = self.encoder_target(rand_obs)
-            v = self.predictor_target(v)
-            v = F.normalize(v, dim=1, p=2)
 
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
@@ -236,8 +237,8 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = self.neg_loss(t)
-            loss = loss1+loss2
+            loss2 = self.neg_loss(s_)
+            loss = loss1+self.pred_dim/20*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.tensor(0)

@@ -181,6 +181,8 @@ class ProtoNegloss1Agent(DDPGEncoder1Agent):
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
+        s_ = s.clone()
+        s_ = F.normalize(s_, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
@@ -193,10 +195,6 @@ class ProtoNegloss1Agent(DDPGEncoder1Agent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             
-            v = self.encoder_target(rand_obs)
-            v = self.predictor_target(v)
-            v = F.normalize(v, dim=1, p=2)
-
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
@@ -236,7 +234,7 @@ class ProtoNegloss1Agent(DDPGEncoder1Agent):
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = self.neg_loss(t)
+            loss2 = self.neg_loss(s_)
             loss = loss1 + (self.pred_dim/20)*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()

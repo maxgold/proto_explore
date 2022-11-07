@@ -396,7 +396,6 @@ class DDPGAgent:
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
         
-        timize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)

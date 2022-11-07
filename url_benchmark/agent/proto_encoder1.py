@@ -19,6 +19,7 @@ def sinkhorn_knopp(Q):
     Q /= Q.sum()
 
     r = torch.ones(Q.shape[0], device=Q.device) / Q.shape[0]
+    #distribution shift
     c = torch.ones(Q.shape[1], device=Q.device) / Q.shape[1]
     for it in range(3):
         u = Q.sum(dim=1)
@@ -97,13 +98,18 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
+        self.nxt_queue = torch.zeros(queue_size, pred_dim, device=self.device)
+        self.nxt_queue_ptr = 0
 
         # optimizers
-        self.proto_opt = torch.optim.Adam(utils.chain(
-            self.encoder.parameters(), self.predictor.parameters(),
-            self.projector.parameters(), self.protos.parameters()),
-                                      lr=self.lr)
+        #self.proto_opt = torch.optim.Adam(utils.chain(
+        #    self.encoder.parameters(), self.predictor.parameters(),
+        #    self.projector.parameters(), self.protos.parameters()),
+        #                              lr=self.lr)
 
+        self.proto_opt = torch.optim.Adam(self.protos.parameters(), lr=self.lr)
+        self.pred_opt = torch.optim.Adam(self.predictor.parameters(), lr=self.lr)
+        self.proj_opt = torch.optim.Adam(self.projector.parameters(), lr=self.lr)
         self.predictor.train()
         self.projector.train()
         self.protos.train()
@@ -190,13 +196,26 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-        p_s = F.softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
+            #####################
+            #prob = F.softmax(scores_t, dim=1)
+            #candidates = pyd.Categorical(prob).sample()
+            # enqueue candidates
+            #ptr = self.nxt_queue_ptr
+            #self.nxt_queue[ptr:ptr + self.num_protos] = z[candidates]
+            #self.nxt_queue_ptr = (ptr + self.num_protos) % self.nxt_queue.shape[0]
+            
+            # compute distances between the batch and the queue of candidates
+           # z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
+           # all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
+           # dist = all_dists[:, -1:]
+           # reward = dist 
+            ##################
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
         if step%1000==0 and step!=0:
@@ -243,10 +262,19 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
-        self.proto_opt.zero_grad(set_to_none=True)
-        loss.backward()
-        self.proto_opt.step()
+        #self.proto_opt.zero_grad(set_to_none=True)
+        #loss.backward()
+        #self.proto_opt.step()
 
+        self.pred_opt.zero_grad(set_to_none=True)
+        self.proj_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
+
+        loss.backward()
+
+        self.pred_opt.step()
+        self.proj_opt.step()
+        self.encoder_opt.step()
         return metrics
 
     def update(self, replay_iter, step, actor1=False, test=False):
