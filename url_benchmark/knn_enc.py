@@ -42,6 +42,9 @@ torch.backends.cudnn.benchmark = True
 
 from dmc_benchmark import PRIMAL_TASKS
 
+<<<<<<< HEAD
+models = ['/home/ubuntu/proto_explore/url_benchmark/models/irmak/2022.10.22/113750_proto_encoder1/']
+=======
 models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/']
 
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230429_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230506_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230556_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.18/230635_proto_encoder3/']
@@ -50,6 +53,7 @@ models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_pr
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
 
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.14/010502_proto_encoder1/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
+>>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
 
 for m in models:
     model = m.split('/')[-3] + '_' +m.split('/')[-2]
@@ -635,7 +639,6 @@ for m in models:
 #gif = imageio.mimread(os.path.join('./knn_output/',names[index_]))
 #
 #imageio.mimsave(os.path.join('./knn_output/',names[index_]), gif, fps=.5)
-
 
 
 
