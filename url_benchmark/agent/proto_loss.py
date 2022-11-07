@@ -235,8 +235,8 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = - 1 * F.mse_loss(s, v)
-            loss = loss1+loss2
+            loss2 = -F.mse_loss(s, v)
+            loss = loss1+..5*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.tensor(0)
