@@ -71,7 +71,7 @@ class Actor(nn.Module):
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
-        import IPython as ipy; ipy.embed(colors='neutral') 
+        #import IPython as ipy; ipy.embed(colors='neutral') 
         return dist
 
 
@@ -279,12 +279,12 @@ class DDPGASYMAgent:
         
         # optimize critic
 #         if self.encoder_opt is not None:
-#             self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
 #         if self.encoder_opt is not None:
-#             self.encoder_opt.step()
+        self.encoder_opt.step()
         return metrics
 
 
@@ -300,13 +300,13 @@ class DDPGASYMAgent:
         actor_loss = -Q.mean()
         
         # optimize actor
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
+        #if self.encoder_opt is not None:
+        #    self.encoder_opt.zero_grad(set_to_none=True)
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward(retain_graph=True)
         self.actor_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
+        #if self.encoder_opt is not None:
+        #    self.encoder_opt.step()
 
         if self.use_tb or self.use_wandb:
             metrics['actor_loss'] = actor_loss.item()
@@ -349,10 +349,10 @@ class DDPGASYMAgent:
 
         # update critic
         metrics.update(
-            self.update_critic(obs, state, goal, action, reward, discount, next_obs, next_state, step))
+            self.update_critic(obs, state, goal, action, reward, discount, next_obs.detach(), next_state, step))
 
         # update actor
-        metrics.update(self.update_actor(obs, state, goal, step))
+        metrics.update(self.update_actor(obs.detach(), state, goal, step))
 
         # update actor target
         utils.soft_update_params(self.actor, self.actor_target,

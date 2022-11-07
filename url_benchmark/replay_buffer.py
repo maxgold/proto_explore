@@ -203,10 +203,12 @@ class ReplayBufferStorage:
                 value = self._current_episode_goal[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
             value = self._current_episode_goal['goal']
-            if pixels:
+            
+            if pixels and asym==False:
                 episode['goal'] = np.array(value).astype(int) 
             else:
                 episode['goal'] = np.array(value, np.float64)
+            
             if pixels:
                 value = self._current_episode_goal['goal_state']
                 episode['goal_state'] = np.array(value, np.float64)
@@ -370,7 +372,8 @@ class ReplayBuffer(IterableDataset):
         agent=None,
         neg_reward=False,
         sl=False,
-        asym=False):
+        asym=False,
+        loss=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -398,6 +401,7 @@ class ReplayBuffer(IterableDataset):
         self.neg_reward = neg_reward
         self.sl = sl
         self.asym = asym
+        self.loss = loss
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -555,6 +559,11 @@ class ReplayBuffer(IterableDataset):
                 goal = np.tile(goal,(3,1,1))
             #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
+        elif self.loss:
+            episode = self._sample_episode()
+            idx = np.random.randint(0, episode_len(episode))
+            rand_obs = episode['observation'][idx - 1]
+            return (obs, action, reward, discount, next_obs, rand_obs, *meta)
         else:
             return (obs, action, reward, discount, next_obs, *meta)
     
@@ -694,21 +703,18 @@ class ReplayBuffer(IterableDataset):
             _ = np.argsort(z_to_proto, axis=1)[:,0]
             goal = protos[_].reshape((protos.shape[1],))
             offset=idx_goal-idx
-            #for i in range(self._nstep):
-                #obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-                #dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
-                #
-                #else:
-                #    if dist > -.05:
-                #        reward=dist+1
-                #        print(reward)
-                #    else:
-                #        reward=0
-                #    
-                #step_reward = reward*2
-                #reward += discount * step_reward
-                #discount *= episode["discount"][idx+i] * self._discount
-            
+            for i in range(1):
+                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
+                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
+                
+                if np.array_equal(goal,protos[dists_idx]):
+                    reward=1
+                else:
+                    reward=0
+                    
+                step_reward = reward*2
+                reward += discount * step_reward
+                discount *= episode["discount"][idx+i] * self._discount  
         else:
             print('sth went wrong in replay buffer')
 
@@ -716,7 +722,7 @@ class ReplayBuffer(IterableDataset):
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
         if self.sl:
-            return (obs, action, reward, discount, next_obs, goal, offset, *meta)
+            return (obs, action, reward, discount, next_obs, goal, offset)
         elif self.asym:
             
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal_state, *meta)
@@ -771,7 +777,7 @@ class ReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-            if self.sl:
+            if self.sl and self.hybrid==False:
                 yield self._sample_sl()
             elif self.asym and self.hybrid==False:
                 yield self._sample_asym()
@@ -1260,7 +1266,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1282,6 +1288,7 @@ def make_replay_loader(
         neg_reward=neg_reward,
         sl=sl,
         asym=asym,
+        loss=loss,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )

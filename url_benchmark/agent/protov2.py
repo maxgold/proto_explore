@@ -8,8 +8,8 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg import DDPGAgent
-
+from agent.ddpg_encoder1 import DDPGEncoder1Agent
+from sklearn.cluster import KMeans
 
 
 class Projector(nn.Module):
@@ -25,9 +25,10 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoV2Agent(DDPGAgent):
+class ProtoV2Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, **kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only, 
+                 update_proto_every,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.queue_size=queue_size
@@ -41,12 +42,17 @@ class ProtoV2Agent(DDPGAgent):
         self.gc_only = gc_only
         self.batch_size = 256
         print('bathch', self.batch_size)
-        self.label_bank = torch.zeros((self.batch_size,))
-        self.protos = torch.empty((self.num_protos, pred_dim))
+        self.label_bank = torch.zeros((self.batch_size,), device=self.device).long()
+        self.protos = torch.empty((self.num_protos, pred_dim), device=self.device)
+        self.protos[0] = torch.rand((pred_dim,))
         self.initialized = False
         self.rank=0
         self.min_cluster=1
         self.debug=False
+        self.kmeans = KMeans(n_clusters=2, random_state=0, max_iter=20)
+        self.feat_dim=pred_dim
+        self.update_proto_every=update_proto_every
+        print('update proto every', update_proto_every)
         #self.load_protos = load_protos
 
         # models
@@ -101,55 +107,69 @@ class ProtoV2Agent(DDPGAgent):
     
     def init_memory(self, feature):
         """Initialize memory modules."""
+        print('init memory')
         self.initialized = True
-        label = np.zeros((feature.shape[0],))
-        self.label_bank.copy_(torch.from_numpy(label).long())
-#         # make sure no empty clusters
-#         assert (np.bincount(label, minlength=self.num_protos) != 0).all()
+        label = torch.zeros((feature.shape[0],))
+        self.label_bank.copy_(label.long())
+        # make sure no empty clusters
+        assert (torch.bincount(label, minlength=self.num_protos) != 0).all()
         if self.rank == 0:
-            ########
             #what is this for?
-            feature /= (np.linalg.norm(feature, axis=1).reshape(-1, 1) + 1e-10)
-
-            protos = self._compute_protos()
-            self.protos.copy_(protos)
+            feature /= (torch.norm(feature, axis=1).reshape(-1, 1) + 1e-10)
+            self.protos = self._compute_protos()
     
     def _compute_protos_ind(self, cinds):
         """Compute a few centroids. e.g. after reassigning"""
-        
-        
+        print('_compute_protos_ind')
         assert self.rank == 0
         num = len(cinds)
         protos = torch.zeros((num, self.feat_dim), dtype=torch.float32)
         
         for i, c in enumerate(cinds):
-            ind = np.where(self.label_bank.numpy() == c)[0]
+            ind = torch.where(self.label_bank.long() == c)[0]
             protos[i, :] = self.feature_queue[ind, :].mean(dim=0)
         
         return protos
     
     def _compute_protos(self):
         """Compute all non-empty centroids."""
+        print('_compute_protos')
         assert self.rank == 0
-        label_bank_np = self.label_bank.numpy()
-        argl = np.argsort(label_bank_np)
+        label_bank_np = self.label_bank.long()
+        argl = torch.argsort(label_bank_np)
         sortl = label_bank_np[argl]
-        diff_pos = np.where(sortl[1:] - sortl[:-1] != 0)[0] + 1
-        start = np.insert(diff_pos, 0, 0)
-        end = np.insert(diff_pos, len(diff_pos), len(label_bank_np))
-        class_start = sortl[start]
-        # keep empty class centroids unchanged
-        protos = self.protos.cpu().clone()
-        for i, st, ed in zip(class_start, start, end):
-            protos[i, :] = self.feature_queue[argl[st:ed], :].mean(dim=0)
-        return protos
+        diff_pos = torch.where(sortl[1:] - sortl[:-1] != 0)[0] + 1
+        #diff_pos = torch.as_tensor(diff_pos, device=self.device)
+        tmp = torch.zeros((1,),device=self.device)
+        print(diff_pos.shape[0])
+        print(self.feature_queue)
+        if diff_pos.shape[0]==0:
+            self.protos[0, :] += self.feature_queue[argl, :].mean(axis=0)
+        else:
+            print('cat', torch.cat([tmp, diff_pos]))
+            start = torch.cat([tmp, diff_pos]).long()
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            tmp1 = diff_pos[:diff_pos.shape[0]]
+            tmp3 = diff_pos[diff_pos.shape[0]:]
+            tmp2 = torch.tensor([label_bank_np.shape[0]], device=self.device)
+            end = torch.cat([tmp1,tmp2,tmp3])
+
+            class_start = sortl[start]
+            # keep empty class centroids unchanged
+            #import IPython as ipy; ipy.embed(colors='neutral')
+    
+            for i, st, ed in zip(class_start, start, end):
+                self.protos -= self.protos[i,:].clone()
+                self.protos[i, :] += self.feature_queue[argl[st:ed], :].mean(axis=0)  
+        return self.protos
     
     def deal_with_small_clusters(self):
         """Deal with small clusters."""
+        print('deal_with_small_clusters')
         # check empty class
-        histogram = np.bincount(
-            self.label_bank.numpy(), minlength=self.num_protos)
-        small_clusters = np.where(histogram < self.min_cluster)[0].tolist()
+        histogram = torch.bincount(
+            self.label_bank.long(), minlength=self.num_protos)
+        small_clusters = torch.where(histogram < self.min_cluster)[0].tolist()
         if self.debug and self.rank == 0:
             print(f'mincluster: {histogram.min()}, '
                   f'num of small class: {len(small_clusters)}')
@@ -158,13 +178,22 @@ class ProtoV2Agent(DDPGAgent):
         
         # re-assign samples in small clusters to make them empty
         for s in small_clusters:
-            ind = np.where(self.label_bank.numpy() == s)[0]
+            ind = torch.where(self.label_bank.long() == s)[0]
             if len(ind) > 0:
-                inclusion = torch.from_numpy(
-                    np.setdiff1d(
-                        np.arange(self.num_protos),
-                        np.array(small_clusters),
-                        assume_unique=True)).cuda()
+                
+                compareview = small_clusters.repeat(self.num_protos,1).T
+                inclusion = torch.arange(self.num_protos)[(compareview != torch.arange(self.num_protos)).T.prod(1)==1]
+
+                #combined = torch.cat([torch.arange(self.num_protos), small_clusters])
+                #uniques, counts = combined.unique(return_counts=True)
+                #difference = uniques[counts == 1]
+                #inclusion = uniques[counts > 1] 
+                
+                #inclusion = torch.from_numpy(
+                 #   np.setdiff1d(
+                 #       np.arange(self.num_protos),
+                 #       np.array(small_clusters),
+                 #       assume_unique=True)).cuda()
                 
                 if self.rank == 0:
                     #permute?
@@ -173,38 +202,51 @@ class ProtoV2Agent(DDPGAgent):
                         self.feature_queue[ind, :].cuda().permute(
                             1, 0)).argmax(dim=0)
                     target = inclusion[target_ind]
+                    print('feature_queue', self.feature_queue[ind, :])
+                    print('permute', self.feature_queue[ind, :].cuda().permute(1, 0))
+                    
                 else:
                     target = torch.zeros((ind.shape[0], ),
                                          dtype=torch.int64).cuda()
 
-                self.label_bank[ind] = torch.from_numpy(target.cpu().numpy())
+                self.label_bank[ind] = target
         # deal with empty cluster
         self._redirect_empty_clusters(small_clusters)
         
     def update_protos_memory(self, cinds=None):
         """Update centroids memory."""
+        print('update_protos_memory')
+        print('label', self.label_bank)
         if self.rank == 0:
             if self.debug:
                 print('updating centroids ...')
             if cinds is None:
                 center = self._compute_protos()
+                print('c',center)
                 self.protos.copy_(center)
             else:
                 center = self._compute_protos_ind(cinds)
-                self.protos[
-                    torch.LongTensor(cinds).cuda(), :] = center.cuda()
+                print('c2', center)
+                #import IPython as ipy; ipy.embed(colors='neutral')
+                #tmp = torch.zeros((torch.LongTensor(cinds).cuda()-1, self.protos.shape[1]))
+                #tmp2 = torch.zeros((self.protos.shape[0]-torch.LongTensor(cinds).cuda(), self.protos.shape[1]))
+                #tmp_f = torch.cat([tmp, self.protos[torch.LongTensor(cinds).cuda(), :].clone(), tmp2], axis=1)
+                #self.protos.subtract(tmp_f)
+                #self.protos.add(center.cuda())
+                self.protos[torch.LongTensor(cinds).cuda(), :] = torch.as_tensor(center, device=self.device)
+                    
 
-        
     def _partition_max_cluster(self, max_cluster):
         """Partition the largest cluster into two sub-clusters."""
+        print('_partition_max_cluster')
         assert self.rank == 0
-        max_cluster_inds = np.where(self.label_bank == max_cluster)[0]
+        max_cluster_inds = torch.where(self.label_bank.long() == max_cluster)[0]
 
         assert len(max_cluster_inds) >= 2
         max_cluster_features = self.feature_queue[max_cluster_inds, :]
-        if np.any(np.isnan(max_cluster_features.numpy())):
+        if torch.any(torch.isnan(max_cluster_features)):
             raise Exception('Has nan in features.')
-        kmeans_ret = self.kmeans.fit(max_cluster_features)
+        kmeans_ret = self.kmeans.fit(max_cluster_features.detach().clone().cpu().numpy())
         #look at how its split 
         sub_cluster1_ind = max_cluster_inds[kmeans_ret.labels_ == 0]
         sub_cluster2_ind = max_cluster_inds[kmeans_ret.labels_ == 1]
@@ -215,42 +257,45 @@ class ProtoV2Agent(DDPGAgent):
             p_to_f = torch.norm(self.protos[max_cluster, None, :] - self.feature_queue[None, max_cluster_inds, :], dim=2, p=2)
             all_dists, _ = torch.topk(p_to_f, self.topk, dim=1, largest=True)
             
-            sub_cluster1_ind = _[0].detach().cpu().numpy()
-            sub_cluster2_ind = np.setdiff1d(
-                max_cluster_inds, sub_cluster1_ind, assume_unique=True)
+            #sub_cluster1_ind = _[0].detach().cpu().numpy()
+            #sub_cluster2_ind = np.setdiff1d(
+            #    max_cluster_inds, sub_cluster1_ind, assume_unique=True)
+            compareview = sub_cluster1_ind.repeat(max_cluster_inds.shape[0],1).T
+            sub_cluster2_ind=max_cluster_inds[(compareview != max_cluster_inds).T.prod(1)==1]
+
         return sub_cluster1_ind, sub_cluster2_ind
     
     def _redirect_empty_clusters(self, empty_clusters):
         """Re-direct empty clusters."""
+        print('_redirect_empty_clusters')
         for e in empty_clusters:
             assert (self.label_bank != e).all().item(), \
                 f'Cluster #{e} is not an empty cluster.'
-            max_cluster = np.bincount(
+            #import IPython as ipy; ipy.embed(colors='neutral') 
+            max_cluster = torch.bincount(
                 self.label_bank, minlength=self.num_protos).argmax().item()
             
             # gather partitioning indices
             if self.rank == 0:
                 sub_cluster1_ind, sub_cluster2_ind = \
                     self._partition_max_cluster(max_cluster)
-                size1 = torch.LongTensor([len(sub_cluster1_ind)]).cuda()
-                size2 = torch.LongTensor([len(sub_cluster2_ind)]).cuda()
-                sub_cluster1_ind_tensor = torch.from_numpy(
-                    sub_cluster1_ind).long().cuda()
-                sub_cluster2_ind_tensor = torch.from_numpy(
-                    sub_cluster2_ind).long().cuda()
+                size1 = torch.LongTensor([len(sub_cluster1_ind)])
+                size2 = torch.LongTensor([len(sub_cluster2_ind)])
+                sub_cluster1_ind_tensor = sub_cluster1_ind.long()
+                sub_cluster2_ind_tensor = sub_cluster2_ind.long()
             else:
                 size1 = torch.LongTensor([0]).cuda()
                 size2 = torch.LongTensor([0]).cuda()
 
             if self.rank != 0:
                 sub_cluster1_ind_tensor = torch.zeros(
-                    (size1, ), dtype=torch.int64).cuda()
+                    (size1, ), dtype=torch.int64)
                 sub_cluster2_ind_tensor = torch.zeros(
-                    (size2, ), dtype=torch.int64).cuda()
+                    (size2, ), dtype=torch.int64)
 
             if self.rank != 0:
-                sub_cluster1_ind = sub_cluster1_ind_tensor.cpu().numpy()
-                sub_cluster2_ind = sub_cluster2_ind_tensor.cpu().numpy()
+                sub_cluster1_ind = sub_cluster1_ind_tensor
+                sub_cluster2_ind = sub_cluster2_ind_tensor
 
             # reassign samples in partition #2 to the empty class
             self.label_bank[sub_cluster2_ind] = e
@@ -258,24 +303,26 @@ class ProtoV2Agent(DDPGAgent):
             self.update_protos_memory([max_cluster, e])
         
     def normalize_protos(self):
-        print(self.protos)
+        print('normalize_protos')
         C = F.normalize(self.protos, dim=1, p=2)
         self.protos.copy_(C)
 
     def compute_intr_reward(self, obs, step):
+        print('compute_intr_reward')
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
             z = self.encoder(obs)
             z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
-            import IPython as ipy; ipy.embed(colors='neutral')
-            scores = torch.mm(z, self.protos)
+            #import IPython as ipy; ipy.embed(colors='neutral')
+            scores = torch.mm(self.protos, z.T)
             prob = F.softmax(scores, dim=1)
+            print('prob')
             candidates = pyd.Categorical(prob).sample()
 
         #if step>300000:
-        #    import IPython as ipy; ipy.embed(colors='neutral')
+        #import IPython as ipy; ipy.embed(colors='neutral')
         # enqueue candidates
         ptr = self.queue_ptr
         self.queue[ptr:ptr + self.num_protos] = z[candidates]
@@ -296,6 +343,7 @@ class ProtoV2Agent(DDPGAgent):
         return reward
 
     def update_proto(self, obs, next_obs, step):
+        print('update proto')
         metrics = dict()
 
         # normalize prototypes
@@ -306,8 +354,8 @@ class ProtoV2Agent(DDPGAgent):
         s = self.predictor(s)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
-        self.protos = torch.as_tensor(self.protos, device=self.device)      
-        similarity_to_protos = torch.mm(s, self.protos)
+        print('p', self.protos)
+        similarity_to_protos = torch.mm(s, self.protos.T)
         #add log softmax
         #scores_s = similarity_to_protos.argmax(dim=0)
         log_p_s = F.log_softmax(similarity_to_protos, dim=1)
@@ -318,31 +366,37 @@ class ProtoV2Agent(DDPGAgent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            q_t = torch.mm(t, self.protos)
-            q_t = F.softmax(q_t, dim=1)
+            q_t = torch.mm(t, self.protos.T)
+            q_t = F.log_softmax(q_t, dim=1)
             #change to hard code?
         
         #using target network to add features of current samples to feature_queue
         ptr = self.feature_queue_ptr
         self.feature_queue[ptr:ptr + obs.shape[0]] = t
         self.feature_queue_ptr = (ptr + obs.shape[0]) % self.feature_queue.shape[0]
-        if self.initialized==False and self.feature_queue[self.queue_size-1].sum()!=0:
-            self.init_memory(t)
+
+        #if self.initialized==False and self.feature_queue[self.queue_size-1].sum()!=0:
+        #    self.init_memory(t.clone().detach().cpu().numpy())
         
         # loss
         #debug
+        print('q', q_t.shape)
         target = q_t.argmax(dim=1)
+        print('t', target.shape)
         #B = torch.zeros((self.num_protos,), device=self.device)
         #B[torch.unique(target, return_counts=True)[0]] = torch.unique(target, return_counts=True)[1].float()
         #samples_weight=1/B
         #samples_weight[samples_weight==float('inf')]=0
-        import IPython as ipy; ipy.embed(colors='neutral')       
-        histogram=np.bincount(target.detach().cpu().numpy(), minlength=16).astype(np.float32)
+        histogram=torch.bincount(target, minlength=self.num_protos)
+        print('h', histogram.shape)
+        #import IPython as ipy; ipy.embed(colors='neutral')  
         inv_histogram=(1./(histogram+1e-10))**.5
         weight = inv_histogram/inv_histogram.sum()
-        weight=torch.as_tensor(weight, device=self.device)
+        weight = weight[:,None].tile(1,256)
         #loss = -torch.mm((q_t * log_p_s), weight.tile((16,1))).sum(dim=1).mean()
-        q_t = q_t*weight
+        print('q_t', q_t.shape)
+        print('w', weight.shape)
+        q_t = q_t*weight.T
         loss = - (q_t*log_p_s).sum(dim=1).mean() 
  
         if self.use_tb or self.use_wandb:
@@ -358,8 +412,6 @@ class ProtoV2Agent(DDPGAgent):
 
         if step % self.update_every_steps != 0:
             return metrics
-        
-        
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
@@ -427,8 +479,10 @@ class ProtoV2Agent(DDPGAgent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            
-            self.update_centroids_memory()
+            #self.update_protos_memory()
+            if step%self.update_proto_every==0:
+                self.update_protos_memory()
+                self.deal_with_small_clusters()
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -437,8 +491,7 @@ class ProtoV2Agent(DDPGAgent):
                 metrics['batch_reward'] = reward.mean().item()
 
             obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
-            
+            next_obs = self.encoder(next_obs) 
             goal = self.encoder(goal)
 
             if not self.update_encoder:

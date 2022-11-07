@@ -440,9 +440,15 @@ class DDPGSLAgent:
         return metrics
 
     def update_encoder(self, obs, obs_state, goal, goal_state, step):
+<<<<<<< HEAD
         metrics = dict()
         obs = self.encoder.fc1(obs)
         goal = self.encoder.fc1(goal)
+=======
+        metrics = dict() 
+        obs=self.encoder.fc1(obs)
+        goal=self.encoder.fc1(goal)
+>>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
         if self.use_tb or self.use_wandb:

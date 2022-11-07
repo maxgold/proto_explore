@@ -289,8 +289,14 @@ class Workspace:
         if self.cfg.load_model:
             #2022.10.12/215751_proto_encoder3
             #2022.10.12/215650_proto_encoder3
+<<<<<<< HEAD
             model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+=======
+            #model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+            model  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+>>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
             print(model.protos)
             print(model.encoder)
             print(model.projector)
@@ -356,7 +362,8 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct,return_iterable=True)
+                                                    cfg.hybrid_pct,return_iterable=True,
+                                                    sl=cfg.sl)
              
 
         self._replay_iter1 = None
@@ -726,7 +733,7 @@ class Workspace:
     def eval(self):
         #self.encode_proto(heatmap_only=True) 
         heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=False)
-        goal_array = ndim_grid(2,self.cfg.goal_num)
+        goal_array = ndim_grid(2, 10)
         success=0
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
 
@@ -747,8 +754,8 @@ class Workspace:
                 goal_state = np.array([x[0], x[1]])
                 self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                         self.cfg.action_repeat, seed=None, goal=goal_state, init_state=z)
-                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                        self.cfg.action_repeat, seed=None, goal=None, init_state=z)
+                #self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                #        self.cfg.action_repeat, seed=None, goal=None, init_state=z)
                 self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
                         self.cfg.action_repeat, seed=None, goal=None, init_state=z)
                 eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -756,6 +763,8 @@ class Workspace:
 
                 while eval_until_episode(episode):
                     time_step = self.eval_env.reset()
+                    self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    	self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
                     time_step_no_goal = self.eval_env_no_goal.reset()
 
                     with self.eval_env_goal.physics.reset_context():
@@ -1048,7 +1057,7 @@ class Workspace:
                 #        self.curriculum_goal_loaded=True
 
 
-                if episode_reward > 100 and self.cfg.resample_goal and self.reload_goal==False:
+                if episode_reward > 200 and self.cfg.resample_goal and self.reload_goal==False:
                     print('reached making new env')
                     self.resampled=True
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:

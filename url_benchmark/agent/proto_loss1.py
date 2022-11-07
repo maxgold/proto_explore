@@ -9,18 +9,17 @@ from torch import jit
 import pandas as pd
 import utils
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
-from numpy import inf
+
 
 @jit.script
-def sinkhorn_knopp(Q):
+def sinkhorn_knopp(Q, num):
     Q -= Q.max()
     Q = torch.exp(Q).T
     Q /= Q.sum()
 
     r = torch.ones(Q.shape[0], device=Q.device) / Q.shape[0]
-    #distribution shift
     c = torch.ones(Q.shape[1], device=Q.device) / Q.shape[1]
-    for it in range(3):
+    for it in range(2):
         u = Q.sum(dim=1)
         u = r / u
         Q *= u.unsqueeze(dim=1)
@@ -42,7 +41,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoEncoder1Agent(DDPGEncoder1Agent):
+class ProtoLoss1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, **kwargs):
@@ -56,46 +55,39 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
-        #self.load_protos = load_protos
         self.num_iterations = num_iterations
-        print('tau', tau)
-        print('it', num_iterations)
+        #self.load_protos = load_protos
 
         # models
-        #if self.gc_only==False:
-        self.encoder_target = deepcopy(self.encoder)
+        if self.gc_only==False:
+            self.encoder_target = deepcopy(self.encoder)
 
-        self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
-        self.predictor.apply(utils.weight_init)
-        self.predictor_target = deepcopy(self.predictor)
+            self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+            self.predictor.apply(utils.weight_init)
+            self.predictor_target = deepcopy(self.predictor)
 
-        self.projector = Projector(pred_dim, proj_dim).to(self.device)
-        self.projector.apply(utils.weight_init)
+            self.projector = Projector(pred_dim, proj_dim).to(self.device)
+            self.projector.apply(utils.weight_init)
 
-        # prototypes
-        self.protos = nn.Linear(pred_dim, num_protos,
-                            bias=False).to(self.device)
-        self.protos.apply(utils.weight_init)
-        #self.protos_target = deepcopy(self.protos)
-        # candidate queue
-        self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
-        self.queue_ptr = 0
-        self.nxt_queue = torch.zeros(queue_size, pred_dim, device=self.device)
-        self.nxt_queue_ptr = 0
+            # prototypes
+            self.protos = nn.Linear(pred_dim, num_protos,
+                                bias=False).to(self.device)
+            self.protos.apply(utils.weight_init)
+            #self.protos_target = deepcopy(self.protos)
+            # candidate queue
+            self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
+            self.queue_ptr = 0
 
-        # optimizers
-        #self.proto_opt = torch.optim.Adam(utils.chain(
-        #    self.encoder.parameters(), self.predictor.parameters(),
-        #    self.projector.parameters(), self.protos.parameters()),
-        #                              lr=self.lr)
+            # optimizers
+            self.proto_opt = torch.optim.Adam(utils.chain(
+                self.encoder.parameters(), self.predictor.parameters(),
+                self.projector.parameters(), self.protos.parameters()),
+                                          lr=self.lr)
 
-        self.proto_opt = torch.optim.Adam(self.protos.parameters(), lr=self.lr)
-        self.pred_opt = torch.optim.Adam(self.predictor.parameters(), lr=self.lr)
-        self.proj_opt = torch.optim.Adam(self.projector.parameters(), lr=self.lr)
-        self.predictor.train()
-        self.projector.train()
-        self.protos.train()
-        self.criterion = nn.CrossEntropyLoss() 
+            self.predictor.train()
+            self.projector.train()
+            self.protos.train()
+        
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -111,9 +103,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(other.protos, self.protos)
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
-
-    def init_model_from(self, agent):
-        utils.hard_update_params(agent.encoder, self.encoder)
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
@@ -155,7 +144,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -164,7 +152,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
-    def update_proto(self, obs, next_obs, step):
+    def update_proto(self, obs, next_obs, rand_obs, step):
         metrics = dict()
 
         # normalize prototypes
@@ -178,57 +166,39 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-        p_s = F.softmax(scores_s / self.tau, dim=1)
+
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
-            scores_t = self.protos(t)
-            #####################
-            #prob = F.softmax(scores_t, dim=1)
-            #candidates = pyd.Categorical(prob).sample()
-            # enqueue candidates
-            #ptr = self.nxt_queue_ptr
-            #self.nxt_queue[ptr:ptr + self.num_protos] = z[candidates]
-            #self.nxt_queue_ptr = (ptr + self.num_protos) % self.nxt_queue.shape[0]
             
-            # compute distances between the batch and the queue of candidates
-           # z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
-           # all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
-           # dist = all_dists[:, -1:]
-           # reward = dist 
-            ##################
-            q_t = sinkhorn_knopp(scores_t / self.tau)
+            v = self.encoder_target(rand_obs)
+            v = self.predictor_target(v)
+            v = F.normalize(v, dim=1, p=2)
 
-        # loss
-        #reweight
-
-        #target = q_t.argmax(dim=1)
-        #histogram=torch.bincount(target, minlength=16)
-        #inv_histogram=(1./(histogram+1e-10))**.5
-        #weight = inv_histogram/inv_histogram.sum()
-        #weight = weight[:,None].tile(1,256)
-        #q_t = q_t*weight.T 
+            scores_t = self.protos(t)
+            q_t = sinkhorn_knopp(scores_t / self.tau, self.num_iterations)
         
-        loss = -(q_t * log_p_s).sum(dim=1).mean()
-        #loss2 = self.criterion(p_s, q_t)
+
+            
+        #if step%1000==0:
+        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        
+        # loss
+        if step>10000:
+            loss = -(q_t * log_p_s).sum(dim=1).mean() - 1 * F.mse_loss(s, v)
+            
+        else:
+            loss = -(q_t * log_p_s).sum(dim=1).mean()
 
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
-        #self.proto_opt.zero_grad(set_to_none=True)
-        #loss.backward()
-        #self.proto_opt.step()
-
-        self.pred_opt.zero_grad(set_to_none=True)
-        self.proj_opt.zero_grad(set_to_none=True)
-        self.encoder_opt.zero_grad(set_to_none=True)
-
+        
+        self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
+        self.proto_opt.step()
 
-        self.pred_opt.step()
-        self.proj_opt.step()
-        self.encoder_opt.step()
         return metrics
 
     def update(self, replay_iter, step, actor1=False):
@@ -245,7 +215,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 goal = goal.reshape(-1, 2).float()
             
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -258,13 +228,14 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
+            rand_obs = self.aug(rand_obs)
             if actor1:
                 goal = self.aug(goal)
            
         if actor1==False:
 
             if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, step))
+                metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -311,11 +282,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            
             goal = self.encoder(goal)
 
             if not self.update_encoder:
-            
                 obs = obs.detach()
                 next_obs = next_obs.detach()
                 goal=goal.detach()

@@ -438,7 +438,7 @@ class Workspace:
                 if self.cfg.obs_type == 'pixels' and self.cfg.asym==False:
                     self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
                 elif self.cfg.obs_type == 'pixels' and self.cfg.asym:
-                    self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, goal_state=goal_state, pixels=True, last=True)
+                    self.replay_storage1.add_goal(time_step1, meta,np.array([goal_state[0], goal_state[1],0,0]), time_step_no_goal, goal_state=goal_state, pixels=True, last=True, asym=True)
                 else: 
                     self.replay_storage.add(time_step1, meta)
                 # try to save snapshot
@@ -557,9 +557,9 @@ class Workspace:
                 self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), pixels=True)
             elif self.cfg.obs_type == 'pixels' and time_step1.last()==False and self.cfg.asym:
                 self.replay_storage1.add_goal(time_step1, meta, np.array([goal_state[0], goal_state[1],0,0]), time_step_no_goal,goal_state, pixels=True, asym=True)
-            elif self.cfg.obs_type == 'pixels' and time_step1.last() and self.cfg.asym:
+            #elif self.cfg.obs_type == 'pixels' and time_step1.last() and self.cfg.asym:
                 
-                self.replay_storage1.add_goal(time_step1, meta, np.array([goal_state[0], goal_state[1],0,0]), time_step_no_goal,goal_state, pixels=True, asym=True, last=True)
+            #    self.replay_storage1.add_goal(time_step1, meta, np.array([goal_state[0], goal_state[1],0,0]), time_step_no_goal,goal_state, pixels=True, asym=True, last=True)
             elif self.cfg.obs_type == 'states':
                 self.replay_storage1.add_goal(time_step1, meta, goal)
 
