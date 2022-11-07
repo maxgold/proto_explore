@@ -562,13 +562,16 @@ class ReplayBuffer(IterableDataset):
             #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
         elif self.loss:
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode))
-            rand_obs = episode['observation'][idx - 1]
             if self.test:
                 obs_state =  episode["state"][idx - 1]
+                episode = self._sample_episode()
+                idx = np.random.randint(0, episode_len(episode))
+                rand_obs = episode['observation'][idx - 1] 
                 return (obs, obs_state, action, reward, discount, next_obs, rand_obs, *meta)
             else:
+                episode = self._sample_episode()
+                idx = np.random.randint(0, episode_len(episode))
+                rand_obs = episode['observation'][idx - 1]
                 return (obs, action, reward, discount, next_obs, rand_obs, *meta)
         elif self.test:
             obs_state =  episode["state"][idx - 1]

@@ -255,7 +255,7 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
                 goal = goal.reshape(-1, 2).float()
                 
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
