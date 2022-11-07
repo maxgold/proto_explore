@@ -8,7 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
-from agent.ddpg_encoder3 import DDPGEncoder3Agent
+from agent.ddpg_encoder1 import DDPGEncoder1Agent
 
 
 @jit.script
@@ -41,9 +41,10 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoEncoder3Agent(DDPGEncoder3Agent):
+class ProtoLapAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
-                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,**kwargs):
+                 encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
+                 num_iterations, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -161,7 +162,6 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -170,7 +170,7 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
         #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
-    def update_proto(self, obs, next_obs, step):
+    def update_proto(self, obs, next_obs, rand_obs, step):
         metrics = dict()
 
         # normalize prototypes
@@ -190,9 +190,14 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
+            
+            v = self.encoder_target(rand_obs)
+            v = self.predictor_target(v)
+            v = F.normalize(v, dim=1, p=2)
+
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
-
+        
         if step%1000==0 and step!=0:
             self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
             self.proto_distr_max[self.count] = q_t.amax(dim=0)
@@ -222,16 +227,67 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
                 df.plot(ax=ax,figsize=(15,5))
                 ax.set_xticks(np.arange(0, matrix.shape[0], 100))
                 plt.savefig(names[i])
-                
+            
+        #if step%1000==0:
+        #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
+        
         # loss
-        loss = -(q_t * log_p_s).sum(dim=1).mean()
+        if step>10000:
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = torch.exp(-torch.norm(t-v, p=2).sum(-1)).mean()
+            loss = loss1+loss2
+        else:
+            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+            loss2 = torch.tensor(0)
+            loss=loss1 + .2*loss2
         if self.use_tb or self.use_wandb:
-            metrics['repr_loss'] = loss.item()
+            
+            metrics['repr_loss1'] = loss1.item()
+            metrics['repr_loss2'] = loss2.item()
+
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
         self.proto_opt.step()
 
         return metrics
+ 
+
+    def neg_loss(self, x, c=1.0, reg=0.0):
+        
+        """
+        x: n * d.
+        sample based approximation for
+        (E[x x^T] - c * I / d)^2
+            = E[(x^T y)^2] - 2c E[x^T x] / d + c^2 / d
+        #
+        An optional regularization of
+        reg * E[(x^T x - c)^2] / n
+            = reg * E[(x^T x)^2 - 2c x^T x + c^2] / n
+        for reg in [0, 1]
+        """
+        
+        n = x.shape[0]
+        d = x.shape[1]
+        inprods = x @ x.T
+        norms = inprods[torch.arange(n), torch.arange(n)]
+        
+        part1 = inprods.pow(2).sum() - norms.pow(2).sum()
+        part1 = part1 / ((n - 1) * n)
+        part2 = - 2 * c * norms.mean() / d
+        part3 = c * c / d
+
+        # regularization
+        if reg > 0.0:
+            reg_part1 = norms.pow(2).mean()
+            reg_part2 = - 2 * c * norms.mean()
+            reg_part3 = c * c
+            reg_part = (reg_part1 + reg_part2 + reg_part3) / n
+        
+        else:
+            reg_part = 0.0
+
+        return part1 + part2 + part3 + reg * reg_part
+ 
 
     def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
@@ -245,9 +301,8 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
-        
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
@@ -284,9 +339,8 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
                     ax.legend()
                     
                     plt.savefig(f"batch_moving_avg_{step}.png")
-                    
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -299,13 +353,14 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
+            rand_obs = self.aug(rand_obs)
             if actor1:
                 goal = self.aug(goal)
            
         if actor1==False:
 
             if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, step))
+                metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -352,11 +407,9 @@ class ProtoEncoder3Agent(DDPGEncoder3Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
-            
             goal = self.encoder(goal)
 
             if not self.update_encoder:
-            
                 obs = obs.detach()
                 next_obs = next_obs.detach()
                 goal=goal.detach()
