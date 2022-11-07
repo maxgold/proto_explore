@@ -178,7 +178,8 @@ class Workspace:
                                                 False, cfg.nstep, cfg.discount,
                                                 goal=cfg.goal,
                                                 obs_type=cfg.obs_type,
-                                                loss=cfg.loss)
+                                                loss=cfg.loss,
+                                                test=cfg.test)
         self._replay_iter = None
 
         # create video recorders
@@ -974,7 +975,7 @@ class Workspace:
                                             eval_mode=True)
             # try to update the agent
             if not seed_until_step(self.global_step):
-                metrics = self.agent.update(self.replay_iter, self.global_step)
+                metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent
