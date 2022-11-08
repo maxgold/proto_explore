@@ -289,9 +289,14 @@ class Workspace:
         if self.cfg.load_model:
             #2022.10.12/215751_proto_encoder3
             #2022.10.12/215650_proto_encoder3
+<<<<<<< HEAD
+            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
+=======
             #model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
             model  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+>>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
             print(model.protos)
             print(model.encoder)
             print(model.projector)

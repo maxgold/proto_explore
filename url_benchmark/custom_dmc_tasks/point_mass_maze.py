@@ -52,7 +52,7 @@ TASKS = [
     ("reach_vertical_no_goal", np.array([-0.15, -0.15, 0.01])),
     ("reach_bottom_no_goal", np.array([-0.15, -0.15, 0.01])),
     ("reach_hard_no_goal", np.array([-0.15, -0.15, 0.01])),
-    ]
+    ("reach_room_no_goal", np.array([-0.15, -0.15, 0.01]))]
 
 
 

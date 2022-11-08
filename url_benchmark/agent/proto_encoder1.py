@@ -8,6 +8,7 @@ from torch import distributions as pyd
 from torch import jit
 import pandas as pd
 import utils
+import matplotlib.pyplot as plt
 from agent.ddpg_encoder1 import DDPGEncoder1Agent
 from numpy import inf
 
@@ -18,6 +19,7 @@ def sinkhorn_knopp(Q):
     Q /= Q.sum()
 
     r = torch.ones(Q.shape[0], device=Q.device) / Q.shape[0]
+    #distribution shift
     c = torch.ones(Q.shape[1], device=Q.device) / Q.shape[1]
     for it in range(3):
         u = Q.sum(dim=1)
@@ -55,8 +57,25 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
-        #self.load_protos = load_protos
         self.num_iterations = num_iterations
+        self.pred_dim=pred_dim
+        self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
+        self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
+        self.proto_distr_med = torch.zeros((1000,self.num_protos), device=self.device)
+        self.proto_distr_min = torch.zeros((1000,self.num_protos), device=self.device)
+        self.count=torch.as_tensor(0,device=self.device)
+        self.mov_avg_5 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_10 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_20 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_50 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_100 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_200 = torch.zeros((1000,), device=self.device)
+        self.mov_avg_500 = torch.zeros((1000,), device=self.device)
+        self.chg_queue = torch.zeros((1000,), device=self.device)
+        self.chg_queue_ptr = 0
+        self.prev_heatmap = np.zeros((10,10))
+        self.current_heatmap = np.zeros((10,10))
+        self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
         print('tau', tau)
         print('it', num_iterations)
 
@@ -79,13 +98,18 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         # candidate queue
         self.queue = torch.zeros(queue_size, pred_dim, device=self.device)
         self.queue_ptr = 0
+        self.nxt_queue = torch.zeros(queue_size, pred_dim, device=self.device)
+        self.nxt_queue_ptr = 0
 
         # optimizers
-        self.proto_opt = torch.optim.Adam(utils.chain(
-            self.encoder.parameters(), self.predictor.parameters(),
-            self.projector.parameters(), self.protos.parameters()),
-                                      lr=self.lr)
+        #self.proto_opt = torch.optim.Adam(utils.chain(
+        #    self.encoder.parameters(), self.predictor.parameters(),
+        #    self.projector.parameters(), self.protos.parameters()),
+        #                              lr=self.lr)
 
+        self.proto_opt = torch.optim.Adam(self.protos.parameters(), lr=self.lr)
+        self.pred_opt = torch.optim.Adam(self.predictor.parameters(), lr=self.lr)
+        self.proj_opt = torch.optim.Adam(self.projector.parameters(), lr=self.lr)
         self.predictor.train()
         self.projector.train()
         self.protos.train()
@@ -172,15 +196,57 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-        p_s = F.softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
+            #####################
+            #prob = F.softmax(scores_t, dim=1)
+            #candidates = pyd.Categorical(prob).sample()
+            # enqueue candidates
+            #ptr = self.nxt_queue_ptr
+            #self.nxt_queue[ptr:ptr + self.num_protos] = z[candidates]
+            #self.nxt_queue_ptr = (ptr + self.num_protos) % self.nxt_queue.shape[0]
+            
+            # compute distances between the batch and the queue of candidates
+           # z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
+           # all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
+           # dist = all_dists[:, -1:]
+           # reward = dist 
+            ##################
             q_t = sinkhorn_knopp(scores_t / self.tau)
+        
+        if step%1000==0 and step!=0:
+            self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
+            self.proto_distr_max[self.count] = q_t.amax(dim=0)
+            self.proto_distr_med[self.count], _ = q_t.median(dim=0)
+            self.proto_distr_min[self.count] = q_t.amin(dim=0)
+            
+            self.count+=1
+        
+        if step%100000==0:
+            sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
+            names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
+            fig, ax = plt.subplots()
+            top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
+            df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
+            df.plot(ax=ax,figsize=(15,5))
+            ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
+            #ax.set_xscale('log')
+            plt.savefig(f"proto_distribution_step{step}.png")
+            
 
+            for i, matrix in enumerate(sets):
+                fig, ax = plt.subplots()
+
+                quant = torch.quantile(matrix, self.q, dim=1)
+                print('q', quant.shape)
+                df = pd.DataFrame(quant.cpu().numpy().T)
+                df.plot(ax=ax,figsize=(15,5))
+                ax.set_xticks(np.arange(0, matrix.shape[0], 100))
+                plt.savefig(names[i])
         # loss
         #reweight
 
@@ -196,13 +262,22 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
-        self.proto_opt.zero_grad(set_to_none=True)
-        loss.backward()
-        self.proto_opt.step()
+        #self.proto_opt.zero_grad(set_to_none=True)
+        #loss.backward()
+        #self.proto_opt.step()
 
+        self.pred_opt.zero_grad(set_to_none=True)
+        self.proj_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
+
+        loss.backward()
+
+        self.pred_opt.step()
+        self.proj_opt.step()
+        self.encoder_opt.step()
         return metrics
 
-    def update(self, replay_iter, step, actor1=False):
+    def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
 
         if step % self.update_every_steps != 0:
@@ -214,7 +289,46 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+                
+        elif actor1==False and test:
+            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
+                    batch, self.device)
             
+            obs_state = obs_state.clone().detach().cpu().numpy()
+            self.current_heatmap, _, _ = np.histogram2d(obs_state[:, 0], obs_state[:, 1], bins=10, range=np.array(([-.29, .29],[-.29, .29])))
+            if self.prev_heatmap.sum()==0:
+                self.prev_heatmap=self.current_heatmap
+            else:
+                total_chg = np.abs((self.current_heatmap-self.prev_heatmap)).sum()
+                
+                chg_ptr = self.chg_queue_ptr
+                self.chg_queue[chg_ptr] = torch.tensor(total_chg,device=self.device)
+                self.chg_queue_ptr = (chg_ptr+1) % self.chg_queue.shape[0]
+                if step>=1000 and step%1000==0:
+                    
+                    indices=[5,10,20,50,100,200,500]
+                    sets = [self.mov_avg_5, self.mov_avg_10, self.mov_avg_20,
+                            self.mov_avg_50, self.mov_avg_100, self.mov_avg_200,
+                            self.mov_avg_500]
+                    for ix,x in enumerate(indices):
+                        if chg_ptr-x<0:
+                            lst = torch.cat([self.chg_queue[:chg_ptr], self.chg_queue[chg_ptr-x:]])
+                            sets[ix][self.count]=lst.mean()
+                        else:
+                            sets[ix][self.count]=self.chg_queue[chg_ptr-x:chg_ptr].mean()
+
+                if step%100000==0:
+                    plt.clf()
+                    fig, ax = plt.subplots(figsize=(15,5))
+                    labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50',
+                            'mov_avg_100', 'mov_avg_200', 'mov_avg_500']
+                    
+                    for ix,x in enumerate(indices):
+                        ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix].clone().detach().cpu().numpy(), label=labels[ix])
+                    ax.legend()
+                    
+                    plt.savefig(f"batch_moving_avg_{step}.png")
+                    
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)

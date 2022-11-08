@@ -178,7 +178,8 @@ class Workspace:
                                                 False, cfg.nstep, cfg.discount,
                                                 goal=cfg.goal,
                                                 obs_type=cfg.obs_type,
-                                                loss=cfg.loss)
+                                                loss=cfg.loss,
+                                                test=cfg.test)
         self._replay_iter = None
 
         # create video recorders
@@ -194,6 +195,7 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
+        self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
 
     @property
     def global_step(self):
@@ -561,7 +563,7 @@ class Workspace:
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 self.work_dir / 'buffer' / 'buffer_copy',
-                                                100000,
+                                                500000,
                                                 0,
                                                 0,
                                                 .99,
@@ -678,21 +680,28 @@ class Workspace:
             order = self_mat[index_][0,:].cpu().numpy()
             plt.clf()
             fig, ax = plt.subplots()
+            dist_np = np.empty((_proto_self.shape[1], dist_matrix.shape[1], 2))
+            
             for ix in range(_proto_self.shape[1]):
                 print('proto', ix)
                 txt=''
                 df = pd.DataFrame()
+                count=0
                 for i in range(a.shape[0]+1):
                     if i!=a.shape[0]:
                         df.loc[i,'x'] = a[i,0]
                         df.loc[i,'y'] = a[i,1]
                         df.loc[i,'distance_to_proto1'] = _proto_self[ix,0].item()
-
+                        
                         if i in dist_matrix[ix,:]:
                             df.loc[i, 'c'] = str(ix+1)
-                            z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
+                            dist_np[ix,count,0] = a[i,0]
+                            dist_np[ix,count,1] = a[i,1]
+                            count+=1
+                            #z=dist_matrix[ix,(dist_matrix[ix,:] == i).nonzero(as_tuple=True)[0]]
                             #txt += ' ['+str(np.round(state[z][0],2))+','+str(np.round(state[z][1],2))+'] '
                         elif ix==0 and (i not in dist_matrix[ix,:]):
+                            #color all samples blue
                             df.loc[i,'c'] = str(0)
 
                 #order based on distance to first prototype
@@ -737,6 +746,21 @@ class Workspace:
                           hue="c",palette=palette,
                           data=df,legend=False)
                 #ax.set_title("\n".join(wrap(txt,75)))
+            
+            pairwise_dist = np.linalg.norm(dist_np[:,0,None,:]-dist_np, ord=2, axis=2)
+            print(pairwise_dist.shape)
+            
+            maximum = np.amax(pairwise_dist, axis=1)
+            num = self.global_step//self.cfg.eval_every_frames
+            self.final_df.loc[num, 'avg'] = np.mean(maximum)
+            self.final_df.loc[num, 'med'] = np.median(maximum)
+            self.final_df.loc[num, 'q9'] = np.quantile(maximum, .9)
+            self.final_df.loc[num, 'q8'] = np.quantile(maximum, .8)
+            self.final_df.loc[num, 'q7'] = np.quantile(maximum, .7)
+            self.final_df.loc[num, 'max'] = np.max(maximum)
+            
+
+
             if index_==0:
                 file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
             elif index_==1:
@@ -744,7 +768,15 @@ class Workspace:
 
             plt.savefig(file1)
             wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
-                #filenames.append(file1)
+
+            if self.global_step >= (self.cfg.num_train_frames//2-100):
+                fig, ax = plt.subplots()
+                self.final_df.plot(ax=ax)
+                ax.set_xticks(self.final_df.index)
+                plt.savefig(self.work_dir / f"proto_states.png")
+                wandb.save(f"proto_states.png") 
+
+            #filenames.append(file1)
 
             #if len(filenames)>100:
             #    filenames=filenames[:100]
@@ -943,7 +975,7 @@ class Workspace:
                                             eval_mode=True)
             # try to update the agent
             if not seed_until_step(self.global_step):
-                metrics = self.agent.update(self.replay_iter, self.global_step)
+                metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
             
             #save agent

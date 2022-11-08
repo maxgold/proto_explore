@@ -407,41 +407,12 @@ class DDPGSLAgent:
         
         # optimize critic
         # if self.encoder_opt is not None:
-        #self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
 #         if self.encoder_opt is not None:
-        #self.encoder_opt.step()
-        return metrics
-
-    def update_critic2(self, obs, action, reward, discount, next_obs, step):
-        metrics = dict()
-
-        with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor2(next_obs, stddev)
-            next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
-            target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (discount * target_V)
-
-        Q1, Q2 = self.critic2(obs, action)
-        critic2_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
-
-        if self.use_tb or self.use_wandb:
-            metrics['critic2_target_q'] = target_Q.mean().item()
-            metrics['critic2_q1'] = Q1.mean().item()
-            metrics['critic2_q2'] = Q2.mean().item()
-            metrics['critic2_loss'] = critic2_loss.item()
-        # optimize critic
-#         if self.encoder_opt is not None:
-#             self.encoder_opt.zero_grad(set_to_none=True)
-        self.critic2_opt.zero_grad(set_to_none=True)
-        critic2_loss.backward()
-        self.critic2_opt.step()
-#         if self.encoder_opt is not None:
-#             self.encoder_opt.step()
+        self.encoder_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, action,step):
@@ -468,34 +439,16 @@ class DDPGSLAgent:
             metrics['actor_stddev'] = stddev
         return metrics
 
-    def update_actor2(self, obs, step):
-        metrics = dict()
-
-        stddev = utils.schedule(self.stddev_schedule, step)
-        dist = self.actor2(obs, stddev)
-        action = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
-        Q1, Q2 = self.critic2(obs, action)
-        Q = torch.min(Q1, Q2)
-
-        actor2_loss = -Q.mean()
-
-        # optimize actor
-        self.actor2_opt.zero_grad(set_to_none=True)
-        actor2_loss.backward()
-        self.actor2_opt.step()
-
-        if self.use_tb or self.use_wandb:
-            metrics['actor2_loss'] = actor2_loss.item()
-            metrics['actor2_logprob'] = log_prob.mean().item()
-            metrics['actor2_ent'] = dist.entropy().sum(dim=-1).mean().item()
-            metrics['actor2_stddev'] = stddev
-        return metrics
-
     def update_encoder(self, obs, obs_state, goal, goal_state, step):
+<<<<<<< HEAD
+        metrics = dict()
+        obs = self.encoder.fc1(obs)
+        goal = self.encoder.fc1(goal)
+=======
         metrics = dict() 
         obs=self.encoder.fc1(obs)
         goal=self.encoder.fc1(goal)
+>>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
         if self.use_tb or self.use_wandb:
