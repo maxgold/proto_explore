@@ -237,7 +237,7 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         # loss
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = self.neg_loss(s_)
+            loss2 = self.neg_loss(v)
             loss = loss1+self.pred_dim/20*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()

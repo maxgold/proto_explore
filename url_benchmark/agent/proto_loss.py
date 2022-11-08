@@ -180,6 +180,8 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
+        s_ = s.clone()
+        s_ = F.normalize(s_, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
@@ -233,10 +235,10 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
         
         # loss
-        if step>10000:
+        if step>100000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = -F.mse_loss(s, v)
-            loss = loss1+..5*loss2
+            loss = loss1+.5*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.tensor(0)
