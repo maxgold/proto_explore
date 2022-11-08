@@ -872,6 +872,7 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         eps_fns = self._replay_dir.glob("*.npz")
+        np.random.shuffle(eps_fns)
         # for eps_fn in tqdm.tqdm(eps_fns):
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
             if self._size > self._max_size:
@@ -883,6 +884,7 @@ class OfflineReplayBuffer(IterableDataset):
             if relabel:
                 episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
+            print(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
 
