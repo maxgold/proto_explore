@@ -188,9 +188,9 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
 
-        v = self.encoder(rand_obs)
-        v = self.predictor(v)
-        v = F.normalize(v, dim=1, p=2) 
+        #v = self.encoder(rand_obs)
+        #v = self.predictor(v)
+        #v = F.normalize(v, dim=1, p=2) 
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
@@ -199,6 +199,10 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
 
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
+
+            v = self.encoder_target(rand_obs)
+            v = self.predictor_target(v)
+            v = F.normalize(v, dim=1, p=2)
         
         if step%1000==0 and step!=0:
             self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
@@ -235,7 +239,7 @@ class ProtoNeglossAgent(DDPGEncoder1Agent):
             torch.argmax(q_t, dim=1).unique(return_counts=True)
         
         # loss
-        if step>10000:
+        if step>100000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = self.neg_loss(v)
             loss = loss1+self.pred_dim/20*loss2
