@@ -563,7 +563,7 @@ class Workspace:
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 self.work_dir / 'buffer' / 'buffer_copy',
-                                                100000,
+                                                500000,
                                                 0,
                                                 0,
                                                 .99,

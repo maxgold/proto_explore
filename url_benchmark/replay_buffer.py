@@ -871,8 +871,8 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        eps_fns = self._replay_dir.glob("*.npz")
-        np.random.shuffle(eps_fns)
+        eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
+    
         # for eps_fn in tqdm.tqdm(eps_fns):
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
             if self._size > self._max_size:
@@ -881,6 +881,7 @@ class OfflineReplayBuffer(IterableDataset):
             if eps_idx % self._num_workers != worker_id:
                 continue
             episode = load_episode(eps_fn)
+            
             if relabel:
                 episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
