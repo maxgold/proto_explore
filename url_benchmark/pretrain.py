@@ -597,10 +597,10 @@ class Workspace:
                 else:
                     count01+=1
 
-        df.loc[0,0] = count00
-        df.loc[0,1] = count01
-        df.loc[1,1] = count11
-        df.loc[1,0] = count10
+        df.loc[0,0] = count00/a.shape[0]
+        df.loc[0,1] = count01/a.shape[0]
+        df.loc[1,1] = count11/a.shape[0]
+        df.loc[1,0] = count10/a.shape[0]
         labels=df
         plt.clf()
         fig, ax = plt.subplots()
