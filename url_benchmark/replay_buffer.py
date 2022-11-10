@@ -1060,7 +1060,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._samples_since_last_load += 1
 
         episode = self._sample_episode()
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        idx = np.random.randint(0, episode_len(episode) - self._nstep+1) + 1
         obs = episode["observation"][idx - 1]
 
         action = episode["action"][idx]
