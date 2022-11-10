@@ -123,18 +123,25 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
 
+    def init_model_from(self, agent):
+        utils.hard_update_params(agent.encoder, self.encoder)
+
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 
     def init_gc_from(self,critic, actor):
         utils.hard_update_params(critic, self.critic1)
         utils.hard_update_params(actor, self.actor1)
-    
+
     def init_protos_from(self, protos):
         utils.hard_update_params(protos.protos, self.protos)
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
         utils.hard_update_params(protos.encoder, self.encoder)
+ 
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)
@@ -356,7 +363,8 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-            rand_obs = self.aug(rand_obs)
+            if actor1==False:
+                rand_obs = self.aug(rand_obs)
             if actor1:
                 goal = self.aug(goal)
            

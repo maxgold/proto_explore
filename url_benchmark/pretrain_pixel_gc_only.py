@@ -287,27 +287,17 @@ class Workspace:
                                 cfg.feature_dim)
         
         if self.cfg.load_model:
-            #2022.10.12/215751_proto_encoder3
-            #2022.10.12/215650_proto_encoder3
-<<<<<<< HEAD
-            model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
-            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
-=======
-            #model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
-            #model = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
-            model  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
->>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
-            print(model.protos)
-            print(model.encoder)
-            print(model.projector)
+            model = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            #model  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_model_from(model)
         
         if self.cfg.load_model and self.cfg.load_proto:
-            #2022.10.16/011303_proto_encoder1
-            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_protos_from(proto)
         if self.cfg.load_model and self.cfg.load_encoder:
-            proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_encoder_from(proto.encoder)
 
         if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
@@ -319,7 +309,7 @@ class Workspace:
         if self.cfg.load_proto and self.cfg.load_model==False:
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
-            proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
             #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
@@ -363,7 +353,8 @@ class Workspace:
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct,return_iterable=True,
-                                                    sl=cfg.sl)
+                                                    sl=cfg.sl,
+                                                    loss=cfg.loss)
              
 
         self._replay_iter1 = None
