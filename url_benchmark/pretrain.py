@@ -305,10 +305,10 @@ class Workspace:
                 else:
                     count01+=1
 
-        df.loc[0,0] = count00
-        df.loc[0,1] = count01
-        df.loc[1,1] = count11
-        df.loc[1,0] = count10
+        df.loc[0,0] = count00/a.shape[0]
+        df.loc[0,1] = count01/a.shape[0]
+        df.loc[1,1] = count11/a.shape[0]
+        df.loc[1,0] = count10/a.shape[0]
         labels=df
         plt.clf()
         fig, ax = plt.subplots()
@@ -750,6 +750,7 @@ class Workspace:
             pairwise_dist = np.linalg.norm(dist_np[:,0,None,:]-dist_np, ord=2, axis=2)
             print(pairwise_dist.shape)
             
+            #maximum pairwise distance amongst prototypes
             maximum = np.amax(pairwise_dist, axis=1)
             num = self.global_step//self.cfg.eval_every_frames
             self.final_df.loc[num, 'avg'] = np.mean(maximum)
@@ -775,6 +776,7 @@ class Workspace:
                 ax.set_xticks(self.final_df.index)
                 plt.savefig(self.work_dir / f"proto_states.png")
                 wandb.save(f"proto_states.png") 
+
 
             #filenames.append(file1)
 

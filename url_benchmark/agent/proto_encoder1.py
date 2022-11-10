@@ -219,6 +219,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
         if step%1000==0 and step!=0:
+            #for each prototype we calculate the maximum/median/minimum  prob. assigned to it 
             self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
             self.proto_distr_max[self.count] = q_t.amax(dim=0)
             self.proto_distr_med[self.count], _ = q_t.median(dim=0)
@@ -293,7 +294,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         elif actor1==False and test:
             obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
                     batch, self.device)
-            
+           
+            #batch moving average tracks how many states are moving in & out of each 10x10grid between every update batch. (should divide by 2)
             obs_state = obs_state.clone().detach().cpu().numpy()
             self.current_heatmap, _, _ = np.histogram2d(obs_state[:, 0], obs_state[:, 1], bins=10, range=np.array(([-.29, .29],[-.29, .29])))
             if self.prev_heatmap.sum()==0:
