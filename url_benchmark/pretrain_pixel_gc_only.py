@@ -732,21 +732,19 @@ class Workspace:
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64) 
 
         for ix, x in enumerate(goal_array):
-            dist_goal = cdist(np.array([z]), goal_array, 'euclidean')
+            dist_goal = cdist(np.array([x]), goal_array, 'euclidean')
             df1=pd.DataFrame()
             df1['distance'] = dist_goal.reshape((goal_array.shape[0],))
             df1['index'] = df1.index
             df1 = df1.sort_values(by='distance')
             success=0
             step, episode, total_reward = 0, 0, 0
-            goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+            #goal_pix, goal_state = self.sample_goal_uniform(eval=True)
             goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=goal_state, init_state=z)
-            #self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-            #        self.cfg.action_repeat, seed=None, goal=None, init_state=z)
+                    self.cfg.action_repeat, seed=None, goal=goal_state, init_state=x)
             self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None, init_state=z)
+                    self.cfg.action_repeat, seed=None, goal=None, init_state=x)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
 
@@ -784,8 +782,8 @@ class Workspace:
                 episode += 1
                 
             
-                if iz%10==0:
-                    self.video_recorder.save(f'{self.global_frame}_{iz}.mp4')
+                if ix%10==0:
+                    self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
 
                 if self.cfg.eval:
                     save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
@@ -796,10 +794,10 @@ class Workspace:
                 if total_reward > 20*self.cfg.num_eval_episodes:
                     success+=1
             
-            df.loc[iz, 'x'] = z[0]
-            df.loc[iz, 'y'] = z[1]
-            df.loc[iz, 'r'] = success
-            print('num success', success)
+            df.loc[ix, 'x'] = x[0]
+            df.loc[ix, 'y'] = x[1]
+            df.loc[ix, 'r'] = total_reward
+            print('r', total_reward)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         plt.clf()
