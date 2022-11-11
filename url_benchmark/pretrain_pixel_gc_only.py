@@ -1042,7 +1042,7 @@ class Workspace:
                 #        self.curriculum_goal_loaded=True
 
 
-                if episode_reward > 200 and self.cfg.resample_goal and self.reload_goal==False:
+                if episode_reward > 200 and self.cfg.resample_goal and self.reload_goal==False and episode_step<450:
                     print('reached making new env')
                     self.resampled=True
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
