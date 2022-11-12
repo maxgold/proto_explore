@@ -562,17 +562,29 @@ class ReplayBuffer(IterableDataset):
             #goal = goal[None,:,:]
             return (obs, action, reward, discount, next_obs, goal, *meta)
         elif self.loss:
+            
             if self.test:
+                if idx < episode_len(episode)//2:
+                    rand_idx = np.random.randint(episode_len(episode)-50, episode_len(episode))
+                    rand_obs = episode["observation"][rand_idx]
+                    rand_obs_state = episode["state"][rand_idx]
+                else:
+                    rand_idx = np.random.randint(0, 50)
+                    rand_obs = episode["observation"][rand_idx]
+                    rand_obs_state = episode["state"][rand_idx]
+                next_obs_state = episode["state"][idx]
                 obs_state =  episode["state"][idx - 1]
-                episode = self._sample_episode()
-                idx = np.random.randint(0, episode_len(episode))
-                rand_obs = episode['observation'][idx - 1] 
-                return (obs, obs_state, action, reward, discount, next_obs, rand_obs, *meta)
+                #episode = self._sample_episode()
+                #idx = np.random.randint(0, episode_len(episode))
+                #rand_obs = episode['observation'][idx - 1] 
+                return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state, *meta)
+            
             else:
                 episode = self._sample_episode()
                 idx = np.random.randint(0, episode_len(episode))
                 rand_obs = episode['observation'][idx - 1]
-                return (obs, action, reward, discount, next_obs, rand_obs, *meta)
+                return (obs, action, reward, discount, next_obs, rand_obs, *meta)	
+
         elif self.test:
             obs_state =  episode["state"][idx - 1]
             return (obs, obs_state, action, reward, discount, next_obs, *meta)
