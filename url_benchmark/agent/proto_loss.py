@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoLossAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, **kwargs):
+                 num_iterations, lagr, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -58,6 +58,7 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
+        self.lagr = lagr
         self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
         self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
         self.proto_distr_med = torch.zeros((1000,self.num_protos), device=self.device)
@@ -163,6 +164,8 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
+        #if step%500==0:
+        #    print('step', reward)
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -235,24 +238,47 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
         
         # loss
-        if step>100000:
-            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = -F.mse_loss(s, v)
-            loss = loss1+.5*loss2
-        else:
-            loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-            loss2 = torch.tensor(0)
-            loss = loss1+loss2
+        #if step>100000:
+        loss = -(q_t * log_p_s).sum(dim=1).mean()
+        #    loss2 = -F.mse_loss(s, v)
+        #    loss = loss1+.5*loss2
+        #else:
+        #    loss1 = -(q_t * log_p_s).sum(dim=1).mean()
+        #    loss2 = torch.tensor(0)
+        #    loss = loss1+loss2
 
         if self.use_tb or self.use_wandb:
-            metrics['repr_loss1'] = loss1.item()
-            metrics['repr_loss2'] = loss2.item()
+            metrics['repr_loss1'] = loss.item()
+            #metrics['repr_loss2'] = loss2.item()
         
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
         self.proto_opt.step()
 
         return metrics
+
+    def update_encoder_func(self, obs, next_obs, rand_obs, step):
+
+        metrics = dict()
+        loss1 = F.mse_loss(obs,next_obs)
+        #if step%500==0:
+            #print('dist', torch.norm(obs-next_obs, dim=1,p=2))
+            #print('randdist', torch.norm(obs-rand_obs, dim=1,p=2))
+        loss2 = F.mse_loss(obs, rand_obs)
+        encoder_loss = loss1-self.lagr*loss2
+
+        if self.use_tb or self.use_wandb:
+            metrics['encoder_loss1'] = loss1.item()
+            metrics['encoder_loss2'] = loss2.item()
+        # optimize critic
+#         if self.encoder_opt is not None:
+#             self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
+        encoder_loss.backward()
+        self.encoder_opt.step()
+
+        return metrics
+ 
 
     def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
@@ -268,7 +294,7 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                 goal = goal.reshape(-1, 2).float()
                 
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
@@ -327,7 +353,10 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         if actor1==False:
 
             if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
+                if step<10000 and step%1000==0:
+                    metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
+                elif step>=10000:
+                    metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -337,17 +366,27 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                 reward = intr_reward
             else:
                 reward = extr_reward
-
+                if self.use_tb or self.use_wandb:
+                    metrics['extr_reward'] = extr_reward.mean().item()
+            
             if self.use_tb or self.use_wandb:
-                metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
 
+            if test:
+                rand_obs = self.encoder(rand_obs)
+                rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                if test:
+                    rand_obs = self.encoder(rand_obs).detach()
+            
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -365,6 +404,9 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
+
+            #if step%2==0:
+            metrics.update(self.update_encoder_func(obs, next_obs, rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward

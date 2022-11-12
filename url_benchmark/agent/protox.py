@@ -42,10 +42,10 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoLapIsoAgent(DDPGEncoder1Agent):
+class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr, margin, **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -58,7 +58,9 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
-        self.lagr = lagr
+        self.lagr1 = lagr1
+        self.lagr2 = lagr2
+        self.lagr3 = lagr3
         self.margin = margin
         self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
         self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
@@ -246,13 +248,33 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        loss2 = (torch.norm(torch.norm(s_-v_, dim=1, p=2) - torch.norm(s_p-v_p, p=2, dim=1), dim=0, p='fro'))
+        
+        #isometry
+        loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
+        
+        s_detach = s_.clone().detach()
+        dist = torch.norm(s_detach[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
+        all_dists, _ = torch.topk(dist, 2, dim=1, largest=False) 
+
+        #sep
+        #pushing away second closest proto first, can try to push several away at once later
+        #s detached, so only moving the proto away
+        #check if this is actually what it's doing
+
+
+        #could add sigma term later
+        loss3 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
+        
+        #clus
+        loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
+
         if step>10000:
-            loss=loss1 + self.lagr*loss2
+            loss=loss1 + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+        
         else:
             loss=loss1
-        if self.use_tb or self.use_wandb:
-            
+        
+        if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
             metrics['repr_loss2'] = loss2.item()
 
