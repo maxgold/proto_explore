@@ -93,6 +93,11 @@ goal_num: 20
 update_proto_every: 10
 loss: False
 debug: False
+lagr: .2
+lagr1: .2
+lagr2: .2
+lagr3: .2
+margin: .5
 # experiment
 experiment: exp
 

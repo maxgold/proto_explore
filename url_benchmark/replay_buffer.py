@@ -572,13 +572,12 @@ class ReplayBuffer(IterableDataset):
                     rand_idx = np.random.randint(0, 50)
                     rand_obs = episode["observation"][rand_idx]
                     rand_obs_state = episode["state"][rand_idx]
-                next_obs_state = episode["state"][idx]
+                next_obs_state = episode["state"][idx]    
                 obs_state =  episode["state"][idx - 1]
                 #episode = self._sample_episode()
                 #idx = np.random.randint(0, episode_len(episode))
                 #rand_obs = episode['observation'][idx - 1] 
                 return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state, *meta)
-            
             else:
                 episode = self._sample_episode()
                 idx = np.random.randint(0, episode_len(episode))
@@ -668,7 +667,7 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) + 1
+        idx = np.random.randint(0, episode_len(episode)-self._nstep) + 1
         meta = []
         for spec in self._storage._meta_specs:
             meta.append(episode[spec.name][idx - 1])
@@ -1072,7 +1071,7 @@ class OfflineReplayBuffer(IterableDataset):
         self._samples_since_last_load += 1
 
         episode = self._sample_episode()
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        idx = np.random.randint(0, episode_len(episode) - self._nstep+1) + 1
         obs = episode["observation"][idx - 1]
 
         action = episode["action"][idx]

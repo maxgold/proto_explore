@@ -37,7 +37,8 @@ import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import io
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3):
+
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -58,6 +59,16 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.feature_dim = feature_dim
     cfg.pred_dim = pred_dim
     cfg.proj_dim = proj_dim
+    
+    cfg.margin = margin
+    if cfg.name=='protox':
+        print('protox')
+        cfg.lagr1 = lagr1
+        cfg.lagr2 = lagr2
+        cfg.lagr3 = lagr3
+    else:
+        cfg.lagr = lagr
+
     if cfg.name=='protov2':
         cfg.update_proto_every=update_proto_every
     return hydra.utils.instantiate(cfg)
@@ -136,6 +147,30 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size,
                                 update_proto_every=cfg.update_proto_every)
+        
+        elif self.cfg.agent.name=='protox':
+            self.agent = make_agent(cfg.obs_type,
+                                self.train_env.observation_spec(),
+                                self.train_env.action_spec(),
+                                (3,84,84),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                cfg.agent,
+                                cfg.lr,
+                                cfg.hidden_dim,
+                                cfg.num_protos,
+                                cfg.update_gc,
+                                False,
+                                cfg.offline,
+                                cfg.tau,
+                                cfg.num_iterations,
+                                cfg.feature_dim,
+                                cfg.pred_dim,
+                                cfg.proj_dim,
+                                batch_size=cfg.batch_size,
+                                lagr1=cfg.lagr1,
+                                lagr2=cfg.lagr2,
+                                lagr3=cfg.lagr3,
+                                margin=cfg.margin) 
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -154,7 +189,9 @@ class Workspace:
                                 cfg.feature_dim,
                                 cfg.pred_dim,
                                 cfg.proj_dim,
-                                batch_size=cfg.batch_size)
+                                batch_size=cfg.batch_size,
+                                lagr=cfg.lagr,
+                                margin=cfg.margin)
 
         
         # get meta specs
@@ -305,10 +342,10 @@ class Workspace:
                 else:
                     count01+=1
 
-        df.loc[0,0] = count00
-        df.loc[0,1] = count01
-        df.loc[1,1] = count11
-        df.loc[1,0] = count10
+        df.loc[0,0] = count00/a.shape[0]
+        df.loc[0,1] = count01/a.shape[0]
+        df.loc[1,1] = count11/a.shape[0]
+        df.loc[1,0] = count10/a.shape[0]
         labels=df
         plt.clf()
         fig, ax = plt.subplots()
@@ -487,7 +524,7 @@ class Workspace:
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
 
         with torch.no_grad():
-            proto_sim = torch.mm(self.agent.protos.detach().clone(), self.agent.protos.detach().clone().T)
+            proto_sim = torch.exp(-1/2*torch.square(self.agent.protos.detach().clone()[:,None,:] - proto[None,:, :]))
         all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
 
         proto_self = torch.norm(self.agent.protos.detach().clone()[:,None,:] - self.agent.protos.detach().clone()[None,:, :], dim=2, p=2)
@@ -597,10 +634,10 @@ class Workspace:
                 else:
                     count01+=1
 
-        df.loc[0,0] = count00
-        df.loc[0,1] = count01
-        df.loc[1,1] = count11
-        df.loc[1,0] = count10
+        df.loc[0,0] = count00/a.shape[0]
+        df.loc[0,1] = count01/a.shape[0]
+        df.loc[1,1] = count11/a.shape[0]
+        df.loc[1,0] = count10/a.shape[0]
         labels=df
         plt.clf()
         fig, ax = plt.subplots()
@@ -661,7 +698,8 @@ class Workspace:
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
 
         with torch.no_grad():
-            proto_sim = self.agent.protos(proto).T
+            #proto_sim = self.agent.protos(proto).T
+            proto_sim = torch.exp(-1/2*torch.square(torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)))
         all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
 
         proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
@@ -670,7 +708,7 @@ class Workspace:
         with torch.no_grad():
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
-
+        
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
         names = [self.work_dir / f"{self.global_step}_prototypes.gif", self.work_dir / f"{self.global_step}_prototypes_sim.gif"]
@@ -682,8 +720,7 @@ class Workspace:
             fig, ax = plt.subplots()
             dist_np = np.empty((_proto_self.shape[1], dist_matrix.shape[1], 2))
             
-            for ix in range(_proto_self.shape[1]):
-                print('proto', ix)
+            for ix, x in enumerate(order):
                 txt=''
                 df = pd.DataFrame()
                 count=0
@@ -744,12 +781,14 @@ class Workspace:
                 #fig, ax = plt.subplots()
                 ax=sns.scatterplot(x="x", y="y",
                           hue="c",palette=palette,
-                          data=df,legend=False)
+                          data=df,legend=True)
+                sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
                 #ax.set_title("\n".join(wrap(txt,75)))
             
             pairwise_dist = np.linalg.norm(dist_np[:,0,None,:]-dist_np, ord=2, axis=2)
             print(pairwise_dist.shape)
             
+            #maximum pairwise distance amongst prototypes
             maximum = np.amax(pairwise_dist, axis=1)
             num = self.global_step//self.cfg.eval_every_frames
             self.final_df.loc[num, 'avg'] = np.mean(maximum)
@@ -763,18 +802,21 @@ class Workspace:
 
             if index_==0:
                 file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
             elif index_==1:
                 file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"10nn_sim_prototypes_{self.global_step}.png")
 
-            plt.savefig(file1)
-            wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
-
+            #import IPython as ipy; ipy.embed(colors='neutral')
             if self.global_step >= (self.cfg.num_train_frames//2-100):
                 fig, ax = plt.subplots()
                 self.final_df.plot(ax=ax)
                 ax.set_xticks(self.final_df.index)
                 plt.savefig(self.work_dir / f"proto_states.png")
                 wandb.save(f"proto_states.png") 
+
 
             #filenames.append(file1)
 
