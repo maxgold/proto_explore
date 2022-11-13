@@ -189,18 +189,20 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
 
         # online network
         s = self.encoder(obs)
+        s_ = s.clone().detach()
         s = self.predictor(s)
-        s_ = self.encoder(obs.detach())
-        s_p = self.predictor(s_.detach())
-        s_p = F.normalize(s_, dim=1, p=2)
+        s_p = self.predictor(s_)
+        s_p = F.normalize(s_p, dim=1, p=2)
+
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
-        v_ = self.encoder(rand_obs.detach())
-        v_p = self.predictor(v_.detach())
-        v_p = F.normalize(v_, dim=1, p=2)
+
+        v_ = self.encoder(rand_obs).detach()
+        v_p = self.predictor(v_)
+        v_p = F.normalize(v_p, dim=1, p=2)
         #import IPython as ipy; ipy.embed(colors='neutral')
-        log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
+        log_p_s = F.log_softmax(scores_s / self.tau, dim=1) 
 
         # target network
         with torch.no_grad():
