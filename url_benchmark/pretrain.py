@@ -807,7 +807,7 @@ class Workspace:
             elif index_==1:
                 file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
                 plt.savefig(file1)
-                wandb.save(f"10nn_sim_prototypes_{self.global_step}.png")
+                wandb.save(f"10nn_actual_prototypes_sim_{self.global_step}.png")
 
             #import IPython as ipy; ipy.embed(colors='neutral')
             if self.global_step >= (self.cfg.num_train_frames//2-100):
