@@ -248,8 +248,15 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        loss2 = (torch.norm(torch.norm(s_-v_, dim=1, p=2) - torch.norm(s_p-v_p, p=2, dim=1), dim=0, p='fro'))
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        prod = self.protos(self.protos.weight.data.clone())
+        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+
+        
+
+        #loss2 = (torch.norm(torch.norm(s_-v_, dim=1, p=2) - torch.norm(s_p-v_p, p=2, dim=1), dim=0, p='fro'))
         if step>10000:
+            #lagr = (step//200000+1)*self.lagr
             loss=loss1 + self.lagr*loss2
         else:
             loss=loss1
