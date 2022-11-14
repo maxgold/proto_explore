@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoLapIsoAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, **kwargs):
+                 num_iterations, lagr, margin, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -58,6 +58,8 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
+        self.lagr = lagr
+        self.margin = margin
         self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
         self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
         self.proto_distr_med = torch.zeros((1000,self.num_protos), device=self.device)
@@ -106,7 +108,8 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             self.predictor.train()
             self.projector.train()
             self.protos.train()
-        
+       
+        print('lagr', self.lagr)
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -186,18 +189,20 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
 
         # online network
         s = self.encoder(obs)
+        s_ = s.clone().detach()
         s = self.predictor(s)
-        s_ = self.encoder(obs.detach())
-        s_ = self.predictor(s_.detach())
-        s_p = F.normalize(s_, dim=1, p=2)
+        s_p = self.predictor(s_)
+        s_p = F.normalize(s_p, dim=1, p=2)
+
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
 
-        v_ = self.encoder(rand_obs.detach())
-        v_p = self.predictor(v_.detach())
+        v_ = self.encoder(rand_obs).detach()
+        v_p = self.predictor(v_)
+        v_p = F.normalize(v_p, dim=1, p=2)
         #import IPython as ipy; ipy.embed(colors='neutral')
-        log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
+        log_p_s = F.log_softmax(scores_s / self.tau, dim=1) 
 
         # target network
         with torch.no_grad():
@@ -243,8 +248,18 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        loss2 = (torch.norm(torch.norm(s_-v_, dim=1, p=2) - torch.norm(s_p-v_p, p=2, dim=1), dim=1, p='fro'))**2
-        loss=loss1 + .2*loss2
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        prod = self.protos(self.protos.weight.data.clone())
+        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+
+        
+
+        #loss2 = (torch.norm(torch.norm(s_-v_, dim=1, p=2) - torch.norm(s_p-v_p, p=2, dim=1), dim=0, p='fro'))
+        if step>10000:
+            #lagr = (step//200000+1)*self.lagr
+            loss=loss1 + self.lagr*loss2
+        else:
+            loss=loss1
         if self.use_tb or self.use_wandb:
             
             metrics['repr_loss1'] = loss1.item()
@@ -259,14 +274,19 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
         metrics = dict() 
-
-        encoder_loss = torch.amax(torch.norm(obs-next_obs, dim=1, p=2)**2 - torch.norm(obs-rand_obs, dim=1, p=2)**2 + .5, 0)
+        loss1 = F.mse_loss(obs, next_obs)
+        loss2 = F.mse_loss(obs, rand_obs)
+        encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
 
         if self.use_tb or self.use_wandb:
-            metrics['encoder_loss'] = encoder_loss.item()
+            metrics['encoder_loss1'] = loss1.item()
+            metrics['encoder_loss2'] = loss2.item()
+            metrics['encoder_loss3'] = encoder_loss.item()
+
         # optimize critic
 #         if self.encoder_opt is not None:
 #             self.encoder_opt.zero_grad(set_to_none=True)
+        
         self.encoder_opt.zero_grad(set_to_none=True)
         encoder_loss.backward()
         self.encoder_opt.step()
@@ -322,8 +342,9 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+            extr_reward = extr_reward.float()
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
+            obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
@@ -368,7 +389,6 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         
         action = action.reshape(-1,2)
         discount = discount.reshape(-1,1)
-        extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():
@@ -393,14 +413,19 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             else:
                 reward = extr_reward
 
-            if self.use_tb or self.use_wandb:
-                metrics['extr_reward'] = extr_reward.mean().item()
-                metrics['batch_reward'] = reward.mean().item()
+                if self.use_tb or self.use_wandb:
+                
+                    metrics['extr_reward'] = extr_reward.mean().item()
+            
+            metrics['batch_reward'] = reward.mean().item()
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+            rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()

@@ -42,10 +42,10 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoLossAgent(DDPGEncoder1Agent):
+class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr, **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -58,7 +58,10 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         self.gc_only = gc_only
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
-        self.lagr = lagr
+        self.lagr1 = lagr1
+        self.lagr2 = lagr2
+        self.lagr3 = lagr3
+        self.margin = margin
         self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
         self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
         self.proto_distr_med = torch.zeros((1000,self.num_protos), device=self.device)
@@ -107,7 +110,8 @@ class ProtoLossAgent(DDPGEncoder1Agent):
             self.predictor.train()
             self.projector.train()
             self.protos.train()
-        
+       
+        print('lagr', self.lagr)
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -124,18 +128,25 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         if self.init_critic:
             utils.hard_update_params(other.critic, self.critic)
 
+    def init_model_from(self, agent):
+        utils.hard_update_params(agent.encoder, self.encoder)
+
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
 
     def init_gc_from(self,critic, actor):
         utils.hard_update_params(critic, self.critic1)
         utils.hard_update_params(actor, self.actor1)
-    
+
     def init_protos_from(self, protos):
         utils.hard_update_params(protos.protos, self.protos)
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
         utils.hard_update_params(protos.encoder, self.encoder)
+ 
+    def init_encoder_from(self, encoder):
+        utils.hard_update_params(encoder, self.encoder)
+
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)
@@ -164,8 +175,6 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-        #if step%500==0:
-        #    print('step', reward)
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -183,11 +192,15 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         # online network
         s = self.encoder(obs)
         s = self.predictor(s)
-        s_ = s.clone()
-        s_ = F.normalize(s_, dim=1, p=2)
+        s_ = self.encoder(obs.detach())
+        s_p = self.predictor(s_.detach())
+        s_p = F.normalize(s_, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
+        v_ = self.encoder(rand_obs.detach())
+        v_p = self.predictor(v_.detach())
+        v_p = F.normalize(v_, dim=1, p=2)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
 
@@ -197,10 +210,6 @@ class ProtoLossAgent(DDPGEncoder1Agent):
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             
-            v = self.encoder_target(rand_obs)
-            v = self.predictor_target(v)
-            v = F.normalize(v, dim=1, p=2)
-
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
@@ -236,48 +245,102 @@ class ProtoLossAgent(DDPGEncoder1Agent):
             
         #if step%1000==0:
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
-        
+                
         # loss
-        #if step>100000:
-        loss = -(q_t * log_p_s).sum(dim=1).mean()
-        #    loss2 = -F.mse_loss(s, v)
-        #    loss = loss1+.5*loss2
-        #else:
-        #    loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        #    loss2 = torch.tensor(0)
-        #    loss = loss1+loss2
-
-        if self.use_tb or self.use_wandb:
-            metrics['repr_loss1'] = loss.item()
-            #metrics['repr_loss2'] = loss2.item()
+        loss1 = -(q_t * log_p_s).sum(dim=1).mean()
         
+        #isometry
+        loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
+        
+        s_detach = s_.clone().detach()
+        dist = torch.norm(s_detach[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
+        all_dists, _ = torch.topk(dist, 2, dim=1, largest=False) 
+
+        #sep
+        #pushing away second closest proto first, can try to push several away at once later
+        #s detached, so only moving the proto away
+        #check if this is actually what it's doing
+
+
+        #could add sigma term later
+        loss3 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
+        
+        #clus
+        loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
+
+        if step>10000:
+            loss=loss1 + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+        
+        else:
+            loss=loss1
+        
+        if self.use_tb or self.use_wandb:    
+            metrics['repr_loss1'] = loss1.item()
+            metrics['repr_loss2'] = loss2.item()
+
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
         self.proto_opt.step()
 
         return metrics
-
+ 
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
-        metrics = dict()
-        loss1 = F.mse_loss(obs,next_obs)
-        #if step%500==0:
-            #print('dist', torch.norm(obs-next_obs, dim=1,p=2))
-            #print('randdist', torch.norm(obs-rand_obs, dim=1,p=2))
+        metrics = dict() 
+        loss1 = F.mse_loss(obs, next_obs)
         loss2 = F.mse_loss(obs, rand_obs)
-        encoder_loss = loss1-self.lagr*loss2
+        encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss1'] = loss1.item()
             metrics['encoder_loss2'] = loss2.item()
+            metrics['encoder_loss3'] = encoder_loss.item()
+
         # optimize critic
 #         if self.encoder_opt is not None:
 #             self.encoder_opt.zero_grad(set_to_none=True)
+        
         self.encoder_opt.zero_grad(set_to_none=True)
         encoder_loss.backward()
         self.encoder_opt.step()
+        
+        return metrics 
 
-        return metrics
+    def neg_loss(self, x, c=1.0, reg=0.0):
+        
+        """
+        x: n * d.
+        sample based approximation for
+        (E[x x^T] - c * I / d)^2
+            = E[(x^T y)^2] - 2c E[x^T x] / d + c^2 / d
+        #
+        An optional regularization of
+        reg * E[(x^T x - c)^2] / n
+            = reg * E[(x^T x)^2 - 2c x^T x + c^2] / n
+        for reg in [0, 1]
+        """
+        
+        n = x.shape[0]
+        d = x.shape[1]
+        inprods = x @ x.T
+        norms = inprods[torch.arange(n), torch.arange(n)]
+        
+        part1 = inprods.pow(2).sum() - norms.pow(2).sum()
+        part1 = part1 / ((n - 1) * n)
+        part2 = - 2 * c * norms.mean() / d
+        part3 = c * c / d
+
+        # regularization
+        if reg > 0.0:
+            reg_part1 = norms.pow(2).mean()
+            reg_part2 = - 2 * c * norms.mean()
+            reg_part3 = c * c
+            reg_part = (reg_part1 + reg_part2 + reg_part3) / n
+        
+        else:
+            reg_part = 0.0
+
+        return part1 + part2 + part3 + reg * reg_part
  
 
     def update(self, replay_iter, step, actor1=False, test=False):
@@ -292,9 +355,9 @@ class ProtoLossAgent(DDPGEncoder1Agent):
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
-                
+            extr_reward = extr_reward.float()
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
+            obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
@@ -331,7 +394,6 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                     ax.legend()
                     
                     plt.savefig(f"batch_moving_avg_{step}.png")
-                    
         elif actor1==False:
             obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
                     batch, self.device)
@@ -340,23 +402,20 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         
         action = action.reshape(-1,2)
         discount = discount.reshape(-1,1)
-        extr_reward = extr_reward.float()
 
         # augment and encode
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-            rand_obs = self.aug(rand_obs)
+            if actor1==False:
+                rand_obs = self.aug(rand_obs)
             if actor1:
                 goal = self.aug(goal)
            
         if actor1==False:
 
             if self.reward_free:
-                if step<10000 and step%1000==0:
-                    metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
-                elif step>=10000:
-                    metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
+                metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, step)
 
@@ -366,27 +425,23 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                 reward = intr_reward
             else:
                 reward = extr_reward
+
                 if self.use_tb or self.use_wandb:
+                
                     metrics['extr_reward'] = extr_reward.mean().item()
             
-            if self.use_tb or self.use_wandb:
-                metrics['batch_reward'] = reward.mean().item()
+            metrics['batch_reward'] = reward.mean().item()
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            rand_obs = self.encoder(rand_obs)
 
-            if test:
-                rand_obs = self.encoder(rand_obs)
-                rand_obs = F.normalize(rand_obs)
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+            rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
-                if test:
-                    rand_obs = self.encoder(rand_obs).detach()
-            
-            obs = F.normalize(obs)
-            next_obs = F.normalize(next_obs)
-
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -404,9 +459,8 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-
-            #if step%2==0:
-            metrics.update(self.update_encoder_func(obs, next_obs, rand_obs, step))
+            
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -429,6 +483,7 @@ class ProtoLossAgent(DDPGEncoder1Agent):
                                next_obs.detach(), step))
             # update actor
             metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
+            
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
