@@ -109,7 +109,6 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             self.projector.train()
             self.protos.train()
        
-        print('lagr', self.lagr)
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -257,6 +256,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             
             metrics['repr_loss1'] = loss1.item()
             metrics['repr_loss2'] = loss2.item()
+            metrics['repr_loss'] = loss.item()
 
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
@@ -274,7 +274,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss1'] = loss1.item()
             metrics['encoder_loss2'] = loss2.item()
-            metrics['encoder_loss3'] = encoder_loss.item()
+            metrics['encoder_loss'] = encoder_loss.item()
 
         # optimize critic
 #         if self.encoder_opt is not None:
