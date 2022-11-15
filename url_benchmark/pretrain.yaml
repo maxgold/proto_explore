@@ -95,6 +95,9 @@ loss: False
 debug: False
 lagr: .2
 margin: .5
+lagr1: .2
+lagr2: .2
+lagr3: .2
 # experiment
 experiment: exp
 

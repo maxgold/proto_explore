@@ -111,7 +111,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
             self.projector.train()
             self.protos.train()
        
-        print('lagr', self.lagr)
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -191,16 +190,16 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
         # online network
         s = self.encoder(obs)
+        s_ = s.clone().detach()
         s = self.predictor(s)
-        s_ = self.encoder(obs.detach())
-        s_p = self.predictor(s_.detach())
-        s_p = F.normalize(s_, dim=1, p=2)
+        s_p = self.predictor(s_)
+        s_p = F.normalize(s_p.detach(), dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
         v_ = self.encoder(rand_obs.detach())
         v_p = self.predictor(v_.detach())
-        v_p = F.normalize(v_, dim=1, p=2)
+        v_p = F.normalize(v_p, dim=1, p=2)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
 
@@ -250,10 +249,11 @@ class ProtoXAgent(DDPGEncoder1Agent):
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
         
         #isometry
-        loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
+        prod = self.protos(self.protos.weight.data.clone())
+        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+        #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
-        s_detach = s_.clone().detach()
-        dist = torch.norm(s_detach[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
+        dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
         all_dists, _ = torch.topk(dist, 2, dim=1, largest=False) 
 
         #sep
@@ -261,9 +261,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         #s detached, so only moving the proto away
         #check if this is actually what it's doing
 
-
         #could add sigma term later
-        loss3 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
+        loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
         
         #clus
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
@@ -277,6 +276,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
             metrics['repr_loss2'] = loss2.item()
+            metrics['repr_loss3'] = loss3.item()
+            metrics['repr_loss4'] = loss4.item()
+            metrics['repr_loss'] = loss.item()
 
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()

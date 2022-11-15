@@ -1004,8 +1004,6 @@ class Workspace:
                     self.actor1=False
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
-                    #reset so the first part doesn't try to save episode for time_step1.last()
-                    time_step1 = self.train_env1.reset()
                         
                     episode_reward=0
                     current_state = time_step1.observation['observations'][:2]
@@ -1013,7 +1011,8 @@ class Workspace:
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                               self.cfg.action_repeat, seed=None, goal=goal_state, 
                                               init_state=(current_state[0], current_state[1]))
-                    
+                    #reset so the first part doesn't try to save episode for time_step1.last() 
+                    time_step1 = self.train_env1.reset()
                     print('should reset to', current_state)
                     print('new env state', self.train_env._env.physics.state())
                     time_step = self.train_env.reset()
