@@ -58,7 +58,7 @@ bottom_left: False
 init_value: 2
 film_gc: False
 sample_proto: ???
-switch_gc: False
+switch_gc: 100000
 load_encoder: False
 load_proto: False
 goal_queue_size: 10

@@ -557,9 +557,8 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx-1]
-            if self.pixels and self.goal_proto==False:
-                goal = np.tile(goal,(3,1,1))
-            #goal = goal[None,:,:]
+            #if self.pixels and self.goal_proto==False:
+            #    goal = np.tile(goal,(3,1,1))
             return (obs, action, reward, discount, next_obs, goal, *meta)
         elif self.loss:
             
@@ -621,9 +620,8 @@ class ReplayBuffer(IterableDataset):
         if self.goal:
             goal = episode["goal"][idx-1]
             goal_state=episode["goal_state"][idx-1]
-            if self.pixels and self.goal_proto==False:
-                goal = np.tile(goal,(3,1,1))
-            #goal = goal[None,:,:]
+            #if self.pixels and self.goal_proto==False:
+            #    goal = np.tile(goal,(3,1,1))
             return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
         else:
             return (obs, obs_state, action, reward, discount, next_obs, *meta) 
@@ -690,8 +688,8 @@ class ReplayBuffer(IterableDataset):
             if self.asym:
                 goal_state = episode["goal"][idx-1]
             
-            if self.pixels and self.goal_proto==False and self.asym==False:
-                goal = np.tile(goal,(3,1,1))
+            #if self.pixels and self.goal_proto==False and self.asym==False:
+            #    goal = np.tile(goal,(3,1,1))
             
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
@@ -1083,8 +1081,8 @@ class OfflineReplayBuffer(IterableDataset):
 
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
-            if self.goal_proto==False:
-                goal = np.tile(goal,(3,1,1))
+            #if self.goal_proto==False:
+            #    goal = np.tile(goal,(3,1,1))
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward

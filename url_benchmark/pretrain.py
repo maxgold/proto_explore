@@ -59,7 +59,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.feature_dim = feature_dim
     cfg.pred_dim = pred_dim
     cfg.proj_dim = proj_dim
-    
+    if cfg.name!='protox':
+        cfg.lagr = lagr
     cfg.margin = margin
     if cfg.name=='protox':
         print('protox')

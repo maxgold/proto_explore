@@ -35,4 +35,5 @@ offline: ???
 load_protos: False
 num_iterations: 3
 lagr: .2
+margin: .1
 update_encoder: ${update_encoder}

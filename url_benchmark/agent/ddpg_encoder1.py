@@ -337,7 +337,7 @@ class DDPGEncoder1Agent:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
             goal = np.transpose(goal, (2,0,1))
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            goal = torch.tile(goal, (1,3,1,1))
+            #goal = torch.tile(goal, (1,3,1,1))
         
         h = self.encoder(obs)
         g = self.encoder(goal)
@@ -422,10 +422,10 @@ class DDPGEncoder1Agent:
         critic2_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         if self.use_tb or self.use_wandb:
-            metrics['critic2_target_q'] = target_Q.mean().item()
-            metrics['critic2_q1'] = Q1.mean().item()
-            metrics['critic2_q2'] = Q2.mean().item()
-            metrics['critic2_loss'] = critic2_loss.item()
+            metrics['critic_target_q'] = target_Q.mean().item()
+            metrics['critic_q1'] = Q1.mean().item()
+            metrics['critic_q2'] = Q2.mean().item()
+            metrics['critic_loss'] = critic2_loss.item()
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
@@ -477,10 +477,10 @@ class DDPGEncoder1Agent:
         self.actor2_opt.step()
 
         if self.use_tb or self.use_wandb:
-            metrics['actor2_loss'] = actor2_loss.item()
-            metrics['actor2_logprob'] = log_prob.mean().item()
-            metrics['actor2_ent'] = dist.entropy().sum(dim=-1).mean().item()
-            metrics['actor2_stddev'] = stddev
+            metrics['actor_loss'] = actor2_loss.item()
+            metrics['actor_logprob'] = log_prob.mean().item()
+            metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+            metrics['actor_stddev'] = stddev
         return metrics
 
 

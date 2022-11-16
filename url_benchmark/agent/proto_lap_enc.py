@@ -256,7 +256,7 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
 
         metrics = dict() 
 
-        encoder_loss = torch.amax(torch.norm(obs-next_obs, dim=1, p=2)**2 - torch.norm(obs-rand_obs, dim=1, p=2)**2 + .5, 0)
+        encoder_loss = torch.amax(torch.norm(obs-next_obs, dim=1, p=2) - torch.norm(obs-rand_obs, dim=1, p=2) + 1, 0)
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss'] = encoder_loss.item()

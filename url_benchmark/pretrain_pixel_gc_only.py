@@ -740,9 +740,9 @@ class Workspace:
             #goal_pix, goal_state = self.sample_goal_uniform(eval=True)
             goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=goal_state, init_state=x)
+                    self.cfg.action_repeat, seed=None, goal=goal_state)
             self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None, init_state=x)
+                    self.cfg.action_repeat, seed=None, goal=None)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
 
