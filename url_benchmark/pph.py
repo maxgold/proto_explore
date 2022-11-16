@@ -1015,8 +1015,7 @@ class Workspace:
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                               self.cfg.action_repeat, seed=None, goal=goal_state, 
                                               init_state=(current_state[0], current_state[1]))
-                    
-                    #reset so the first part doesn't try to save episode for time_step1.last()
+                    #reset so the first part doesn't try to save episode for time_step1.last() 
                     time_step1 = self.train_env1.reset()
                     print('should reset to', current_state)
                     print('new env state', self.train_env._env.physics.state())
