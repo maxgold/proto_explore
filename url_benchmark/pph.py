@@ -282,7 +282,8 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct)
+                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test)
+
 
         self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
@@ -868,9 +869,11 @@ class Workspace:
                     if self.cfg.obs_type == 'pixels':
                         self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
                         print('replay1')
+
+                    self.eval_proto()
  
                 
-                if ((time_step1.last() and self.actor1) or (time_step.last() and self.actor) or episode_step==self.cfg.episode_length) and self.global_step!=self.cfg.switch_gc:
+                if ((time_step1.last() and self.actor1) or (time_step.last() and self.actor)) and self.global_step!=self.cfg.switch_gc:
                     print('last')
                     self._global_episode += 1
                     # wait until all the metrics schema is populated
@@ -890,7 +893,7 @@ class Workspace:
                     if self.cfg.obs_type =='pixels' and self.actor1:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
                     elif self.cfg.obs_type =='pixels' and self.actor:
-                        self.replay_storage.add(time_step, meta, True)
+                        self.replay_storage.add(time_step, meta, True, last=True)
                     else:
                         self.replay_storage.add(time_step, meta)
 
@@ -906,7 +909,8 @@ class Workspace:
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     #print('trying to evaluate')
-                    self.eval()
+                    if self.global_step%100000==0:
+                        self.eval()
                     self.eval_proto()
 
                 if episode_step== 0 and self.global_step!=0:
@@ -991,9 +995,9 @@ class Workspace:
                             
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
-                    if  self.cfg.obs_type=='pixels':
+                    if  self.cfg.obs_type=='pixels' and time_step.last()==False:
                         self.replay_storage.add(time_step, meta, True)
-                    else:
+                    elif time_step.last()==False and self.cfg.obs_type=='states':
                         self.replay_storage.add(time_step, meta)
 
                 episode_step += 1
@@ -1022,15 +1026,12 @@ class Workspace:
                     if self.cfg.obs_type == 'pixels' and time_step.last()==False:
                         self.replay_storage.add(time_step, meta, True, last=False)
 
-                if self.global_step> (self.cfg.switch_gc+self.cfg.num_seed_frames) and self.actor1:
+                if self.global_step> (self.cfg.switch_gc+self.cfg.num_seed_frames):
 
                     metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                    
-                elif not seed_until_step(self.global_step) and self.actor:
-                    
                     metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                    #self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                 self._global_step += 1
             
