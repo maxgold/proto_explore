@@ -338,7 +338,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, goal, rand_obs = utils.to_torch(
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
@@ -408,7 +408,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()
-                
+                    metrics['extr_reward'] = 0
                 reward = intr_reward
             else:
                 reward = extr_reward
@@ -464,6 +464,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,

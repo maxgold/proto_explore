@@ -738,12 +738,20 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount  
         else:
             print('sth went wrong in replay buffer')
-
+        
+        if self.loss:
+            episode = self._sample_episode()
+            idx = np.random.randint(0, episode_len(episode))
+            rand_obs = episode['observation'][idx - 1]
+        
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
+        
         if self.sl:
             return (obs, action, reward, discount, next_obs, goal, offset)
+        elif self.loss:
+            return (obs, action, reward, discount, next_obs, goal, rand_obs, *meta)
         elif self.asym:
             
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal_state, *meta)

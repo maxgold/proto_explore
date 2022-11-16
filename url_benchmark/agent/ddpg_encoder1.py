@@ -247,6 +247,7 @@ class DDPGEncoder1Agent:
         self.stddev_clip = stddev_clip
         self.init_critic = init_critic
         self.feature_dim = feature_dim
+        self.feature_dim_gc = 32 
         self.solved_meta = None
         # models
         if obs_type == 'pixels':
@@ -261,12 +262,12 @@ class DDPGEncoder1Agent:
             self.goal_dim = goal_shape[0]
         
         self.actor = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                           feature_dim, hidden_dim).to(device)
+                           self.feature_dim_gc, hidden_dim).to(device)
 
         self.critic = Critic(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                             feature_dim, hidden_dim).to(device)
+                             self.feature_dim_gc, hidden_dim).to(device)
         self.critic_target = Critic(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
-                                    feature_dim, hidden_dim).to(device)
+                                    self.feature_dim_gc, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
         

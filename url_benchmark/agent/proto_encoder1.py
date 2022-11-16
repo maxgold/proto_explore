@@ -278,6 +278,21 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.encoder_opt.step()
         return metrics
 
+    def update_encoder_func(self, obs, next_obs, step):
+
+        metrics = dict()
+        encoder_loss = F.mse_loss(obs, next_obs)
+        
+
+        if self.use_tb or self.use_wandb:
+            metrics['encoder_loss'] = encoder_loss.item()
+
+        self.encoder_opt.zero_grad(set_to_none=True)
+        encoder_loss.backward()
+        self.encoder_opt.step()
+
+        return metrics 
+
     def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
 
@@ -286,11 +301,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
+            
             obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
+            
             extr_reward=extr_reward.float()
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+
+            	
                 
         elif actor1==False and test:
             obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
@@ -374,6 +393,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+            
+            metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -409,6 +430,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
+            metrics.update(self.update_encoder_func(obs, next_obs, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
