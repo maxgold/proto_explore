@@ -330,7 +330,7 @@ class DDPGEncoder1Agent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
-    def act(self, obs, goal, meta, step, eval_mode):
+    def act(self, obs, goal, meta, step, eval_mode, tile=1):
         if self.obs_type=='states':
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
             goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
@@ -338,15 +338,18 @@ class DDPGEncoder1Agent:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
             goal = np.transpose(goal, (2,0,1))
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            #goal = torch.tile(goal, (1,3,1,1))
+            if tile > 1:
+                goal = torch.tile(goal, (1,tile,1,1))
         
         h = self.encoder(obs)
         g = self.encoder(goal)
         inputs = [h]
         inputs2 = g
+
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
             inputs.append(value)
+        
         inpt = torch.cat(inputs, dim=-1)
         assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule, step)

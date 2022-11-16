@@ -374,7 +374,8 @@ class ReplayBuffer(IterableDataset):
         sl=False,
         asym=False,
         loss=False,
-        test=False):
+        test=False,
+        tile=1):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -404,6 +405,7 @@ class ReplayBuffer(IterableDataset):
         self.asym = asym
         self.loss = loss
         self.test = test
+        self.tile = tile
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -557,8 +559,8 @@ class ReplayBuffer(IterableDataset):
          
         if self.goal:
             goal = episode["goal"][idx-1]
-            #if self.pixels and self.goal_proto==False:
-            #    goal = np.tile(goal,(3,1,1))
+            if self.pixels and self.goal_proto==False:
+                goal = np.tile(goal,(self.tile,1,1))
             return (obs, action, reward, discount, next_obs, goal, *meta)
         elif self.loss:
             if self.test:
@@ -618,8 +620,8 @@ class ReplayBuffer(IterableDataset):
         if self.goal:
             goal = episode["goal"][idx-1]
             goal_state=episode["goal_state"][idx-1]
-            #if self.pixels and self.goal_proto==False:
-            #    goal = np.tile(goal,(3,1,1))
+            if self.pixels and self.goal_proto==False:
+                goal = np.tile(goal,(self.tile,1,1))
             return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
         else:
             return (obs, obs_state, action, reward, discount, next_obs, *meta) 
@@ -686,8 +688,8 @@ class ReplayBuffer(IterableDataset):
             if self.asym:
                 goal_state = episode["goal"][idx-1]
             
-            #if self.pixels and self.goal_proto==False and self.asym==False:
-            #    goal = np.tile(goal,(3,1,1))
+            if self.pixels and self.goal_proto==False and self.asym==False:
+                goal = np.tile(goal,(self.tile,1,1))
             
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
@@ -1087,8 +1089,8 @@ class OfflineReplayBuffer(IterableDataset):
 
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
-            #if self.goal_proto==False:
-            #    goal = np.tile(goal,(3,1,1))
+            if self.goal_proto==False:
+                goal = np.tile(goal,(self.tile,1,1))
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
@@ -1298,7 +1300,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1322,6 +1324,7 @@ def make_replay_loader(
         asym=asym,
         loss=loss,
         test=test,
+        tile=tile,
         fetch_every=1000,
         save_snapshot=save_snapshot,
         )
