@@ -660,12 +660,15 @@ class Workspace:
                                                 time_step_goal,
                                                 meta,
                                                 self._global_step,
-                                                eval_mode=True)
+                                                eval_mode=True,
+                                                tile=self.cfg.frame_stack
+                                                )
                         else:
                             action = self.agent.act(time_step.observation,
                                                 meta,
                                                 self._global_step,
-                                                eval_mode=True)
+                                                eval_mode=True,
+                                                tile=self.cfg.frame_stack)
                     time_step = self.eval_env.step(action)
                     time_step_no_goal = self.eval_env_no_goal.step(action)
                     #time_step_goal = self.eval_env_goal.step(action)
@@ -951,12 +954,14 @@ class Workspace:
                                                     time_step_goal.copy(),
                                                     meta,
                                                     self._global_step,
-                                                    eval_mode=False)
+                                                    eval_mode=False,
+                                                    tile=self.cfg.frame_stack)
                         else:
                             action = self.agent.act(time_step.observation,
                                                 meta,
                                                 self.global_step,
-                                                eval_mode=False)
+                                                eval_mode=False,
+                                                tile=self.cfg.frame_stack)
 
                     # take env step
                     time_step1 = self.train_env1.step(action1)
