@@ -491,7 +491,10 @@ class Workspace:
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         #import IPython as ipy; ipy.embed(colors='neutral')
-        self.proto_goals = a[_proto[:,0].clone().detach().cpu().numpy(), :2]
+        proto_indices = np.random.randint(10)
+        print('idx', proto_indices)
+        p = _proto.clone().detach().cpu().numpy()
+        self.proto_goals = a[p[:,proto_indices], :2]
         print('proto_goals', self.proto_goals)
         
         # retrieve closest states after projecting prototypes down 
@@ -921,9 +924,15 @@ class Workspace:
                     self.recorded=False               
 
                     goal_array = self.proto_goals
-                    idx = np.random.randint(0, goal_array.shape[0])
+                    dist = np.linalg.norm(time_step1.observation['observations'][:2] - goal_array, ord=2, axis=1)
+                    dist = dist/sum(dist)
+                    dist = np.sqrt(dist)
+                    dist = dist/sum(dist)
+                    print('prob', dist)
+                    idx = np.random.multinomial(1, dist)
+                    idx = np.nonzero(idx)[0].item()
+                    #idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
-
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                self.cfg.frame_stack,self.cfg.action_repeat, 
