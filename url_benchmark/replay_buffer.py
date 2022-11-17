@@ -695,7 +695,6 @@ class ReplayBuffer(IterableDataset):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
-
         elif key <= self.hybrid_pct and self.goal_proto==False:
             idx = np.random.randint(episode_len(episode)-self._nstep+1)
             obs = episode["observation"][idx-1]
@@ -749,7 +748,6 @@ class ReplayBuffer(IterableDataset):
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
-        
         if self.sl:
             return (obs, action, reward, discount, next_obs, goal, offset)
         elif self.loss:

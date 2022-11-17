@@ -282,7 +282,8 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test)
+                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test,
+                                                    tile=cfg.frame_stack)
 
 
         self.replay_loader = make_replay_loader(self.replay_storage,
@@ -921,7 +922,14 @@ class Workspace:
                     self.recorded=False               
 
                     goal_array = self.proto_goals
-                    idx = np.random.randint(0, goal_array.shape[0])
+                    dist = np.linalg.norm(time_step1.observation['observations'][:2]-goal_array, ord=2, axis=1)
+                    dist = dist/sum(dist)
+                    if self.global_step<100000:
+                        dist = np.sqrt(dist)
+                        dist = dist/sum(dist)
+                    print('prob', dist)
+                    idx = np.nonzero(np.random.multinomial(1, dist))[0].item()
+                    #idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
 
 
