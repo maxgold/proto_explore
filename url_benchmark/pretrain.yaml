@@ -94,10 +94,15 @@ update_proto_every: 10
 loss: False
 debug: False
 lagr: .2
-margin: .5
 lagr1: .2
 lagr2: .2
 lagr3: .2
+margin: .5
+og: True
+proto_goal_med: True
+proto_goal_mean: False
+proto_goal_min: False
+combine_storage_gc: False
 # experiment
 experiment: exp
 

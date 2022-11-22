@@ -63,9 +63,12 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.lagr = lagr
     cfg.margin = margin
     if cfg.name=='protox':
+        print('protox')
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
         cfg.lagr3 = lagr3
+    else:
+        cfg.lagr = lagr
 
     if cfg.name=='protov2':
         cfg.update_proto_every=update_proto_every
@@ -598,7 +601,7 @@ class Workspace:
 
         replay_buffer = make_replay_offline(eval_env_goal,
                                                 self.work_dir / 'buffer' / 'buffer_copy',
-                                                500000,
+                                                200000,
                                                 0,
                                                 0,
                                                 .99,

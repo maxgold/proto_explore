@@ -109,7 +109,6 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             self.projector.train()
             self.protos.train()
        
-        print('lagr', self.lagr)
         #elif self.load_protos:
         #    self.protos = nn.Linear(pred_dim, num_protos,
         #                                            bias=False).to(self.device)
@@ -264,6 +263,7 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             
             metrics['repr_loss1'] = loss1.item()
             metrics['repr_loss2'] = loss2.item()
+            metrics['repr_loss'] = loss.item()
 
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
@@ -272,21 +272,26 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         return metrics
  
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
-
+        
         metrics = dict() 
         loss1 = F.mse_loss(obs, next_obs)
-        loss2 = F.mse_loss(obs, rand_obs)
-        encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
+        #loss2 = F.mse_loss(obs, rand_obs)
+        #dist1 = torch.sum(torch.norm(obs, p=2, dim=1))
+        #dist2 = 0
+        #dist2 = torch.sum(torch.pow(torch.norm(rand_obs, p=2, dim=1), 4))
+        encoder_loss = loss1
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss1'] = loss1.item()
-            metrics['encoder_loss2'] = loss2.item()
-            metrics['encoder_loss3'] = encoder_loss.item()
+            #metrics['encoder_loss2'] = loss2.item()
+            #metrics['encoder_loss3'] = dist1.item()
+            #metrics['encoder_loss4'] = dist2.item()
+            metrics['encoder_loss'] = encoder_loss.item()
 
-        # optimize critic
+#         # optimize critic
 #         if self.encoder_opt is not None:
 #             self.encoder_opt.zero_grad(set_to_none=True)
-        
+
         self.encoder_opt.zero_grad(set_to_none=True)
         encoder_loss.backward()
         self.encoder_opt.step()
@@ -400,7 +405,6 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
                 goal = self.aug(goal)
            
         if actor1==False:
-
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
@@ -423,13 +427,15 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
-            obs = F.normalize(obs)
-            next_obs = F.normalize(next_obs)
-            rand_obs = F.normalize(rand_obs)
+            #obs = F.normalize(obs)
+            #next_obs = F.normalize(next_obs)
+            #rand_obs = F.normalize(rand_obs)
+            
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             # update critic
+            
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
                                next_obs.detach(), step))
@@ -472,7 +478,6 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
             # update actor
             metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
             
-
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)

@@ -247,7 +247,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        
         #isometry
         prod = self.protos(self.protos.weight.data.clone())
         loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))

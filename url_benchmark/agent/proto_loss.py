@@ -296,6 +296,10 @@ class ProtoLossAgent(DDPGEncoder1Agent):
         elif actor1==False and test:
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
+            if step%500==0:
+                print('obs', obs_state*100)
+                print('rand', rand_obs_state*100)
+                print('nxt', next_obs_state*100) 
             
             obs_state = obs_state.clone().detach().cpu().numpy()
             self.current_heatmap, _, _ = np.histogram2d(obs_state[:, 0], obs_state[:, 1], bins=10, range=np.array(([-.29, .29],[-.29, .29])))
@@ -374,6 +378,11 @@ class ProtoLossAgent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            
+            if test:
+                rand_obs = self.encoder(rand_obs)
+            if step%500==0:
+                print('dist', torch.norm(next_obs, dim=1, p=2))
 
             if test:
                 rand_obs = self.encoder(rand_obs)

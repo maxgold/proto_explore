@@ -275,7 +275,18 @@ class Workspace:
 
         # create replay buffer
         print('regular or hybrid_gc loader')
-        self.replay_loader1 = make_replay_loader(self.replay_storage1,
+        if self.cfg.combine_storage_gc:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                    self.replay_storage,
+                                                    cfg.replay_buffer_gc,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False, cfg.nstep, cfg.discount,
+                                                    True, cfg.hybrid_gc,cfg.obs_type,
+                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test,
+                                                    tile=cfg.frame_stack)
+        else:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
@@ -491,9 +502,7 @@ class Workspace:
 
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
-        #import IPython as ipy; ipy.embed(colors='neutral')
-        self.proto_goals = a[_proto[:,0].clone().detach().cpu().numpy(), :2]
-        print('proto_goals', self.proto_goals)
+        
         
         # retrieve closest states after projecting prototypes down 
         # use same batch to calculate q values? & use knn to see which prototype has highest intrinsic reward?
@@ -503,6 +512,17 @@ class Workspace:
             #proto_sim = self.agent.protos(proto).T
             proto_sim = torch.exp(-1/2*torch.square(torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)))
         all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
+        
+        protos_sim = torch.exp(-1/2*torch.square(torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)))
+        protos_med, _ = protos_sim.median(dim=1)
+        protos_mean = protos_sim.mean(dim=1)
+        protos_min = protos_sim.amin(dim=1)
+       
+        
+        all_dists_protos_med, _protos_med = torch.topk(protos_med, 5, dim=0, largest=True)
+        all_dists_protos_mean, _protos_mean = torch.topk(protos_mean, 5, dim=0, largest=True)
+        all_dists_protos_min, _protos_min = torch.topk(protos_min, 5, dim=0, largest=True) 
+            
 
         proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
         all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
@@ -510,6 +530,87 @@ class Workspace:
         with torch.no_grad():
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
+        
+        dist_matrices = [_protos_med, _protos_mean, _protos_min]
+        names = [self.work_dir / f"{self.global_step}_prototype_med.gif", self.work_dir / f"{self.global_step}_prototype_mean.gif", self.work_dir / f"{self.global_step}_prototype_min.gif"]
+
+        for index_, dist_matrix in enumerate(dist_matrices):
+            
+            filenames=[]
+            plt.clf()
+            fig, ax = plt.subplots()
+            
+            for ix,x in enumerate(dist_matrix.clone().detach().cpu().numpy()):
+                txt=''
+                df = pd.DataFrame()
+                count=0
+                for i in range(a.shape[0]+1):
+                    if i!=a.shape[0]:
+                        df.loc[i,'x'] = a[i,0]
+                        df.loc[i,'y'] = a[i,1]
+                        
+                        if i in _proto[x,:]:
+                            df.loc[i, 'c'] = str(ix+1)
+                            count+=1
+
+                        elif ix==0 and (i not in _proto[x,:]):
+                            df.loc[i,'c'] = str(0)
+
+                #order based on distance to first prototype
+                #plt.clf()
+                palette = {
+                           	    '0': 'tab:blue',
+                                    '1': 'tab:orange',
+                                    '2': 'black',
+                                    '3':'silver',
+                                    '4':'green',
+                                    '5':'red',
+                                    '6':'purple',
+                                    '7':'brown',
+                                    '8':'pink',
+                                    '9':'gray',
+                                    '10':'olive',
+                        }
+                #fig, ax = plt.subplots()
+                ax=sns.scatterplot(x="x", y="y",
+                          hue="c",palette=palette,
+                          data=df,legend=True)
+                sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+                #ax.set_title("\n".join(wrap(txt,75)))
+                
+            if index_==0:
+                file1= self.work_dir / f"prototype_med_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_med_{self.global_step}.png")
+            elif index_==1:
+                file1= self.work_dir / f"prototype_mean_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_mean_{self.global_step}.png")
+            elif index_==2:
+                file1= self.work_dir / f"prototype_min_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_min_{self.global_step}.png")
+        
+#         proto_indices = np.random.randint(10)
+#         print('idx', proto_indices)
+#         p = _proto.clone().detach().cpu().numpy()
+        
+#         if self.cfg.og:
+#             self.proto_goals = a[p[:,proto_indices], :2]
+#         else:
+#             tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
+#             self.proto_goals = a[tmp_.clone().detach().cpu().numpy(), :2]
+
+        if self.cfg.proto_goal_med:
+            self.proto_goals = a[_proto[_protos_med.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
+        elif self.cfg.proto_goal_mean:
+            self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
+        elif self.cfg.proto_goal_min:
+            self.proto_goals = a[_proto[_protos_min.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
+        
         
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
@@ -588,7 +689,10 @@ class Workspace:
                 sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
                 #ax.set_title("\n".join(wrap(txt,75)))
             
+            
+            
             pairwise_dist = np.linalg.norm(dist_np[:,0,None,:]-dist_np, ord=2, axis=2)
+            print(pairwise_dist.shape)
             
             #maximum pairwise distance amongst prototypes
             maximum = np.amax(pairwise_dist, axis=1)
@@ -600,7 +704,7 @@ class Workspace:
             self.final_df.loc[num, 'q7'] = np.quantile(maximum, .7)
             self.final_df.loc[num, 'max'] = np.max(maximum)
             
-
+ 
 
             if index_==0:
                 file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
@@ -618,6 +722,8 @@ class Workspace:
                 ax.set_xticks(self.final_df.index)
                 plt.savefig(self.work_dir / f"proto_states.png")
                 wandb.save(f"proto_states.png")
+                
+
 
     def eval(self):
         #self.encode_proto(heatmap_only=True) 
@@ -922,16 +1028,17 @@ class Workspace:
                     self.recorded=False               
 
                     goal_array = self.proto_goals
-                    dist = np.linalg.norm(time_step1.observation['observations'][:2]-goal_array, ord=2, axis=1)
-                    dist = dist/sum(dist)
-                    if self.global_step<100000:
-                        dist = np.sqrt(dist)
+                    if self.cfg.og:
+                        dist = np.linalg.norm(time_step1.observation['observations'][:2]-goal_array, ord=2, axis=1)
                         dist = dist/sum(dist)
-                    print('prob', dist)
-                    idx = np.nonzero(np.random.multinomial(1, dist))[0].item()
-                    #idx = np.random.randint(0, goal_array.shape[0])
+                        if self.global_step<100000:
+                            dist = np.sqrt(dist)
+                            dist = dist/sum(dist)
+                        print('prob', dist)
+                        idx = np.nonzero(np.random.multinomial(1, dist))[0].item()
+                    else:
+                        idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
-
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                self.cfg.frame_stack,self.cfg.action_repeat, 
