@@ -926,9 +926,12 @@ class Workspace:
                     goal_array = self.proto_goals
                     dist = np.linalg.norm(time_step1.observation['observations'][:2] - goal_array, ord=2, axis=1)
                     dist = dist/sum(dist)
-                    dist = np.sqrt(dist)
-                    dist = dist/sum(dist)
-                    print('prob', dist)
+                    
+                    if self.global_step<100000:
+                        dist = np.sqrt(dist)
+                        dist = dist/sum(dist)
+                        print('prob', dist)
+                    
                     idx = np.random.multinomial(1, dist)
                     idx = np.nonzero(idx)[0].item()
                     #idx = np.random.randint(0, goal_array.shape[0])
@@ -958,7 +961,6 @@ class Workspace:
                 if self.actor1:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.obs_type == 'pixels':
-
                             action1 = self.agent.act(time_step_no_goal.observation['pixels'].copy(),
                                                     time_step_goal.copy(),
                                                     meta,
@@ -976,7 +978,6 @@ class Workspace:
                     time_step1 = self.train_env1.step(action1)
                     time_step_no_goal = self.train_env_no_goal.step(action1)
                     episode_reward += time_step1.reward
-
 
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal==False:
                         self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
