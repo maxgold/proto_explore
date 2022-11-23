@@ -1128,15 +1128,16 @@ class Workspace:
                 episode_step += 1
 
                 if self.actor1:
-                    if goal_state in self.reached_goals and time_step.reward > 1.8 and self.proto_explore==False:
-                    
+                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False:
                         print('reached old goal')
                         random_num = np.random.uniform()
                     
                         if random_num > .5:
+                            print('sampling new goal')
                             min_dist = np.amin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)) - self.proto_goals_alt))
                             goal_state = self.proto_goals_alt[min_dist]
-                        
+                            episode_reward=0
+
                             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                                 self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
@@ -1156,17 +1157,15 @@ class Workspace:
                         else:
                             self.proto_explore=True
 
-                if episode_reward > 100 and episode_step<490 and self.actor1 and self.proto_explore:
+                if episode_reward > 100 and episode_step<490 and self.actor1:
                     print('reached start exploring')
                     #min_dist = min(np.linalg.norm(np.tile(goal_state[None,:], (len(self.reached_goals),1)))) 
                     
                     #if min_dist < .03:
                     #    print('goal', goal_state)
                         
-                    self.reached_goals.append(goal_state)
-                    self.reached_goals = list(set(self.reached_goals))
-                    
-                    
+                    #self.reached_goals.append(goal_state)
+                    #self.reached_goals = list(set(self.reached_goals))
                     
                     self.actor=True
                     self.actor1=False
