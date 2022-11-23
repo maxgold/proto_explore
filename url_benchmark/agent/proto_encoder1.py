@@ -192,7 +192,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         s = self.encoder(obs)
         s = self.predictor(s)
         s = self.projector(s)
-        s = F.normalize(s, dim=1, p=2)
+        #s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
