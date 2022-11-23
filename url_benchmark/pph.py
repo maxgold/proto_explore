@@ -1127,46 +1127,46 @@ class Workspace:
 
                 episode_step += 1
 
-                if self.actor1:
-                    if goal_state in self.reached_goals and time_step.reward > 1.8 and self.proto_explore==False:
-                    
-                        print('reached old goal')
-                        random_num = np.random.uniform()
-                    
-                        if random_num > .5:
-                            min_dist = np.amin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)) - self.proto_goals_alt))
-                            goal_state = self.proto_goals_alt[min_dist]
-                        
-                            if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
-                                self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
-                        
-                            #50% of the time, let gc sample new goal and try to learn another goal
-                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
-                                               self.cfg.frame_stack,self.cfg.action_repeat,
-                                               seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+                #if self.actor1:
+                #    if goal_state in self.reached_goals and episode_reward > 10 and self.proto_explore==False:
+                #    
+                #        print('reached old goal')
+                #        print('r', time_step1.reward)
+                #        random_num = np.random.uniform()
+                #    
+                #        if random_num > .5:
+                #            min_dist = np.amin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)) - self.proto_goals_alt))
+                #            goal_state = self.proto_goals_alt[min_dist]
+                #        
+                #            if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                #                self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+                #        
+                #            #50% of the time, let gc sample new goal and try to learn another goal
+                #            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                #                               self.cfg.frame_stack,self.cfg.action_repeat,
+                #                               seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+#
+#                            time_step1 = self.train_env1.reset()
+#                            self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+#                            self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+#                            time_step_no_goal = self.train_env_no_goal.reset()
+#                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
+#                            print('time step_2nd', time_step1.observation['observations'])
+#                            print('sampled goal 2nd', goal_state) 
+#                    
+#                        else:
+#                            print('proto exploring')
+#                            self.proto_explore=True
 
-                            time_step1 = self.train_env1.reset()
-                            self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                            self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
-                            time_step_no_goal = self.train_env_no_goal.reset()
-                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
-                            print('time step', time_step1.observation['observations'])
-                            print('sampled goal', goal_state) 
-                    
-                        else:
-                            self.proto_explore=True
-
-                if episode_reward > 100 and episode_step<490 and self.actor1 and self.proto_explore:
+                if episode_reward > 100 and episode_step<490 and self.actor1:
                     print('reached start exploring')
                     #min_dist = min(np.linalg.norm(np.tile(goal_state[None,:], (len(self.reached_goals),1)))) 
                     
                     #if min_dist < .03:
                     #    print('goal', goal_state)
                         
-                    self.reached_goals.append(goal_state)
-                    self.reached_goals = list(set(self.reached_goals))
-                    
-                    
+                    #self.reached_goals.append(goal_state)
+                    #self.reached_goals = list(set(self.reached_goals))
                     
                     self.actor=True
                     self.actor1=False
