@@ -343,7 +343,7 @@ class Workspace:
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
-        self.reached_goals=[]
+        self.reached_goals=np.empty((0,2))
         self.proto_goals_alt=[]
         self.proto_explore=False
     
@@ -599,8 +599,7 @@ class Workspace:
         proto_indices = np.random.randint(10)
         p = _proto.clone().detach().cpu().numpy()
         
-        if self.cfg.og:
-            self.proto_goals_alt = a[p[:, proto_indices], :2]
+        self.proto_goals_alt = a[p[:, proto_indices], :2]
 #        else:
 #            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
 #            self.proto_goals = a[tmp_.clone().detach().cpu().numpy(), :2]
@@ -1134,6 +1133,8 @@ class Workspace:
                     
                         if random_num > .5:
                             print('sampling new goal')
+                            print(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)).shape)
+                            print(self.proto_goals_alt.shape)
                             min_dist = np.amin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)) - self.proto_goals_alt))
                             goal_state = self.proto_goals_alt[min_dist]
                             episode_reward=0
@@ -1163,9 +1164,11 @@ class Workspace:
                     
                     #if min_dist < .03:
                     #    print('goal', goal_state)
-                        
-                    #self.reached_goals.append(goal_state)
-                    #self.reached_goals = list(set(self.reached_goals))
+                    print(self.reached_goals)
+                    print('reached', self.reached_goals.shape)
+                    print('gs', goal_state[None,:].shape)
+                    self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
+                    self.reached_goals = np.unique(self.reached_goals, axis=0)
                     
                     self.actor=True
                     self.actor1=False
