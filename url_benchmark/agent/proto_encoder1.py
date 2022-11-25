@@ -156,7 +156,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             z = self.encoder(obs)
             z = self.predictor(z)
-            z = F.normalize(z, dim=1, p=2)
+            #z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
@@ -186,7 +186,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         metrics = dict()
 
         # normalize prototypes
-        self.normalize_protos()
+        #self.normalize_protos()
 
         # online network
         s = self.encoder(obs)
