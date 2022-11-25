@@ -103,6 +103,7 @@ proto_goal_med: True
 proto_goal_mean: False
 proto_goal_min: False
 combine_storage_gc: False
+goal_freq: False
 # experiment
 experiment: exp
 

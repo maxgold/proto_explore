@@ -710,7 +710,7 @@ class ReplayBuffer(IterableDataset):
             if self.pixels and self.goal_proto==False and self.asym==False:
                 goal = np.tile(goal,(self.tile,1,1))
             
-            for i in range(1):
+            for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount

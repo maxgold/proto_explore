@@ -346,7 +346,7 @@ class Workspace:
         self.reached_goals=np.empty((0,2))
         self.proto_goals_alt=[]
         self.proto_explore=False
-    
+        self.goal_freq = np.zeros((self.proto_goals.shape[0],))
     
     @property
     def global_step(self):
@@ -614,6 +614,8 @@ class Workspace:
             self.proto_goals = a[_proto[_protos_min.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             print('proto_goals', self.proto_goals)
         
+
+        self.goal_freq = np.zeros((self.proto_goals.shape[0],))
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
         names = [self.work_dir / f"{self.global_step}_prototypes.gif", self.work_dir / f"{self.global_step}_prototypes_sim.gif"]
@@ -1040,10 +1042,22 @@ class Workspace:
                             dist = dist/sum(dist)
                         print('prob', dist)
                         idx = np.nonzero(np.random.multinomial(1, dist))[0].item()
+                    
+                    elif self.cfg.goal_freq:
+                        
+                        if sum(self.goal_freq) > self.goal_freq.shape[0]:
+                            freq = (1/(self.goal_freq+1))/sum(1/(self.goal_freq+1))
+                            print('goals', goal_array)
+                            print('goal freq', freq)
+                            idx = np.nonzero(np.random.multinomial(1, freq))[0].item()
+
+                        else:
+                            idx = np.random.randint(0, goal_array.shape[0])
+                    
                     else:
                         idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
-
+                    goal_idx = idx
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                self.cfg.frame_stack,self.cfg.action_repeat, 
                                                seed=None, goal=goal_state)
@@ -1127,16 +1141,15 @@ class Workspace:
                 episode_step += 1
 
                 if self.actor1:
-                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False and episode_step>20:
-                        print('reached old goal')
+                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False and episode_step > 20:
+                        if goal_state in self.proto_goals:
+                            goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
+                            self.goal_freq[goal_idx]+=1
                         random_num = np.random.uniform()
-                    
+                        
                         if random_num > .5:
-                            print('sampling new goal')
                             min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
-                            print(self.proto_goals_alt[min_dist][None,:].shape)
-                            print(self.reached_goals.shape)
-                            print(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
+                            
                             if self.reached_goals.shape[0]!=0:
                                 goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
                                 if goal_dist < .05:
@@ -1144,9 +1157,15 @@ class Workspace:
                                     min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
 
                             goal_state = self.proto_goals_alt[min_dist]
-                            print('new goal', goal_state)
+                            if goal_state in self.proto_goals:
+                                goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
+                            else:
+                                goal_idx=np.inf
+                            print('new goal', goal_state) 
+                            print('sampling new goal')
                             episode_reward=0
-
+                            episode_step=0
+                            
                             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                                 self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
@@ -1172,13 +1191,14 @@ class Workspace:
 
                 if episode_reward > 100 and episode_step<490 and self.actor1 and self.proto_explore:
                     print('reached start exploring')
-                    #min_dist = min(np.linalg.norm(np.tile(goal_state[None,:], (len(self.reached_goals),1)))) 
+                    print(self.reached_goals)
                     
-                    #if min_dist < .03:
-                    #    print('goal', goal_state)
-                        
+                    if goal_state in self.proto_goals:
+                        goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
+                        self.goal_freq[goal_idx]+=1
+                    
                     self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
-                    self.reached_goals = np.unique(self.reached_goals, axis=0) 
+                    self.reached_goals = np.unique(self.reached_goals, axis=0)
                     
                     self.actor=True
                     self.actor1=False
@@ -1187,6 +1207,7 @@ class Workspace:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
                     episode_reward=0
+                    episode_step=0
                     current_state = time_step1.observation['observations'][:2]
                     print('current_state', current_state)
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
