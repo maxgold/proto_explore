@@ -104,6 +104,12 @@ proto_goal_mean: False
 proto_goal_min: False
 combine_storage_gc: False
 goal_freq: False
+eval_sigma: 1
+eval_topk: 5
+proto_goal_med_topk: False
+proto_goal_mean_topk: False
+proto_goal_min_topk: False
+proto_goal_mix: False
 # experiment
 experiment: exp
 

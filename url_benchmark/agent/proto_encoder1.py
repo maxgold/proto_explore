@@ -156,7 +156,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             z = self.encoder(obs)
             z = self.predictor(z)
-            z = F.normalize(z, dim=1, p=2)
+            #z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
@@ -186,7 +186,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         metrics = dict()
 
         # normalize prototypes
-        self.normalize_protos()
+        #self.normalize_protos()
 
         # online network
         s = self.encoder(obs)
@@ -218,36 +218,40 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             ##################
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
-        if step%1000==0 and step!=0:
-            #for each prototype we calculate the maximum/median/minimum  prob. assigned to it 
-            self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
-            self.proto_distr_max[self.count] = q_t.amax(dim=0)
-            self.proto_distr_med[self.count], _ = q_t.median(dim=0)
-            self.proto_distr_min[self.count] = q_t.amin(dim=0)
-            
-            self.count+=1
-        
-        if step%100000==0:
-            sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
-            names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
-            fig, ax = plt.subplots()
-            top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
-            df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
-            df.plot(ax=ax,figsize=(15,5))
-            ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
-            #ax.set_xscale('log')
-            plt.savefig(f"proto_distribution_step{step}.png")
-            
+        #following used for plotting analysis of prototype assignments
+        #########################################
+        #if step%1000==0 and step!=0:
+        #    #for each prototype we calculate the maximum/median/minimum  prob. assigned to it 
+        #    self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
+        #    self.proto_distr_max[self.count] = q_t.amax(dim=0)
+        #    self.proto_distr_med[self.count], _ = q_t.median(dim=0)
+        #    self.proto_distr_min[self.count] = q_t.amin(dim=0)
+        #    
+        #    self.count+=1
+        #
+        #if step%100000==0:
+        #    sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
+        #    names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
+        #    fig, ax = plt.subplots()
+        #    top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
+        #    df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
+        #    df.plot(ax=ax,figsize=(15,5))
+        #    ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
+        #    #ax.set_xscale('log')
+        #    plt.savefig(f"proto_distribution_step{step}.png")
+        #    
+        #
+        #    for i, matrix in enumerate(sets):
+        #        fig, ax = plt.subplots()
+        #
+        #        quant = torch.quantile(matrix, self.q, dim=1)
+        #        print('q', quant.shape)
+        #        df = pd.DataFrame(quant.cpu().numpy().T)
+        #        df.plot(ax=ax,figsize=(15,5))
+        #        ax.set_xticks(np.arange(0, matrix.shape[0], 100))
+        #        plt.savefig(names[i])
+        ###########################################
 
-            for i, matrix in enumerate(sets):
-                fig, ax = plt.subplots()
-
-                quant = torch.quantile(matrix, self.q, dim=1)
-                print('q', quant.shape)
-                df = pd.DataFrame(quant.cpu().numpy().T)
-                df.plot(ax=ax,figsize=(15,5))
-                ax.set_xticks(np.arange(0, matrix.shape[0], 100))
-                plt.savefig(names[i])
         # loss
         #reweight
 
@@ -256,13 +260,14 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #inv_histogram=(1./(histogram+1e-10))**.5
         #weight = inv_histogram/inv_histogram.sum()
         #weight = weight[:,None].tile(1,256)
-        #q_t = q_t*weight.T 
+        #q_t = q_t*weight.T
         
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         #loss2 = self.criterion(p_s, q_t)
 
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
+        
         #self.proto_opt.zero_grad(set_to_none=True)
         #loss.backward()
         #self.proto_opt.step()

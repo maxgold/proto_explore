@@ -275,15 +275,15 @@ class ProtoLapIsoAgent(DDPGEncoder1Agent):
         
         metrics = dict() 
         loss1 = F.mse_loss(obs, next_obs)
-        #loss2 = F.mse_loss(obs, rand_obs)
+        loss2 = F.mse_loss(obs, rand_obs)
         #dist1 = torch.sum(torch.norm(obs, p=2, dim=1))
         #dist2 = 0
         #dist2 = torch.sum(torch.pow(torch.norm(rand_obs, p=2, dim=1), 4))
-        encoder_loss = loss1
+        encoder_loss = loss1 - loss2
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss1'] = loss1.item()
-            #metrics['encoder_loss2'] = loss2.item()
+            metrics['encoder_loss2'] = loss2.item()
             #metrics['encoder_loss3'] = dist1.item()
             #metrics['encoder_loss4'] = dist2.item()
             metrics['encoder_loss'] = encoder_loss.item()
