@@ -275,14 +275,27 @@ class Workspace:
 
         # create replay buffer
         print('regular or hybrid_gc loader')
-        self.replay_loader1 = make_replay_loader(self.replay_storage1,
+        if self.cfg.combine_storage_gc:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                    True,
+                                                    cfg.replay_buffer_gc,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False, cfg.nstep, cfg.discount,
+                                                    True, cfg.hybrid_gc,cfg.obs_type,
+                                                    cfg.hybrid_pct, replay_dir2=self.work_dir / 'buffer2',
+                                                    loss=cfg.loss, test=cfg.test,
+                                                    tile=cfg.frame_stack)
+        else:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test)
+                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test,
+                                                    tile=cfg.frame_stack)
 
 
         self.replay_loader = make_replay_loader(self.replay_storage,
@@ -330,7 +343,11 @@ class Workspace:
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
-
+        self.reached_goals=np.empty((0,2))
+        self.proto_goals_alt=[]
+        self.proto_explore=False
+    
+    
     @property
     def global_step(self):
         return self._global_step
@@ -490,9 +507,7 @@ class Workspace:
 
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
-        #import IPython as ipy; ipy.embed(colors='neutral')
-        self.proto_goals = a[_proto[:,0].clone().detach().cpu().numpy(), :2]
-        print('proto_goals', self.proto_goals)
+        
         
         # retrieve closest states after projecting prototypes down 
         # use same batch to calculate q values? & use knn to see which prototype has highest intrinsic reward?
@@ -502,6 +517,17 @@ class Workspace:
             #proto_sim = self.agent.protos(proto).T
             proto_sim = torch.exp(-1/2*torch.square(torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)))
         all_dists_proto_sim, _proto_sim = torch.topk(proto_sim, 10, dim=1, largest=True)
+        
+        protos_sim = torch.exp(-1/2*torch.square(torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)))
+        protos_med, _ = protos_sim.median(dim=1)
+        protos_mean = protos_sim.mean(dim=1)
+        protos_min = protos_sim.amin(dim=1)
+       
+        
+        all_dists_protos_med, _protos_med = torch.topk(protos_med, 5, dim=0, largest=True)
+        all_dists_protos_mean, _protos_mean = torch.topk(protos_mean, 5, dim=0, largest=True)
+        all_dists_protos_min, _protos_min = torch.topk(protos_min, 5, dim=0, largest=True) 
+            
 
         proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
         all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
@@ -509,6 +535,84 @@ class Workspace:
         with torch.no_grad():
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
+        
+        dist_matrices = [_protos_med, _protos_mean, _protos_min]
+        names = [self.work_dir / f"{self.global_step}_prototype_med.gif", self.work_dir / f"{self.global_step}_prototype_mean.gif", self.work_dir / f"{self.global_step}_prototype_min.gif"]
+
+        for index_, dist_matrix in enumerate(dist_matrices):
+            
+            filenames=[]
+            plt.clf()
+            fig, ax = plt.subplots()
+            
+            for ix,x in enumerate(dist_matrix.clone().detach().cpu().numpy()):
+                txt=''
+                df = pd.DataFrame()
+                count=0
+                for i in range(a.shape[0]+1):
+                    if i!=a.shape[0]:
+                        df.loc[i,'x'] = a[i,0]
+                        df.loc[i,'y'] = a[i,1]
+                        
+                        if i in _proto[x,:]:
+                            df.loc[i, 'c'] = str(ix+1)
+                            count+=1
+
+                        elif ix==0 and (i not in _proto[x,:]):
+                            df.loc[i,'c'] = str(0)
+
+                #order based on distance to first prototype
+                #plt.clf()
+                palette = {
+                           	    '0': 'tab:blue',
+                                    '1': 'tab:orange',
+                                    '2': 'black',
+                                    '3':'silver',
+                                    '4':'green',
+                                    '5':'red',
+                                    '6':'purple',
+                                    '7':'brown',
+                                    '8':'pink',
+                                    '9':'gray',
+                                    '10':'olive',
+                        }
+                #fig, ax = plt.subplots()
+                ax=sns.scatterplot(x="x", y="y",
+                          hue="c",palette=palette,
+                          data=df,legend=True)
+                sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+                #ax.set_title("\n".join(wrap(txt,75)))
+                
+            if index_==0:
+                file1= self.work_dir / f"prototype_med_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_med_{self.global_step}.png")
+            elif index_==1:
+                file1= self.work_dir / f"prototype_mean_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_mean_{self.global_step}.png")
+            elif index_==2:
+                file1= self.work_dir / f"prototype_min_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_min_{self.global_step}.png")
+        
+        proto_indices = np.random.randint(10)
+        p = _proto.clone().detach().cpu().numpy()
+        
+        self.proto_goals_alt = a[p[:, proto_indices], :2]
+#        else:
+#            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
+#            self.proto_goals = a[tmp_.clone().detach().cpu().numpy(), :2]
+
+        if self.cfg.proto_goal_med:
+            self.proto_goals = a[_proto[_protos_med.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
+        elif self.cfg.proto_goal_mean:
+            self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
+        elif self.cfg.proto_goal_min:
+            self.proto_goals = a[_proto[_protos_min.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            print('proto_goals', self.proto_goals)
         
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
@@ -587,7 +691,10 @@ class Workspace:
                 sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
                 #ax.set_title("\n".join(wrap(txt,75)))
             
+            
+            
             pairwise_dist = np.linalg.norm(dist_np[:,0,None,:]-dist_np, ord=2, axis=2)
+            print(pairwise_dist.shape)
             
             #maximum pairwise distance amongst prototypes
             maximum = np.amax(pairwise_dist, axis=1)
@@ -599,7 +706,7 @@ class Workspace:
             self.final_df.loc[num, 'q7'] = np.quantile(maximum, .7)
             self.final_df.loc[num, 'max'] = np.max(maximum)
             
-
+ 
 
             if index_==0:
                 file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
@@ -617,6 +724,8 @@ class Workspace:
                 ax.set_xticks(self.final_df.index)
                 plt.savefig(self.work_dir / f"proto_states.png")
                 wandb.save(f"proto_states.png")
+                
+
 
     def eval(self):
         #self.encode_proto(heatmap_only=True) 
@@ -756,6 +865,7 @@ class Workspace:
             self.replay_storage.add(time_step, meta)  
 
         metrics = None
+        goal_state = self.first_goal
 
         while train_until_step(self.global_step):
             #test
@@ -907,6 +1017,7 @@ class Workspace:
                     episode_reward = 0
                     self.actor1=True
                     self.actor=False
+                    self.proto_explore=False
 
 
                 # try to evaluate
@@ -921,9 +1032,17 @@ class Workspace:
                     self.recorded=False               
 
                     goal_array = self.proto_goals
-                    idx = np.random.randint(0, goal_array.shape[0])
+                    if self.cfg.og:
+                        dist = np.linalg.norm(time_step1.observation['observations'][:2]-goal_array, ord=2, axis=1)
+                        dist = dist/sum(dist)
+                        if self.global_step<100000:
+                            dist = np.sqrt(dist)
+                            dist = dist/sum(dist)
+                        print('prob', dist)
+                        idx = np.nonzero(np.random.multinomial(1, dist))[0].item()
+                    else:
+                        idx = np.random.randint(0, goal_array.shape[0])
                     goal_state = np.array([goal_array[idx][0], goal_array[idx][1]])
-
 
                     self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                self.cfg.frame_stack,self.cfg.action_repeat, 
@@ -949,7 +1068,6 @@ class Workspace:
                 if self.actor1:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.obs_type == 'pixels':
-
                             action1 = self.agent.act(time_step_no_goal.observation['pixels'].copy(),
                                                     time_step_goal.copy(),
                                                     meta,
@@ -967,7 +1085,6 @@ class Workspace:
                     time_step1 = self.train_env1.step(action1)
                     time_step_no_goal = self.train_env_no_goal.step(action1)
                     episode_reward += time_step1.reward
-
 
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal==False:
                         self.replay_storage1.add_goal(time_step1, meta, time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True)
@@ -997,24 +1114,71 @@ class Workspace:
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=True)
-                            
+                     
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
+                    
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:
                         self.replay_storage.add(time_step, meta, True)
+
                     elif time_step.last()==False and self.cfg.obs_type=='states':
                         self.replay_storage.add(time_step, meta)
 
                 episode_step += 1
 
+                if self.actor1:
+                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False and episode_step > 20:
+                        random_num = np.random.uniform()
+                        if random_num > .5:
+                            min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+                            if self.reached_goals.shape[0]!=0:
+                                goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
+                                if goal_dist < .05:
+                                    self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
+                                    min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+
+                            goal_state = self.proto_goals_alt[min_dist]
+                            print('new goal', goal_state) 
+                            print('sampling new goal')
+                            episode_reward=0
+                            episode_step=0
+                            
+                            if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                                self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+                        
+                            #50% of the time, let gc sample new goal and try to learn another goal
+                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                               self.cfg.frame_stack,self.cfg.action_repeat,
+                                               seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+
+                            time_step1 = self.train_env1.reset()
+                            self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                            self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+                            time_step_no_goal = self.train_env_no_goal.reset()
+                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                            print('time step', time_step1.observation['observations'])
+                            print('sampled goal', goal_state) 
+                    
+                        else:
+                            self.proto_explore=True
+
                 if episode_reward > 100 and episode_step<490 and self.actor1:
                     print('reached start exploring')
+                    #min_dist = min(np.linalg.norm(np.tile(goal_state[None,:], (len(self.reached_goals),1)))) 
+                    
+                    #if min_dist < .03:
+                    #    print('goal', goal_state)
+                    print(self.reached_goals)
+                    self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
+                    self.reached_goals = np.unique(self.reached_goals, axis=0)
+                    
                     self.actor=True
                     self.actor1=False
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
                     episode_reward=0
+                    episode_step=0
                     current_state = time_step1.observation['observations'][:2]
                     print('current_state', current_state)
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,

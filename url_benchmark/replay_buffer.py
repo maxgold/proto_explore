@@ -462,58 +462,60 @@ class ReplayBuffer(IterableDataset):
                 tmp_fns_.append(str(x))
                 tmp_fns2.append(x)
             #if self.model_step:
-                #eps_fns2 = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
+            #    eps_fns2 = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
             #else:
-                #eps_fns2 = tmp_fns
+            eps_fns2 = tmp_fns
 
-            np.random.shuffle(eps_fns2)
+            #np.random.shuffle(eps_fns2)
             fetched_size = 0
             for eps_fn1 in eps_fns1:
-                print('count1', self.count1)
-                if self.count1 < 10-self.hybrid_pct:
-                    eps_idx, eps_len = [int(x) for x in eps_fn1.stem.split("_")[1:]]
-                    
-                    if eps_idx % self._num_workers != worker_id:
-                        continue
-                    if eps_fn1 in self._episodes.keys():
-                        break
-                    if fetched_size + eps_len > self._max_size:
-                        break
-                    fetched_size += eps_len
-                    if not self._store_episode(eps_fn1):
-                        break
-                    self.count1 += 1
+                #print('count1', self.count1)
+                #if self.count1 < 10-self.hybrid_pct*10:
+                eps_idx, eps_len = [int(x) for x in eps_fn1.stem.split("_")[1:]]
                 
-                for ix, eps_fn2 in enumerate(eps_fns2):
-                    print('count2', self.count2)
-                    if self.count2 < self.hybrid_pct:
-                       # print('eps2', eps_fn2)
-                        if ix!=last+1:
-                            continue
-                        else:
-                            eps_idx, eps_len = [int(x) for x in eps_fn2.stem.split("_")[1:]]
-                            if eps_idx % self._num_workers != worker_id:
-                                continue
-                            if eps_fn2 in self._episodes.keys():
-                                break
-                            if fetched_size + eps_len > self._max_size:
-                                break
-                            fetched_size += eps_len
-                            if not self._store_episode(eps_fn2):
-                                break
-                            self.count2 += 1
-                            self.last=ix
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn1 in self._episodes.keys():
+                    break
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if not self._store_episode(eps_fn1):
+                    break
+                #self.count1 += 1
+                
+            for ix, eps_fn2 in enumerate(eps_fns2):
 
-                    else:
-                        break
-                print('final count1',self.count1)
-                print('final count2', self.count2)
-                if self.count1 == (10-self.hybrid_pct-1) and self.count2 == (self.hybrid_pct-1):
-                    print('reset')
-                    print('reset count1', self.count1)
-                    print('reset count2', self.count2)
-                    self.count1 = 0
-                    self.count2 = 0
+                #if self.count2 < self.hybrid_pct*10:
+                #print('eps2', eps_fn2)
+                #if ix!=self.last+1:
+                #    continue
+                #else:
+                eps_idx, eps_len = [int(x) for x in eps_fn2.stem.split("_")[1:]]
+                if eps_idx % self._num_workers != worker_id:
+                    continue
+                if eps_fn2 in self._episodes.keys():
+                    break
+                if fetched_size + eps_len > self._max_size:
+                    break
+                fetched_size += eps_len
+                if not self._store_episode(eps_fn2):
+                    break
+                #self.count2 += 1
+                #self.last=ix
+
+                #else:
+                #    break
+            
+            #print('final count1',self.count1)
+            #print('final count2', self.count2)
+            
+            #if self.count1 == (10-self.hybrid_pct*10-1) and self.count2 == (self.hybrid_pct*10-1):
+            #    print('reset')
+            #    print('reset count1', self.count1)
+            #    print('reset count2', self.count2)
+            #    self.count1 = 0
+            #    self.count2 = 0
 
         #if hyperparameter: second=False
         else:
@@ -661,7 +663,7 @@ class ReplayBuffer(IterableDataset):
         return (obs, obs_state, action, reward, discount, next_obs, next_state, goal_state, *meta)
         
     def _sample_goal_hybrid(self):
-
+        #print(self._episode_fns)
         try:
             self._try_fetch()
         except:
@@ -685,8 +687,23 @@ class ReplayBuffer(IterableDataset):
         #hybrid where we use hybrid_pct of relabeled gc data in each batch
         #100-hybrid_pct*10 is just original gc data
         key = np.random.uniform()
+
+
         if key > self.hybrid_pct:
+            #make sure we're using an episode collected by gc 
+            while 'goal' not in episode.keys():
+                episode = self._sample_episode()
+            idx = np.random.randint(0, episode_len(episode)-self._nstep) + 1 
+            obs = episode["observation"][idx - 1]
+            obs_state = episode["state"][idx - 1]
+            action = episode["action"][idx]
+            next_obs = episode["observation"][idx + self._nstep - 1]
+            next_obs_state = episode["state"][idx + self._nstep - 1]
+            reward = np.zeros_like(episode["reward"][idx])
+            discount = np.ones_like(episode["discount"][idx])
+            offset = 0 
             goal = episode["goal"][idx-1]
+            
             if self.asym:
                 goal_state = episode["goal"][idx-1]
             
@@ -697,9 +714,10 @@ class ReplayBuffer(IterableDataset):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
-
+            
+            
         elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(episode_len(episode)-self._nstep+1)
+            idx = np.random.randint(episode_len(episode)-self._nstep) + 1
             obs = episode["observation"][idx-1]
             obs_state = episode["state"][idx-1]
             action = episode["action"][idx]
@@ -710,17 +728,18 @@ class ReplayBuffer(IterableDataset):
             offset=idx_goal-idx
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
-            for i in range(1):
+            for i in range(self._nstep):
                 step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
+
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
-            idx = np.random.randint(episode_len(episode)-self._nstep+1)
+            idx = np.random.randint(episode_len(episode)-self._nstep)+1
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
-            idx_goal = np.random.randint(idx,episode_len(episode))
+            next_obs = episode['observation'][idx + self._nstep - 1]
+            idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
             goal=episode['observation'][idx_goal]
             z = episode["observation"][idx_goal][None,:]
             protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
@@ -728,7 +747,7 @@ class ReplayBuffer(IterableDataset):
             _ = np.argsort(z_to_proto, axis=1)[:,0]
             goal = protos[_].reshape((protos.shape[1],))
             offset=idx_goal-idx
-            for i in range(1):
+            for i in range(self._nstep):
                 obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
                 dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
                 
@@ -751,7 +770,6 @@ class ReplayBuffer(IterableDataset):
         goal = goal.astype(int)
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
-        
         if self.sl:
             return (obs, action, reward, discount, next_obs, goal, offset)
         elif self.loss:
@@ -1101,6 +1119,7 @@ class OfflineReplayBuffer(IterableDataset):
         else:
        
             self.count+=1
+            #??
             if self.count==1000*self.hybrid_pct:
                 self.iz +=1
             if self.iz>500-self._nstep:

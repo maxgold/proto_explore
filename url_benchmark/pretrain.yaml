@@ -98,6 +98,17 @@ lagr1: .2
 lagr2: .2
 lagr3: .2
 margin: .5
+og: True
+proto_goal_med: True
+proto_goal_mean: False
+proto_goal_min: False
+combine_storage_gc: False
+eval_sigma: 1
+eval_topk: 5
+proto_goal_med_topk: False
+proto_goal_mean_topk: False
+proto_goal_min_topk: False
+proto_goal_mix: False
 # experiment
 experiment: exp
 
