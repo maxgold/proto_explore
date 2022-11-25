@@ -1127,18 +1127,22 @@ class Workspace:
                 episode_step += 1
 
                 if self.actor1:
-                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False:
-                        print('reached old goal')
+                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False and episode_step > 20:
                         random_num = np.random.uniform()
-                    
                         if random_num > .5:
-                            print('sampling new goal')
-                            print(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)).shape)
-                            print(self.proto_goals_alt.shape)
-                            min_dist = np.amin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (len(self.proto_goals_alt),1)) - self.proto_goals_alt))
-                            goal_state = self.proto_goals_alt[min_dist]
-                            episode_reward=0
+                            min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+                            if self.reached_goals.shape[0]!=0:
+                                goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
+                                if goal_dist < .05:
+                                    self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
+                                    min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
 
+                            goal_state = self.proto_goals_alt[min_dist]
+                            print('new goal', goal_state) 
+                            print('sampling new goal')
+                            episode_reward=0
+                            episode_step=0
+                            
                             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                                 self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
@@ -1165,8 +1169,6 @@ class Workspace:
                     #if min_dist < .03:
                     #    print('goal', goal_state)
                     print(self.reached_goals)
-                    print('reached', self.reached_goals.shape)
-                    print('gs', goal_state[None,:].shape)
                     self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
                     self.reached_goals = np.unique(self.reached_goals, axis=0)
                     
@@ -1176,6 +1178,7 @@ class Workspace:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
                         
                     episode_reward=0
+                    episode_step=0
                     current_state = time_step1.observation['observations'][:2]
                     print('current_state', current_state)
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
