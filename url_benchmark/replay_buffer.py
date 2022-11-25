@@ -693,7 +693,7 @@ class ReplayBuffer(IterableDataset):
             #make sure we're using an episode collected by gc 
             while 'goal' not in episode.keys():
                 episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode)) + 1 
+            idx = np.random.randint(0, episode_len(episode)-self._nstep) + 1 
             obs = episode["observation"][idx - 1]
             obs_state = episode["state"][idx - 1]
             action = episode["action"][idx]
@@ -717,7 +717,7 @@ class ReplayBuffer(IterableDataset):
             
             
         elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(episode_len(episode)) + 1
+            idx = np.random.randint(episode_len(episode)-self._nstep) + 1
             obs = episode["observation"][idx-1]
             obs_state = episode["state"][idx-1]
             action = episode["action"][idx]
@@ -728,18 +728,18 @@ class ReplayBuffer(IterableDataset):
             offset=idx_goal-idx
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
-            for i in range(1):
+            for i in range(self._nstep):
                 step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
 
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
-            idx = np.random.randint(episode_len(episode)) + 1
+            idx = np.random.randint(episode_len(episode)-self._nstep)+1
             obs = episode["observation"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
-            idx_goal = np.random.randint(idx,episode_len(episode))
+            next_obs = episode['observation'][idx + self._nstep - 1]
+            idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
             goal=episode['observation'][idx_goal]
             z = episode["observation"][idx_goal][None,:]
             protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
@@ -747,7 +747,7 @@ class ReplayBuffer(IterableDataset):
             _ = np.argsort(z_to_proto, axis=1)[:,0]
             goal = protos[_].reshape((protos.shape[1],))
             offset=idx_goal-idx
-            for i in range(1):
+            for i in range(self._nstep):
                 obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
                 dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
                 
