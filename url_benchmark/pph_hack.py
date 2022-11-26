@@ -168,22 +168,11 @@ class Workspace:
         # create envs
         task = self.cfg.task
         self.no_goal_task = self.cfg.task_no_goal
-        idx = np.random.randint(0,400)
-        goal_array = ndim_grid(2,20)
-        self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]]) 
-        self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                   cfg.action_repeat, seed=None, goal=self.first_goal)
-        print('goal', self.first_goal)
-        self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                   cfg.action_repeat, seed=None, goal=None)
-        #import IPython as ipy; ipy.embed(colors='neutral')
-        print('no goal task env', self.no_goal_task)
-        self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                   1, seed=None, goal=None)
+
         self.train_env = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                                   cfg.action_repeat, seed=None, goal=None)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, seed=None, goal=self.first_goal)
+                                 cfg.action_repeat, seed=None, goal=np.array([0,0]))
         self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=None)
         self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
@@ -266,36 +255,10 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-        # create data storage
-        self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer1')
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2')
         
 
-        # create replay buffer
-        print('regular or hybrid_gc loader')
-        if self.cfg.combine_storage_gc:
-            self.replay_loader1 = make_replay_loader(self.replay_storage1,
-                                                    True,
-                                                    cfg.replay_buffer_gc,
-                                                    cfg.batch_size_gc,
-                                                    cfg.replay_buffer_num_workers,
-                                                    False, cfg.nstep, cfg.discount,
-                                                    True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, replay_dir2=self.work_dir / 'buffer2',
-                                                    loss=cfg.loss, test=cfg.test,
-                                                    tile=cfg.frame_stack)
-        else:
-            self.replay_loader1 = make_replay_loader(self.replay_storage1,
-                                                    False,
-                                                    cfg.replay_buffer_gc,
-                                                    cfg.batch_size_gc,
-                                                    cfg.replay_buffer_num_workers,
-                                                    False, cfg.nstep, cfg.discount,
-                                                    True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, loss=cfg.loss, test=cfg.test,
-                                                    tile=cfg.frame_stack)
 
 
         self.replay_loader = make_replay_loader(self.replay_storage,
@@ -310,7 +273,7 @@ class Workspace:
                                                 test=cfg.test) 
 
         self._replay_iter = None
-        self._replay_iter1 = None
+
 
         self.video_recorder = VideoRecorder(
             self.work_dir if cfg.save_video else None,
@@ -360,11 +323,6 @@ class Workspace:
     def global_frame(self):
         return self.global_step * self.cfg.action_repeat
 
-    @property
-    def replay_iter1(self):
-        if self._replay_iter1 is None:
-            self._replay_iter1 = iter(self.replay_loader1)
-        return self._replay_iter1
 
     @property
     def replay_iter(self):
@@ -407,7 +365,7 @@ class Workspace:
         return self.distance_goal[idx]
     
     def eval_proto(self):
-        heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
+        heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=False,proto=True)
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
 
@@ -577,8 +535,10 @@ class Workspace:
                 first = (_protos_min_topk_mix == x).nonzero().item()
                 sec = (_sample_min_topk_mix == x).nonzero().item()
                 combo_score[x] = .5*first + .5*sec
-
+        
         all_dists_mix, _sample_mix = torch.topk(combo_score, 5, dim=0, largest=False)
+        print('shape', _sample_med_topk_mix.shape[0])
+        print(_sample_med_topk_mix[:5].shape[0])
         
         #4. common neighbor sharing metric
         #think about how to implement
@@ -592,14 +552,7 @@ class Workspace:
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
         
-        dist_matrices = [_protos_med, _protos_mean, _protos_min, _protos_med_topk, _protos_mean_topk, _protos_min_topk, _sample_mix]
-        names = [self.work_dir / f"{self.global_step}_prototype_med.gif", 
-                 self.work_dir / f"{self.global_step}_prototype_mean.gif", 
-                 self.work_dir / f"{self.global_step}_prototype_min.gif",
-                 self.work_dir / f"{self.global_step}_prototype_med_topk.gif", 
-                 self.work_dir / f"{self.global_step}_prototype_mean_topk.gif", 
-                 self.work_dir / f"{self.global_step}_prototype_min_topk.gif", 
-                 self.work_dir / f"{self.global_step}_prototype_mix_topk.gif"]
+        dist_matrices = [_protos_med, _protos_mean, _protos_min, _protos_med_topk, _protos_mean_topk, _protos_min_topk, _sample_med_topk_mix[:5], _sample_mean_topk_mix[:5], _sample_min_topk_mix[:5], _sample_mix]
 
         for index_, dist_matrix in enumerate(dist_matrices):
             
@@ -658,7 +611,7 @@ class Workspace:
                 plt.savefig(file1)
                 wandb.save(f"prototype_min_{self.global_step}.png")
             elif index_==3:
-                file1= self.work_dir / f"prototype_med_{self.global_step}.png"
+                file1= self.work_dir / f"prototype_med_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_med_top{self.cfg.eval_topk}_{self.global_step}.png")
             elif index_==4:
@@ -670,6 +623,18 @@ class Workspace:
                 plt.savefig(file1)
                 wandb.save(f"prototype_min_top{self.cfg.eval_topk}_{self.global_step}.png")
             elif index_==6:
+                file1= self.work_dir / f"prototype_sample_med_top{self.cfg.eval_topk}_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_sample_med_top{self.cfg.eval_topk}_{self.global_step}.png")
+            elif index_==7:
+                file1= self.work_dir / f"prototype_sample_mean_top{self.cfg.eval_topk}_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_sample_mean_top{self.cfg.eval_topk}_{self.global_step}.png")
+            elif index_==8:
+                file1= self.work_dir / f"prototype_sample_min_top{self.cfg.eval_topk}_{self.global_step}.png"
+                plt.savefig(file1)
+                wandb.save(f"prototype_sample_min_top{self.cfg.eval_topk}_{self.global_step}.png")
+            elif index_==9:
                 file1= self.work_dir / f"prototype_mix_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_mix_top{self.cfg.eval_topk}_{self.global_step}.png")
@@ -683,17 +648,17 @@ class Workspace:
 #            self.proto_goals = a[tmp_.clone().detach().cpu().numpy(), :2]
 
         #later add mixture of dissimilarity with proto neighbors & distance to samples. 
-        if self.cfg.proto_goal_med:
+        if self.cfg.proto_goal_med and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_med.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_mean:
+        elif self.cfg.proto_goal_mean and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_min:
+        elif self.cfg.proto_goal_min and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_min.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_med_topk:
+        elif self.cfg.proto_goal_med_topk and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_med_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_mean_topk:
+        elif self.cfg.proto_goal_mean_topk and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_mean_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_min_topk:
+        elif self.cfg.proto_goal_min_topk and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_min_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             
         #use a mix of similarity to proto nn & distance from samples 
@@ -705,7 +670,6 @@ class Workspace:
         self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
-        names = [self.work_dir / f"{self.global_step}_prototypes.gif", self.work_dir / f"{self.global_step}_prototypes_sim.gif"]
 
         for index_, dist_matrix in enumerate(dist_matrices):
             filenames=[]
@@ -954,7 +918,6 @@ class Workspace:
             self.replay_storage.add(time_step, meta)  
 
         metrics = None
-        goal_state = self.first_goal
 
         while train_until_step(self.global_step):
 
@@ -1037,10 +1000,10 @@ class Workspace:
                 metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
-            #save agent
-            if self._global_step%200000==0 and self._global_step!=0:
-                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-                torch.save(self.agent, path)
+#             #save agent
+#             if self._global_step%200000==0 and self._global_step!=0:
+#                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+#                 torch.save(self.agent, path)
 
             # take env step
             time_step = self.train_env.step(action)
