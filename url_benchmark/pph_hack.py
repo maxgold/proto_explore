@@ -479,40 +479,40 @@ class Workspace:
         protos_sim = torch.exp(-(1/2)*torch.square(torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)/self.cfg.eval_sigma))
         protos_med, _ = protos_sim.median(dim=1)
         protos_mean = protos_sim.mean(dim=1)
-        protos_min = protos_sim.amin(dim=1)
+        protos_max = protos_sim.amax(dim=1)
         
         #2. use top 3, 5, 7, 9
         protos_sim_topk, _sim_topk = torch.topk(protos_sim, self.cfg.eval_topk, dim=1, largest=True)
         protos_med_topk, _protos_topk = protos_sim_topk.median(dim=1)
         protos_mean_topk = protos_sim_topk.mean(dim=1)
-        protos_min_topk = protos_sim_topk.amin(dim=1)
+        protos_max_topk = protos_sim_topk.amax(dim=1)
         
         all_dists_protos_med, _protos_med = torch.topk(protos_med, 5, dim=0, largest=False)
         all_dists_protos_mean, _protos_mean = torch.topk(protos_mean, 5, dim=0, largest=False)
-        all_dists_protos_min, _protos_min = torch.topk(protos_min, 5, dim=0, largest=False)
+        all_dists_protos_max, _protos_max = torch.topk(protos_max, 5, dim=0, largest=False)
         
         all_dists_protos_med_topk, _protos_med_topk = torch.topk(protos_med_topk, 5, dim=0, largest=False)
         all_dists_protos_mean_topk, _protos_mean_topk = torch.topk(protos_mean_topk, 5, dim=0, largest=False)
-        all_dists_protos_min_topk, _protos_min_topk = torch.topk(protos_min_topk, 5, dim=0, largest=False)
+        all_dists_protos_max_topk, _protos_max_topk = torch.topk(protos_max_topk, 5, dim=0, largest=False)
         
         #3. dist to samples 
         sample_dist_topk, _sample_topk = torch.topk(proto_dist, self.cfg.eval_topk, dim=1, largest=False)
         
         sample_med_topk, _sample_topk = sample_dist_topk.median(dim=1)
         sample_mean_topk = sample_dist_topk.mean(dim=1)
-        sample_min_topk = sample_dist_topk.amin(dim=1)
+        sample_max_topk = sample_dist_topk.amax(dim=1)
         
         all_dists_sample_med_topk, _sample_med_topk = torch.topk(sample_med_topk, 5, dim=0, largest=True)
         all_dists_sample_mean_topk, _sample_mean_topk = torch.topk(sample_mean_topk, 5, dim=0, largest=True)
-        all_dists_sample_min_topk, _sample_min_topk = torch.topk(sample_min_topk, 5, dim=0, largest=True)
+        all_dists_sample_max_topk, _sample_max_topk = torch.topk(sample_max_topk, 5, dim=0, largest=True)
        
 
         all_dists_protos_med_topk_mix, _protos_med_topk_mix = torch.topk(protos_med_topk, self.cfg.num_protos, dim=0, largest=False)
         all_dists_protos_mean_topk_mix, _protos_mean_topk_mix = torch.topk(protos_mean_topk, self.cfg.num_protos, dim=0, largest=False)
-        all_dists_protos_min_topk_mix, _protos_min_topk_mix = torch.topk(protos_min_topk, self.cfg.num_protos, dim=0, largest=False)
+        all_dists_protos_max_topk_mix, _protos_max_topk_mix = torch.topk(protos_max_topk, self.cfg.num_protos, dim=0, largest=False)
         all_dists_sample_med_topk_mix, _sample_med_topk_mix = torch.topk(sample_med_topk, self.cfg.num_protos, dim=0, largest=True)
         all_dists_sample_mean_topk_mix, _sample_mean_topk_mix = torch.topk(sample_mean_topk, self.cfg.num_protos, dim=0, largest=True)
-        all_dists_sample_min_topk_mix, _sample_min_topk_mix = torch.topk(sample_min_topk, self.cfg.num_protos, dim=0, largest=True)
+        all_dists_sample_max_topk_mix, _sample_max_topk_mix = torch.topk(sample_max_topk, self.cfg.num_protos, dim=0, largest=True)
 
         combo_score = torch.empty((self.cfg.num_protos,))
         for x in range(self.cfg.num_protos):
@@ -532,8 +532,8 @@ class Workspace:
 
             elif self.cfg.proto_goal_min:
 
-                first = (_protos_min_topk_mix == x).nonzero().item()
-                sec = (_sample_min_topk_mix == x).nonzero().item()
+                first = (_protos_max_topk_mix == x).nonzero().item()
+                sec = (_sample_max_topk_mix == x).nonzero().item()
                 combo_score[x] = .5*first + .5*sec
         
         all_dists_mix, _sample_mix = torch.topk(combo_score, 5, dim=0, largest=False)
@@ -552,7 +552,7 @@ class Workspace:
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
         
-        dist_matrices = [_protos_med, _protos_mean, _protos_min, _protos_med_topk, _protos_mean_topk, _protos_min_topk, _sample_med_topk_mix[:5], _sample_mean_topk_mix[:5], _sample_min_topk_mix[:5], _sample_mix]
+        dist_matrices = [_protos_med, _protos_mean, _protos_max, _protos_med_topk, _protos_mean_topk, _protos_max_topk, _sample_med_topk_mix[:5], _sample_mean_topk_mix[:5], _sample_max_topk_mix[:5], _sample_mix]
 
         for index_, dist_matrix in enumerate(dist_matrices):
             
@@ -653,13 +653,13 @@ class Workspace:
         elif self.cfg.proto_goal_mean and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
         elif self.cfg.proto_goal_min and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_min.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            self.proto_goals = a[_proto[_protos_max.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
         elif self.cfg.proto_goal_med_topk and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_med_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
         elif self.cfg.proto_goal_mean_topk and self.cfg.proto_goal_mix==False:
             self.proto_goals = a[_proto[_protos_mean_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
         elif self.cfg.proto_goal_min_topk and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_min_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            self.proto_goals = a[_proto[_protos_max_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             
         #use a mix of similarity to proto nn & distance from samples 
         elif self.cfg.proto_goal_mix:
