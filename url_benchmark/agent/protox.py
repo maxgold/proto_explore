@@ -193,7 +193,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         s_ = s.clone().detach()
         s = self.predictor(s)
         s_p = self.predictor(s_)
-        s_p = F.normalize(s_p.detach(), dim=1, p=2)
+        s_p = F.normalize(s_p, dim=1, p=2)
         s = self.projector(s)
         s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
@@ -231,7 +231,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
             #ax.set_xscale('log')
             plt.savefig(f"proto_distribution_step{step}.png")
             
-
             for i, matrix in enumerate(sets):
                 fig, ax = plt.subplots()
 
@@ -253,7 +252,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
         dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
-        all_dists, _ = torch.topk(dist, 2, dim=1, largest=False) 
+        all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
 
         #sep
         #pushing away second closest proto first, can try to push several away at once later
@@ -261,8 +260,10 @@ class ProtoXAgent(DDPGEncoder1Agent):
         #check if this is actually what it's doing
 
         #could add sigma term later
+        ix = torch.randint(self.protos.weight.data.shape[0])
         loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
-        
+        #can change to ix later to let the algo gradually push all prototypes slightly further away 
+
         #clus
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 

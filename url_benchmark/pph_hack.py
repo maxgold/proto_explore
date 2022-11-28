@@ -500,11 +500,11 @@ class Workspace:
         
         sample_med_topk, _sample_topk = sample_dist_topk.median(dim=1)
         sample_mean_topk = sample_dist_topk.mean(dim=1)
-        sample_max_topk = sample_dist_topk.amax(dim=1)
+        sample_min_topk = sample_dist_topk.amin(dim=1)
         
         all_dists_sample_med_topk, _sample_med_topk = torch.topk(sample_med_topk, 5, dim=0, largest=True)
         all_dists_sample_mean_topk, _sample_mean_topk = torch.topk(sample_mean_topk, 5, dim=0, largest=True)
-        all_dists_sample_max_topk, _sample_max_topk = torch.topk(sample_max_topk, 5, dim=0, largest=True)
+        all_dists_sample_min_topk, _sample_min_topk = torch.topk(sample_min_topk, 5, dim=0, largest=True)
        
 
         all_dists_protos_med_topk_mix, _protos_med_topk_mix = torch.topk(protos_med_topk, self.cfg.num_protos, dim=0, largest=False)
@@ -512,7 +512,7 @@ class Workspace:
         all_dists_protos_max_topk_mix, _protos_max_topk_mix = torch.topk(protos_max_topk, self.cfg.num_protos, dim=0, largest=False)
         all_dists_sample_med_topk_mix, _sample_med_topk_mix = torch.topk(sample_med_topk, self.cfg.num_protos, dim=0, largest=True)
         all_dists_sample_mean_topk_mix, _sample_mean_topk_mix = torch.topk(sample_mean_topk, self.cfg.num_protos, dim=0, largest=True)
-        all_dists_sample_max_topk_mix, _sample_max_topk_mix = torch.topk(sample_max_topk, self.cfg.num_protos, dim=0, largest=True)
+        all_dists_sample_min_topk_mix, _sample_min_topk_mix = torch.topk(sample_min_topk, self.cfg.num_protos, dim=0, largest=True)
 
         combo_score = torch.empty((self.cfg.num_protos,))
         for x in range(self.cfg.num_protos):
@@ -533,7 +533,7 @@ class Workspace:
             elif self.cfg.proto_goal_min:
 
                 first = (_protos_max_topk_mix == x).nonzero().item()
-                sec = (_sample_max_topk_mix == x).nonzero().item()
+                sec = (_sample_min_topk_mix == x).nonzero().item()
                 combo_score[x] = .5*first + .5*sec
         
         all_dists_mix, _sample_mix = torch.topk(combo_score, 5, dim=0, largest=False)
@@ -552,7 +552,7 @@ class Workspace:
             proto_sim_self = self.agent.protos(protos).T
         all_dists_proto_sim_self, _proto_sim_self = torch.topk(proto_sim_self, protos.shape[0], dim=1, largest=True)
         
-        dist_matrices = [_protos_med, _protos_mean, _protos_max, _protos_med_topk, _protos_mean_topk, _protos_max_topk, _sample_med_topk_mix[:5], _sample_mean_topk_mix[:5], _sample_max_topk_mix[:5], _sample_mix]
+        dist_matrices = [_protos_med, _protos_mean, _protos_max, _protos_med_topk, _protos_mean_topk, _protos_max_topk, _sample_med_topk_mix[:5], _sample_mean_topk_mix[:5], _sample_min_topk_mix[:5], _sample_mix]
 
         for index_, dist_matrix in enumerate(dist_matrices):
             
