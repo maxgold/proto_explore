@@ -260,8 +260,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         #check if this is actually what it's doing
 
         #could add sigma term later
-        ix = torch.randint(self.protos.weight.data.shape[0])
-        loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
+        ix = torch.randint(self.protos.weight.data.shape[0], size=(1,))
+        loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,ix])))
         #can change to ix later to let the algo gradually push all prototypes slightly further away 
 
         #clus

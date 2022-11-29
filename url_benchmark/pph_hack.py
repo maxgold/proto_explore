@@ -522,19 +522,19 @@ class Workspace:
                 sec = (_sample_med_topk_mix == x).nonzero().item()
                 #test
                 #can change proportions later
-                combo_score[x] = .5*first + .5*sec
+                combo_score[x] = self.cfg.mix*first + (1-self.cfg.mix)*sec
 
             elif self.cfg.proto_goal_mean:
 
                 first = (_protos_mean_topk_mix == x).nonzero().item()
                 sec = (_sample_mean_topk_mix == x).nonzero().item()
-                combo_score[x] = .5*first + .5*sec
+                combo_score[x] = self.cfg.mix*first + (1-self.cfg.mix)*sec
 
             elif self.cfg.proto_goal_min:
 
                 first = (_protos_max_topk_mix == x).nonzero().item()
                 sec = (_sample_min_topk_mix == x).nonzero().item()
-                combo_score[x] = .5*first + .5*sec
+                combo_score[x] = self.cfg.mix*first + (1-self.cfg.mix)*sec
         
         all_dists_mix, _sample_mix = torch.topk(combo_score, 5, dim=0, largest=False)
         print('shape', _sample_med_topk_mix.shape[0])
