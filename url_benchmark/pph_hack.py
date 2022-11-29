@@ -893,8 +893,8 @@ class Workspace:
             reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
         
         df = pd.DataFrame()
-        df['x'] = states[:,0].round(2)
-        df['y'] = states[:,1].round(2)
+        df['x'] = states[:,0].round(3)
+        df['y'] = states[:,1].round(3)
         df['r'] = reward.detach().clone().cpu().numpy()
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r'].round(4)
         #import IPython as ipy; ipy.embed(colors='neutral')
@@ -902,9 +902,9 @@ class Workspace:
         plt.clf()
         fig, ax = plt.subplots(figsize=(10,6))
         
-        sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
-        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        sns.heatmap(result, cmap="Blues_r",fmt='.3f', ax=ax).invert_yaxis()
+        ax.set_xticklabels(['{:.3f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.3f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
         ax.set_title(self.global_step)
         plt.savefig(f"./{self.global_step}_intr_reward.png")
         wandb.save(f"./{self.global_step}_intr_reward.png")
