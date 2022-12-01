@@ -95,8 +95,8 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(model_step)
 
-        plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
-        wandb.save(f"./{model_step}_gc_heatmap_pct.png")
+#         plt.savefig(f"./{model_step}_gc_heatmap_pct.png")
+#         wandb.save(f"./{model_step}_gc_heatmap_pct.png")
 
 
         reward_matrix = self.replay_storage1.reward_matrix
@@ -129,18 +129,29 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
 
         plt.savefig(f"./{model_step}_proto_heatmap.png")
         wandb.save(f"./{model_step}_proto_heatmap.png")
-
-
-        heatmap_pct = self.replay_storage.state_visitation_proto_pct
+        
+        heatmap = self.proto_goals_matrix
 
         plt.clf()
-        fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(model_step)
 
-        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
-        wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_proto_goal_heatmap.png")
+        wandb.save(f"./{model_step}_proto_goal_heatmap.png")
+
+        #heatmap_pct = self.replay_storage.state_visitation_proto_pct
+
+        #plt.clf()
+        #fig, ax = plt.subplots(figsize=(10,10))
+        #labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        #sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        #ax.set_title(model_step)
+
+        #plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+        #wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+
+
         
         
 
@@ -300,9 +311,9 @@ class Workspace:
         self.global_success_rate = []
         self.global_index=[]
         self.storage1=False
-        self.proto_goal = []
         self.distance_goal_init = {}
         self.proto_goals = np.empty((self.cfg.num_protos, 2))
+        self.proto_goals_matrix = np.zeros((60,60)) 
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
@@ -599,39 +610,39 @@ class Workspace:
                 sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
                 #ax.set_title("\n".join(wrap(txt,75)))
                 
-            if index_==0:
+            if index_==0 and self.cfg.proto_goal_med:
                 file1= self.work_dir / f"prototype_med_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_med_{self.global_step}.png")
-            elif index_==1:
+            elif index_==1 and self.cfg.proto_goal_mean:
                 file1= self.work_dir / f"prototype_mean_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_mean_{self.global_step}.png")
-            elif index_==2:
+            elif index_==2 and self.cfg.proto_goal_min:
                 file1= self.work_dir / f"prototype_min_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_min_{self.global_step}.png")
-            elif index_==3:
+            elif index_==3 and self.cfg.proto_goal_med_topk:
                 file1= self.work_dir / f"prototype_med_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_med_top{self.cfg.eval_topk}_{self.global_step}.png")
-            elif index_==4:
+            elif index_==4 and self.cfg.proto_goal_mean_topk:
                 file1= self.work_dir / f"prototype_mean_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_mean_top{self.cfg.eval_topk}_{self.global_step}.png")
-            elif index_==5:
+            elif index_==5 and self.cfg.proto_goal_min_topk:
                 file1= self.work_dir / f"prototype_min_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_min_top{self.cfg.eval_topk}_{self.global_step}.png")
-            elif index_==6:
+            elif index_==6 and self.cfg.proto_goal_med_topk:
                 file1= self.work_dir / f"prototype_sample_med_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_sample_med_top{self.cfg.eval_topk}_{self.global_step}.png")
-            elif index_==7:
+            elif index_==7 and self.cfg.proto_goal_mean_topk:
                 file1= self.work_dir / f"prototype_sample_mean_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_sample_mean_top{self.cfg.eval_topk}_{self.global_step}.png")
-            elif index_==8:
+            elif index_==8 and self.cfg.proto_goal_min_topk:
                 file1= self.work_dir / f"prototype_sample_min_top{self.cfg.eval_topk}_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"prototype_sample_min_top{self.cfg.eval_topk}_{self.global_step}.png")
@@ -643,30 +654,30 @@ class Workspace:
         proto_indices = np.random.randint(10)
         p = _proto.clone().detach().cpu().numpy()
         
-        self.proto_goals_alt = a[p[:, proto_indices], :2]
-#        else:
+        if self.global_step==self.cfg.switch_gc or self.global_step%100000==0:
+            self.proto_goals_alt = a[p[:, proto_indices], :2]
+#       else:
 #            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
 #            self.proto_goals = a[tmp_.clone().detach().cpu().numpy(), :2]
 
-        #later add mixture of dissimilarity with proto neighbors & distance to samples. 
-        if self.cfg.proto_goal_med and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_med.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_mean and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_min and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_max.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_med_topk and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_med_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_mean_topk and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_mean_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-        elif self.cfg.proto_goal_min_topk and self.cfg.proto_goal_mix==False:
-            self.proto_goals = a[_proto[_protos_max_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            #later add mixture of dissimilarity with proto neighbors & distance to samples. 
+            if self.cfg.proto_goal_med and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_med.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            elif self.cfg.proto_goal_mean and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_mean.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            elif self.cfg.proto_goal_min and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_max.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            elif self.cfg.proto_goal_med_topk and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_med_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            elif self.cfg.proto_goal_mean_topk and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_mean_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+            elif self.cfg.proto_goal_min_topk and self.cfg.proto_goal_mix==False:
+                self.proto_goals = a[_proto[_protos_max_topk.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             
-        #use a mix of similarity to proto nn & distance from samples 
-        elif self.cfg.proto_goal_mix:
-            self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-            
-            
+            #use a mix of similarity to proto nn & distance from samples 
+            elif self.cfg.proto_goal_mix:
+                self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
+     
         
         self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
@@ -766,10 +777,10 @@ class Workspace:
                 file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
                 plt.savefig(file1)
                 wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
-            elif index_==1:
-                file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
-                plt.savefig(file1)
-                wandb.save(f"10nn_actual_prototypes_sim_{self.global_step}.png")
+#             elif index_==1:
+#                 file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
+#                 plt.savefig(file1)
+#                 wandb.save(f"10nn_actual_prototypes_sim_{self.global_step}.png")
 
             #import IPython as ipy; ipy.embed(colors='neutral')
             if self.global_step >= (self.cfg.num_train_frames//2-100):
@@ -968,6 +979,9 @@ class Workspace:
                     idx = np.random.randint(0, self.proto_goals.shape[0])
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
+                    idx_x = int(self.proto_goals[idx][0])+29
+                    idx_y = int(self.proto_goals[idx][1])+29
+                    self.proto_goals_matrix[idx_x,idx_y]+=1
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
@@ -1033,12 +1047,12 @@ class Workspace:
             self._global_step += 1
             
 
-            if self._global_step%100000==0 and self._global_step!=0:
-                print('saving agent')
-                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-                torch.save(self.agent, path)
-                path_2 = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-                torch.save(self.agent.encoder, path_2)
+            #if self._global_step%100000==0 and self._global_step!=0:
+            #    print('saving agent')
+            #    path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+            #    torch.save(self.agent, path)
+            #    path_2 = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+            #    torch.save(self.agent.encoder, path_2)
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
