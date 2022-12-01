@@ -476,7 +476,10 @@ class Workspace:
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         
-        self.eval_intrinsic(encoded, a)
+        if self.cfg.proto_goal_intr:
+            goal_indices = self.eval_intrinsic(encoded, a)
+        else:
+            self.eval_intrinsic(encoded, a)
 
 
         with torch.no_grad():
@@ -654,7 +657,8 @@ class Workspace:
         proto_indices = np.random.randint(10)
         p = _proto.clone().detach().cpu().numpy()
         
-        if self.global_step==self.cfg.switch_gc or self.global_step%100000==0:
+        #if self.global_step==self.cfg.switch_gc or self.global_step%100000==0:
+        if self.global_step%(self.cfg.eval_every_frames//2)==0:
             self.proto_goals_alt = a[p[:, proto_indices], :2]
 #       else:
 #            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
@@ -677,7 +681,8 @@ class Workspace:
             #use a mix of similarity to proto nn & distance from samples 
             elif self.cfg.proto_goal_mix:
                 self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
-     
+            elif self.cfg.proto_goal_intr:
+                self.proto_goals = a[goal_indices.clone().detach().cpu().numpy(),:2]
         
         self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
@@ -903,6 +908,9 @@ class Workspace:
         with torch.no_grad():
             reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
         
+        if self.cfg.proto_goal_intr:
+            r, _ = torch.max(reward,0)
+            
         df = pd.DataFrame()
         df['x'] = states[:,0].round(2)
         df['y'] = states[:,1].round(2)
@@ -924,7 +932,9 @@ class Workspace:
         #    print('saving')
         #    print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
         #    save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
-        
+        if self.cfg.proto_goal_intr:
+            return _
+
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
@@ -979,8 +989,8 @@ class Workspace:
                     idx = np.random.randint(0, self.proto_goals.shape[0])
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
-                    idx_x = int(self.proto_goals[idx][0])+29
-                    idx_y = int(self.proto_goals[idx][1])+29
+                    idx_x = int(self.proto_goals[idx][0]*100)+29
+                    idx_y = int(self.proto_goals[idx][1]*100)+29
                     self.proto_goals_matrix[idx_x,idx_y]+=1
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
