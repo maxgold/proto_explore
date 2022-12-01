@@ -150,11 +150,14 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step):
+    def compute_intr_reward(self, obs, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder(obs)
+            if eval==False:
+                z = self.encoder(obs)
+            else:
+                z = obs
             z = self.predictor(z)
             #z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T

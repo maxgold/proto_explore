@@ -442,9 +442,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
-            obs = F.normalize(obs)
-            next_obs = F.normalize(next_obs)
-            rand_obs = F.normalize(rand_obs)
+            #obs = F.normalize(obs)
+            #next_obs = F.normalize(next_obs)
+            #rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
