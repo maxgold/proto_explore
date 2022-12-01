@@ -151,11 +151,14 @@ class ProtoXAgent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step):
+    def compute_intr_reward(self, obs, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder(obs)
+            if eval==False:
+                z = self.encoder(obs)
+            else: 
+                z = obs
             z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
@@ -246,10 +249,10 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        #isometry
-        prod = self.protos(self.protos.weight.data.clone())
-        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
-        #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
+        ##isometry
+        #prod = self.protos(self.protos.weight.data.clone())
+        #loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+        ##loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
         dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
         all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
@@ -268,14 +271,14 @@ class ProtoXAgent(DDPGEncoder1Agent):
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
         if step>10000:
-            loss=loss1 + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+            loss=loss1 + self.lagr2*loss3 + self.lagr3*loss4
         
         else:
             loss=loss1
         
         if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
-            metrics['repr_loss2'] = loss2.item()
+            #metrics['repr_loss2'] = loss2.item()
             metrics['repr_loss3'] = loss3.item()
             metrics['repr_loss4'] = loss4.item()
             metrics['repr_loss'] = loss.item()
@@ -462,7 +465,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
             
-            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            #metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward

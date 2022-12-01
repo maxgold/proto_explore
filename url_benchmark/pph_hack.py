@@ -368,7 +368,6 @@ class Workspace:
         heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=False,proto=True)
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
-
         protos = self.agent.protos.weight.data.detach().clone()
 
         replay_buffer = make_replay_offline(eval_env_goal,
@@ -466,6 +465,8 @@ class Workspace:
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         
+        self.eval_intrinsic(encoded, a)
+
 
         with torch.no_grad():
             #proto_sim = self.agent.protos(proto).T
@@ -866,36 +867,52 @@ class Workspace:
         wandb.save(f"./{self.global_step}_heatmap_goal.png")
             
 
-    def eval_intrinsic(self, model):
-        obs = torch.empty(1024, 9, 84, 84)
-        states = torch.empty(1024, 4)
-        grid_embeddings = torch.empty(1024, 128)
-        actions = torch.empty(1024,2)
-        meta = self.agent.init_meta()
-        for i in range(1024):
-            with torch.no_grad():
-                grid, state = self.encoding_grid()
-                action = self.agent.act2(grid, meta, self._global_step, eval_mode=True)
-                actions[i] = action
-                obs[i] = grid
-                states[i] = torch.tensor(state).cuda().float()
-        import IPython as ipy; ipy.embed(colors='neutral')    
-        obs = obs.cuda().float()
-        actions = actions.cuda().float()
-        grid_embeddings = get_state_embeddings(self.agent, obs)
-        protos = self.agent.protos.weight.data.detach().clone()
-        protos = F.normalize(protos, dim=1, p=2)
-        dist_mat = torch.cdist(protos, grid_embeddings)
-        closest_points = dist_mat.argmin(-1)
-        proto2d = states[closest_points.cpu(), :2]
+    def eval_intrinsic(self, encoded, states):
+        
+        #obs = torch.empty(encoded.shape[0], 9, 84, 84)
+        #states = torch.empty(encoded.shape[0], 4)
+        #grid_embeddings = torch.empty(encoded.shape[0], 128)
+        #actions = torch.empty(encoded.shape[0],2)
+        #meta = self.agent.init_meta()
+        
+        #for i in range(encoded.shape[0]):
+        #    with torch.no_grad():
+        #        action = self.agent.act2(obs[i], meta, self._global_step, eval_mode=True)
+        #        actions[i] = action
+        #        states[i] = torch.tensor(states[i]).cuda().float()
+        #
+        #import IPython as ipy; ipy.embed(colors='neutral')    
+        #obs = obs.cuda().float()
+        #actions = actions.cuda().float()
+        #protos = self.agent.protos.weight.data.detach().clone()
+        #protos = F.normalize(protos, dim=1, p=2)
+        #dist_mat = torch.cdist(protos, grid_embeddings)
+        #closest_points = dist_mat.argmin(-1)
+        #proto2d = states[closest_points.cpu(), :2]
         with torch.no_grad():
-            reward = self.agent.compute_intr_reward(obs, self._global_step)
-            q_value = self.agent.get_q_value(obs, actions)
-        for x in range(len(reward)):
-            print('saving')
-            print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
-            save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
-
+            reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
+        
+        df = pd.DataFrame()
+        df['x'] = states[:,0].round(2)
+        df['y'] = states[:,1].round(2)
+        df['r'] = reward.detach().clone().cpu().numpy()
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r'].round(2)
+        #import IPython as ipy; ipy.embed(colors='neutral')
+        result.fillna(0, inplace=True)
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(10,6))
+        
+        sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        ax.set_title(self.global_step)
+        plt.savefig(f"./{self.global_step}_intr_reward.png")
+        wandb.save(f"./{self.global_step}_intr_reward.png")
+        #    q_value = self.agent.get_q_value(obs, actions)
+        #for x in range(len(reward)):
+        #    print('saving')
+        #    print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
+        #    save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
         
     def train(self):
         # predicates
