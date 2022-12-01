@@ -173,7 +173,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.queue_ptr = (ptr + self.num_protos) % self.queue.shape[0]
 
         # compute distances between the batch and the queue of candidates
-        z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
+        #z_to_q = torch.exp(-1/2*torch.square(torch.norm(z[:,None,:] - self.queue[None,:, :], dim=2, p=2))) 
+        z_to_q = torch.norm(z[:,None,:] - self.queue[None,:, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist

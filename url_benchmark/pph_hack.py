@@ -131,7 +131,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         wandb.save(f"./{model_step}_proto_heatmap.png")
         
         heatmap = self.proto_goals_matrix
-
+        
         plt.clf()
         fig, ax = plt.subplots(figsize=(10,6))
         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
@@ -979,8 +979,9 @@ class Workspace:
                     idx = np.random.randint(0, self.proto_goals.shape[0])
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
-                    idx_x = int(self.proto_goals[idx][0])+29
-                    idx_y = int(self.proto_goals[idx][1])+29
+                    idx_x = int(self.proto_goals[idx][0]*100)+29
+                    idx_y = int(self.proto_goals[idx][1]*100)+29
+                    
                     self.proto_goals_matrix[idx_x,idx_y]+=1
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
