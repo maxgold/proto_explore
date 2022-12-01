@@ -129,18 +129,29 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
 
         plt.savefig(f"./{model_step}_proto_heatmap.png")
         wandb.save(f"./{model_step}_proto_heatmap.png")
-
-
-        heatmap_pct = self.replay_storage.state_visitation_proto_pct
+        
+        heatmap = self.proto_goals_matrix
 
         plt.clf()
-        fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(model_step)
 
-        plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
-        wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+        plt.savefig(f"./{model_step}_proto_goal_heatmap.png")
+        wandb.save(f"./{model_step}_proto_goal_heatmap.png")
+
+        #heatmap_pct = self.replay_storage.state_visitation_proto_pct
+
+        #plt.clf()
+        #fig, ax = plt.subplots(figsize=(10,10))
+        #labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        #sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        #ax.set_title(model_step)
+
+        #plt.savefig(f"./{model_step}_proto_heatmap_pct.png")
+        #wandb.save(f"./{model_step}_proto_heatmap_pct.png")
+
+
         
         
 
@@ -300,9 +311,9 @@ class Workspace:
         self.global_success_rate = []
         self.global_index=[]
         self.storage1=False
-        self.proto_goal = []
         self.distance_goal_init = {}
         self.proto_goals = np.empty((self.cfg.num_protos, 2))
+        self.proto_goals_matrix = np.zeros((60,60)) 
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
@@ -968,6 +979,9 @@ class Workspace:
                     idx = np.random.randint(0, self.proto_goals.shape[0])
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
+                    idx_x = int(self.proto_goals[idx][0])+29
+                    idx_y = int(self.proto_goals[idx][1])+29
+                    self.proto_goals_matrix[idx_x,idx_y]+=1
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
