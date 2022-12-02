@@ -97,7 +97,7 @@ lagr: .2
 lagr1: .2
 lagr2: .2
 lagr3: .2
-margin: .5
+margin: .005
 og: True
 proto_goal_med: True
 proto_goal_mean: False
@@ -112,7 +112,7 @@ proto_goal_min_topk: False
 proto_goal_mix: False
 mix: .5
 proto_goal_intr: False
-# experiment
+#experiment
 experiment: exp
 
 path: /home/ubuntu/proto_explore/url_benchmark/models/eval_8_23_4

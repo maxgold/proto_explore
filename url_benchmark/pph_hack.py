@@ -907,6 +907,7 @@ class Workspace:
         #proto2d = states[closest_points.cpu(), :2]
         with torch.no_grad():
             reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
+            print('r', reward)
         
         if self.cfg.proto_goal_intr:
             r, _ = torch.max(reward,0)
