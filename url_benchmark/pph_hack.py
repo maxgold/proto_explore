@@ -683,11 +683,13 @@ class Workspace:
             elif self.cfg.proto_goal_mix:
                 self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             elif self.cfg.proto_goal_intr:
-                new_dist_arg = self.proto_goals_dist.argsort()
+                dist_arg = self.proto_goals_dist.argsort(axis=0)
+                
+                #import IPython as ipy; ipy.embed(colors='neutral')
                 for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
-                    if x > self.proto_goals_dist[new_dist_arg[ix]]:
-                        self.proto_goals_dist[new_dist_arg[ix]] = x
-                        self.proto_goals[new_dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
+                    if x > self.proto_goals_dist[dist_arg[ix]]:
+                        self.proto_goals_dist[dist_arg[ix]] = x
+                        self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
 
                 print('proto goals', self.proto_goals)
                 print('proto dist', self.proto_goals_dist)
@@ -942,6 +944,7 @@ class Workspace:
         #    print('saving')
         #    print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
         #    save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
+        print('r')
         if self.cfg.proto_goal_intr:
             return r, _
 

@@ -293,8 +293,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
         metrics = dict() 
-        loss1 = F.mse_loss(obs, next_obs)
-        loss2 = F.mse_loss(obs, rand_obs)
+        loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
+        loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
         encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
 
         if self.use_tb or self.use_wandb:
@@ -442,9 +442,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
-            #obs = F.normalize(obs)
-            #next_obs = F.normalize(next_obs)
-            #rand_obs = F.normalize(rand_obs)
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+            rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
