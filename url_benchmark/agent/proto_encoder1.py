@@ -119,7 +119,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #                                            bias=False).to(self.device)
         #    self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
         #    self.projector = Projector(pred_dim, proj_dim).to(self.device)
-
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)

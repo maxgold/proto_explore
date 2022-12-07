@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -54,6 +54,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.proj_dim = proj_dim
     cfg.lagr = lagr
     cfg.margin = margin
+    cfg.stddev_schedule = stddev_schedule
+    cfg.stddev_clip = stddev_clip
     if cfg.name=='protox':
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
@@ -131,7 +133,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         wandb.save(f"./{model_step}_proto_heatmap.png")
         
         heatmap = self.proto_goals_matrix
-
+        
         plt.clf()
         fig, ax = plt.subplots(figsize=(10,6))
         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
@@ -312,7 +314,8 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.distance_goal_init = {}
-        self.proto_goals = np.empty((self.cfg.num_protos, 2))
+        self.proto_goals_dist = np.zeros((5, 1))
+        self.proto_goals = np.zeros((5, 2))
         self.proto_goals_matrix = np.zeros((60,60)) 
         self.actor=True
         self.actor1=False
@@ -477,7 +480,7 @@ class Workspace:
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         
         if self.cfg.proto_goal_intr:
-            goal_indices = self.eval_intrinsic(encoded, a)
+            goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
         else:
             self.eval_intrinsic(encoded, a)
 
@@ -682,7 +685,17 @@ class Workspace:
             elif self.cfg.proto_goal_mix:
                 self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             elif self.cfg.proto_goal_intr:
-                self.proto_goals = a[goal_indices.clone().detach().cpu().numpy(),:2]
+                dist_arg = self.proto_goals_dist.argsort(axis=0)
+                
+                #import IPython as ipy; ipy.embed(colors='neutral')
+                for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
+                    if x > self.proto_goals_dist[dist_arg[ix]]:
+                        self.proto_goals_dist[dist_arg[ix]] = x
+                        self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
+
+                print('proto goals', self.proto_goals)
+                print('proto dist', self.proto_goals_dist)
+
         
         self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
@@ -907,10 +920,10 @@ class Workspace:
         #proto2d = states[closest_points.cpu(), :2]
         with torch.no_grad():
             reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
-            print('r', reward)
         
         if self.cfg.proto_goal_intr:
-            r, _ = torch.max(reward,0)
+            #import IPython as ipy; ipy.embed(colors='neutral') 
+            r, _ = torch.topk(reward,5,largest=True, dim=0)
             
         df = pd.DataFrame()
         df['x'] = states[:,0].round(2)
@@ -933,8 +946,9 @@ class Workspace:
         #    print('saving')
         #    print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
         #    save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
+        print('r')
         if self.cfg.proto_goal_intr:
-            return _
+            return r, _
 
     def train(self):
         # predicates

@@ -173,7 +173,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.queue_ptr = (ptr + self.num_protos) % self.queue.shape[0]
 
         # compute distances between the batch and the queue of candidates
-        z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
+        #z_to_q = torch.exp(-1/2*torch.square(torch.norm(z[:,None,:] - self.queue[None,:, :], dim=2, p=2))) 
+        z_to_q = torch.norm(z[:,None,:] - self.queue[None,:, :], dim=2, p=2)
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
@@ -249,9 +250,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        ##isometry
-        ##prod = self.protos(self.protos.weight.data.clone())
-        ##loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+        #isometry
+        prod = self.protos(self.protos.weight.data.clone())
+        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
         #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
         dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
@@ -271,14 +272,14 @@ class ProtoXAgent(DDPGEncoder1Agent):
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
         if step>10000:
-            loss=loss1  + self.lagr2*loss3 + self.lagr3*loss4
+            loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
         
         else:
             loss=loss1
         
         if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
-            #metrics['repr_loss2'] = loss2.item()
+            metrics['repr_loss2'] = loss2.item()
             metrics['repr_loss3'] = loss3.item()
             metrics['repr_loss4'] = loss4.item()
             metrics['repr_loss'] = loss.item()
@@ -292,10 +293,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
         metrics = dict()
-        loss1 = torch.norm(obs-next_obs,dim=1,p=2)
-        loss2 = torch.norm(obs-rand_obs,dim=1,p=2)
-        #loss1 = F.mse_loss(obs, next_obs)
-        #loss2 = F.mse_loss(obs, rand_obs)
+        loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
+        loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
         encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
 
         if self.use_tb or self.use_wandb:
@@ -442,9 +441,10 @@ class ProtoXAgent(DDPGEncoder1Agent):
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
-            #obs = F.normalize(obs)
-            #next_obs = F.normalize(next_obs)
-            #rand_obs = F.normalize(rand_obs)
+
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+            rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
@@ -490,7 +490,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                                next_obs.detach(), step))
             # update actor
             metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
-            
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
