@@ -357,7 +357,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, goal, rand_obs = utils.to_torch(
             batch, self.device)
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
@@ -372,7 +372,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 self.prev_heatmap=self.current_heatmap
             else:
                 total_chg = np.abs((self.current_heatmap-self.prev_heatmap)).sum()
-                
                 chg_ptr = self.chg_queue_ptr
                 self.chg_queue[chg_ptr] = torch.tensor(total_chg,device=self.device)
                 self.chg_queue_ptr = (chg_ptr+1) % self.chg_queue.shape[0]
@@ -427,13 +426,13 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()
-                
+                    metrics['extr_reward'] = 0 
                 reward = intr_reward
             else:
                 reward = extr_reward
 
                 if self.use_tb or self.use_wandb:
-                
+                    metrics['intr_reward'] = 0
                     metrics['extr_reward'] = extr_reward.mean().item()
             
             metrics['batch_reward'] = reward.mean().item()
