@@ -249,6 +249,8 @@ class DDPGEncoder1Agent:
         self.feature_dim = feature_dim
         self.feature_dim_gc = 32 
         self.solved_meta = None
+        print('stddev schedule', stddev_schedule)
+        print('stddev_clip', stddev_clip)
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)

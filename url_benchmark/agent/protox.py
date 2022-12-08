@@ -272,7 +272,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
         if step>10000:
-            loss=loss1 + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+            loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
         
         else:
             loss=loss1
@@ -292,7 +292,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
  
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
-        metrics = dict() 
+        metrics = dict()
         loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
         loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
         encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
@@ -447,14 +447,16 @@ class ProtoXAgent(DDPGEncoder1Agent):
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                rand_obs = rand_obs.detach()
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
                                next_obs.detach(), step))
-
+            
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))
-
+            if step%2==0:
+                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
             # update critic target
             #if step <300000:
 
@@ -465,7 +467,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
             
-            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -488,7 +489,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                                next_obs.detach(), step))
             # update actor
             metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
-            
 
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,

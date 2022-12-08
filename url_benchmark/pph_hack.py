@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -54,6 +54,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.proj_dim = proj_dim
     cfg.lagr = lagr
     cfg.margin = margin
+    cfg.stddev_schedule = stddev_schedule
+    cfg.stddev_clip = stddev_clip
     if cfg.name=='protox':
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
@@ -961,7 +963,7 @@ class Workspace:
         
         time_step = self.train_env.reset()
         meta = self.agent.init_meta() 
-         
+        self.train_video_recorder.init(self.train_env) 
         if self.cfg.obs_type == 'pixels':
             self.replay_storage.add(time_step, meta, True)  
             print('replay2')
@@ -974,6 +976,9 @@ class Workspace:
 
             if time_step.last():
                 self._global_episode += 1
+                if self.global_step%5000==0:
+                    self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                
                 # wait until all the metrics schema is populated
                 if metrics is not None:
                     # log stats
@@ -1015,6 +1020,9 @@ class Workspace:
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
                     self.save_snapshot()
+
+                self.train_video_recorder.init(self.train_env)
+                
                 episode_step = 0
                 episode_reward = 0
 
@@ -1024,6 +1032,7 @@ class Workspace:
                                 self.global_frame)
                 if self.cfg.debug:
                     self.eval()
+                    self.eval_proto()
                 elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
@@ -1066,9 +1075,9 @@ class Workspace:
                 self.replay_storage.add(time_step, meta, True)
             else:
                 self.replay_storage.add(time_step, meta)
+            self.train_video_recorder.record(self.train_env)
             episode_step += 1
             self._global_step += 1
-            
 
             #if self._global_step%100000==0 and self._global_step!=0:
             #    print('saving agent')
