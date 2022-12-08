@@ -315,7 +315,7 @@ def reach_hard2_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
     print('hard2')
     task_name = 'reach_hard2_no_goal'
     physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal'))
-    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=(-.13,.13))
+    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=(-.28,.28))
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -510,7 +510,7 @@ def reach_custom_goal_hard2(
     xml2 = xml_str2, xml_dict
     physics = Physics.from_xml_string(*xml2)
     goal_np = np.r_[np.array(goal), 0.01]
-    task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=(-.13, .13))
+    task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=(-.28, .28))
     environment_kwargs = environment_kwargs or {}
     return control.Environment(
         physics, task, time_limit=time_limit, **environment_kwargs
