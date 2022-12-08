@@ -70,7 +70,7 @@ reward_euclid: False
 pos_reward: True
 neg_reward: False
 eval_after_step: 990000
-episode_length: 100
+episode_length: 500
 num_protos: 512
 episode_reset_length: 500
 stddev_schedule: .2

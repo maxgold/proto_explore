@@ -963,7 +963,7 @@ class Workspace:
         
         time_step = self.train_env.reset()
         meta = self.agent.init_meta() 
-         
+        self.train_video_recorder.init(self.train_env) 
         if self.cfg.obs_type == 'pixels':
             self.replay_storage.add(time_step, meta, True)  
             print('replay2')
@@ -976,6 +976,9 @@ class Workspace:
 
             if time_step.last():
                 self._global_episode += 1
+                if self.global_step%5000==0:
+                    self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                
                 # wait until all the metrics schema is populated
                 if metrics is not None:
                     # log stats
@@ -1017,6 +1020,9 @@ class Workspace:
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
                     self.save_snapshot()
+
+                self.train_video_recorder.init(self.train_env)
+                
                 episode_step = 0
                 episode_reward = 0
 
@@ -1026,6 +1032,7 @@ class Workspace:
                                 self.global_frame)
                 if self.cfg.debug:
                     self.eval()
+                    self.eval_proto()
                 elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
@@ -1068,9 +1075,9 @@ class Workspace:
                 self.replay_storage.add(time_step, meta, True)
             else:
                 self.replay_storage.add(time_step, meta)
+            self.train_video_recorder.record(self.train_env)
             episode_step += 1
             self._global_step += 1
-            
 
             #if self._global_step%100000==0 and self._global_step!=0:
             #    print('saving agent')
