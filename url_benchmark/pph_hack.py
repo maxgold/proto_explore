@@ -475,8 +475,24 @@ class Workspace:
         encoded = torch.cat(encoded,axis=0)
         proto = torch.cat(proto,axis=0)
         actual_proto = torch.cat(actual_proto,axis=0)
+        
+        sample_dist = torch.norm(proto[:,None,:] - proto[None,:, :], dim=2, p=2)
+        df = pd.DataFrame()
+        df['x'] = a[:,0].round(2)
+        df['y'] = a[:,1].round(2)
+        df['r'] = sample_dist[0].clone().detach().cpu().numpy()
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+        result.fillna(0, inplace=True)
+        sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        ax.set_title('{}, {}'.format(self.global_step, a[0,:2]))  
+
+        plt.savefig(f"./{self.global_step}_dist_heatmap.png")
+        wandb.save(f"./{self.global_step}_dist_heatmap.png")
 
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
+
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         
         if self.cfg.proto_goal_intr:

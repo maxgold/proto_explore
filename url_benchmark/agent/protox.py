@@ -271,7 +271,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         #clus
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
-        if step>10000:
+        if step>50000:
             loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
         
         else:
