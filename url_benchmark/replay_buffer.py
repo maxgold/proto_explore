@@ -575,7 +575,7 @@ class ReplayBuffer(IterableDataset):
                 #    rand_idx = np.random.randint(0, 50)
                 #    rand_obs = episode["observation"][rand_idx]
                 #    rand_obs_state = episode["state"][rand_idx]
-                next_obs_state = episode["state"][idx]    
+                next_obs_state = episode["state"][idx + self._nstep - 1]    
                 obs_state =  episode["state"][idx - 1]
                 
                 episode = self._sample_episode()
@@ -584,10 +584,13 @@ class ReplayBuffer(IterableDataset):
                 rand_obs_state = episode["state"][idx-1]
                 return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state, *meta)
             else:
+                obs_state =  episode["state"][idx - 1]
+                next_obs_state = episode["state"][idx + self._nstep - 1]
+                
                 episode = self._sample_episode()
                 idx = np.random.randint(0, episode_len(episode))
                 rand_obs = episode['observation'][idx - 1]
-                return (obs, action, reward, discount, next_obs, rand_obs, *meta)	
+                return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, *meta)	
 
         elif self.test:
             obs_state =  episode["state"][idx - 1]
@@ -737,8 +740,10 @@ class ReplayBuffer(IterableDataset):
             #import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(episode_len(episode)-self._nstep)+1
             obs = episode["observation"][idx-1]
+            obs_state = episode["state"][idx-1]
             action = episode["action"][idx]
             next_obs = episode['observation'][idx + self._nstep - 1]
+            next_obs_state = episode['state'][idx + self._nstep - 1]
             idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
             goal=episode['observation'][idx_goal]
             z = episode["observation"][idx_goal][None,:]
@@ -773,7 +778,7 @@ class ReplayBuffer(IterableDataset):
         if self.sl:
             return (obs, action, reward, discount, next_obs, goal, offset)
         elif self.loss:
-            return (obs, action, reward, discount, next_obs, goal, rand_obs, *meta)
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, rand_obs, *meta)
         elif self.asym:
             
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal_state, *meta)

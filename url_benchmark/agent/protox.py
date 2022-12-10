@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr1, lagr2, lagr3, margin, **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, obs_shape2,  **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -79,6 +79,10 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.prev_heatmap = np.zeros((10,10))
         self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
+        self.update_proto_every = update_proto_every
+        print(self.obs_dim)
+        self.goal_queue = torch.zeros((5, 2), device=self.device)
+        self.goal_queue_dist = torch.zeros((5,), device=self.device)
         #self.load_protos = load_protos
 
         # models
@@ -151,7 +155,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step, eval=False):
+    def compute_intr_reward(self, obs, obs_state, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
@@ -178,6 +182,27 @@ class ProtoXAgent(DDPGEncoder1Agent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
+        
+        
+        if step==10000 or step%100000==0:
+            print('set to 0')
+            self.goal_queue = torch.zeros((5, 2), device=self.device)
+            self.goal_queue_dist = torch.zeros((5,), device=self.device)
+        
+        dist_arg = self.goal_queue_dist.argsort(axis=0)
+
+        r, _ = torch.topk(reward,5,largest=True, dim=0)
+
+        if eval==False:
+            for ix in range(5):
+                if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
+                    self.goal_queue_dist[dist_arg[ix]] = r[ix]
+                    self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
+                    print('new goal', obs_state[_[ix],:2])
+                    print('dist', r[ix])
+        
+        
+
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -357,30 +382,43 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            obs, action, extr_reward, discount, next_obs, goal, rand_obs = utils.to_torch(
+            
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, rand_obs = utils.to_torch(
             batch, self.device)
+
             if self.obs_type=='states':
+                
                 goal = goal.reshape(-1, 2).float()
+            
             extr_reward = extr_reward.float()
+        
         elif actor1==False and test:
+            
             obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
+            
             self.current_heatmap, _, _ = np.histogram2d(obs_state[:, 0], obs_state[:, 1], bins=10, range=np.array(([-.29, .29],[-.29, .29])))
+            
             if self.prev_heatmap.sum()==0:
+                
                 self.prev_heatmap=self.current_heatmap
+            
             else:
+                
                 total_chg = np.abs((self.current_heatmap-self.prev_heatmap)).sum()
                 chg_ptr = self.chg_queue_ptr
                 self.chg_queue[chg_ptr] = torch.tensor(total_chg,device=self.device)
                 self.chg_queue_ptr = (chg_ptr+1) % self.chg_queue.shape[0]
+                
                 if step>=1000 and step%1000==0:
                     
                     indices=[5,10,20,50,100,200,500]
                     sets = [self.mov_avg_5, self.mov_avg_10, self.mov_avg_20,
                             self.mov_avg_50, self.mov_avg_100, self.mov_avg_200,
                             self.mov_avg_500]
+                    
                     for ix,x in enumerate(indices):
                         if chg_ptr-x<0:
                             lst = torch.cat([self.chg_queue[:chg_ptr], self.chg_queue[chg_ptr-x:]])
@@ -389,6 +427,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
                             sets[ix][self.count]=self.chg_queue[chg_ptr-x:chg_ptr].mean()
 
                 if step%100000==0:
+                    
                     plt.clf()
                     fig, ax = plt.subplots(figsize=(15,5))
                     labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50',
@@ -399,8 +438,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
                     ax.legend()
                     
                     plt.savefig(f"batch_moving_avg_{step}.png")
+        
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs, rand_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -417,12 +457,12 @@ class ProtoXAgent(DDPGEncoder1Agent):
             if actor1:
                 goal = self.aug(goal)
            
-        if actor1==False:
+        if actor1==False and step%self.update_proto_every==0:
 
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
-                    intr_reward = self.compute_intr_reward(next_obs, step)
+                    intr_reward = self.compute_intr_reward(next_obs, next_obs_state, step)
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()

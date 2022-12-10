@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -61,8 +61,9 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.lagr2 = lagr2
         cfg.lagr3 = lagr3
 
-    if cfg.name=='protov2':
-        cfg.update_proto_every=update_proto_every
+    cfg.update_proto_every=update_proto_every
+    cfg.obs_shape2 = obs_spec.shape
+    print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -237,7 +238,8 @@ class Workspace:
                                 lagr1=cfg.lagr1,
                                 lagr2=cfg.lagr2,
                                 lagr3=cfg.lagr3,
-                                margin=cfg.margin) 
+                                margin=cfg.margin,
+                                update_proto_every=cfg.update_proto_every)
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -919,7 +921,7 @@ class Workspace:
         #closest_points = dist_mat.argmin(-1)
         #proto2d = states[closest_points.cpu(), :2]
         with torch.no_grad():
-            reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
+            reward = self.agent.compute_intr_reward(encoded, None, self._global_step, eval=True)
         
         if self.cfg.proto_goal_intr:
             #import IPython as ipy; ipy.embed(colors='neutral') 
@@ -1026,6 +1028,11 @@ class Workspace:
                 episode_step = 0
                 episode_reward = 0
 
+            if (self.global_step-10)%10000==0:
+                self.proto_goals = self.agent.goal_queue.clone().detach().cpu().numpy()
+                print('goals', self.proto_goals)
+                print('goal dist', self.agent.goal_queue_dist)
+            
             # try to evaluate
             if eval_every_step(self.global_step) and self.global_step!=0:
                 self.logger.log('eval_total_time', self.timer.total_time(),
