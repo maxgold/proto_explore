@@ -326,6 +326,8 @@ class Workspace:
         self.proto_goals_alt=[]
         self.proto_explore=False
         self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
+        self.previous_matrix = None
+        self.current_matrix = None
     
     @property
     def global_step(self):
@@ -384,6 +386,31 @@ class Workspace:
         heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=False,proto=True)
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
+        #metric on exploration 
+        
+        self.previous_matrix = self.current_matrix
+        self.current_matrix=self.replay_storage.state_visitation_proto
+        if self.previous_matrix is None:
+            print('first try')
+        else:
+            diff = self.current_matrix - self.previous_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + diff.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(self.global_step)
+
+            plt.savefig(f"./{self.global_step}_exploration_diff.png")
+            wandb.save(f"./{self.global_step}_exploration_diff.png")
+            
+            new = np.where(self.previous_matrix==0, diff, 0).sum()
+            #add in later a metric to determine how good the intr_reward measure is 
+            #maybe take a grid around the proto goal and see if state visitation =0 for at least half of the grid 
+            
+            
+            
+        
+            
+        ################
         protos = self.agent.protos.weight.data.detach().clone()
 
         replay_buffer = make_replay_offline(eval_env_goal,
@@ -566,6 +593,7 @@ class Workspace:
         
         #next: dist & similarities between prototypes 
         proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
+        print('proto dist', proto_self[0])
         all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
 
         with torch.no_grad():
