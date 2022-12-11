@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, obs_shape2,  **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau

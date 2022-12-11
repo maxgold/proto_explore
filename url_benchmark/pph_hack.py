@@ -62,7 +62,6 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.lagr3 = lagr3
 
     cfg.update_proto_every=update_proto_every
-    cfg.obs_shape2 = obs_spec.shape
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
