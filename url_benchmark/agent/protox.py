@@ -275,39 +275,39 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        #isometry
-        prod = self.protos(self.protos.weight.data.clone())
-        loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
-        #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
+       # #isometry
+        #prod = self.protos(self.protos.weight.data.clone())
+        #loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
+       # #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
-        dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
-        all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
+        #dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
+        #all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
 
-        #sep
-        #pushing away second closest proto first, can try to push several away at once later
-        #s detached, so only moving the proto away
-        #check if this is actually what it's doing
+        ##sep
+        ##pushing away second closest proto first, can try to push several away at once later
+        ##s detached, so only moving the proto away
+        ##check if this is actually what it's doing
 
-        #could add sigma term later
-        ix = torch.randint(self.protos.weight.data.shape[0], size=(1,))
-        loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
-        #can change to ix later to let the algo gradually push all prototypes slightly further away 
+        ##could add sigma term later
+        #ix = torch.randint(self.protos.weight.data.shape[0], size=(1,))
+        #loss3 = torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,1])))
+        ##can change to ix later to let the algo gradually push all prototypes slightly further away 
 
-        #clus
-        loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
+        ##clus
+        #loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
-        if step>50000:
-            loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
-        
-        else:
-            loss=loss1
+        #if step>10000:
+        #    loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+        #
+        #else:
+        loss=loss1
         
         if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
-            metrics['repr_loss2'] = loss2.item()
-            metrics['repr_loss3'] = loss3.item()
-            metrics['repr_loss4'] = loss4.item()
-            metrics['repr_loss'] = loss.item()
+            #metrics['repr_loss2'] = loss2.item()
+            #metrics['repr_loss3'] = loss3.item()
+            #metrics['repr_loss4'] = loss4.item()
+            #metrics['repr_loss'] = loss.item()
 
         self.proto_opt.zero_grad(set_to_none=True)
         loss.backward()
@@ -318,14 +318,16 @@ class ProtoXAgent(DDPGEncoder1Agent):
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
         metrics = dict()
-        loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
-        loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
-        encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
+        #loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
+        loss1 = F.mse_loss(obs, next_obs)
+        #loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
+        #encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
+        encoder_loss = loss1
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss1'] = loss1.item()
-            metrics['encoder_loss2'] = loss2.item()
-            metrics['encoder_loss3'] = encoder_loss.item()
+            #metrics['encoder_loss2'] = loss2.item()
+            #metrics['encoder_loss3'] = encoder_loss.item()
 
         # optimize critic
 #         if self.encoder_opt is not None:
@@ -458,7 +460,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 goal = self.aug(goal)
            
         if actor1==False and step%self.update_proto_every==0:
-
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, rand_obs, step))
                 with torch.no_grad():
@@ -481,9 +482,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
-            obs = F.normalize(obs)
-            next_obs = F.normalize(next_obs)
-            rand_obs = F.normalize(rand_obs)
+            #obs = F.normalize(obs)
+            #next_obs = F.normalize(next_obs)
+            #rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
@@ -495,8 +496,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
             
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))
-            if step%2==0:
-                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            #if step%2==0:
+            #    metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
             # update critic target
             #if step <300000:
 

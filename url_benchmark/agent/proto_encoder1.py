@@ -309,7 +309,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         metrics = dict()
         encoder_loss = F.mse_loss(obs, next_obs)
-        
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss'] = encoder_loss.item()
