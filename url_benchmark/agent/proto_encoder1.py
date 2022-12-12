@@ -77,8 +77,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
         self.update_proto_every = update_proto_every
-        self.goal_queue = torch.zeros((5, 2), device=self.device)
-        self.goal_queue_dist = torch.zeros((5,), device=self.device)
+        self.goal_queue = torch.zeros((10, 2), device=self.device)
+        self.goal_queue_dist = torch.zeros((10,), device=self.device)
         print('tau', tau)
         print('it', num_iterations)
 
@@ -181,15 +181,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         if step==10000 or step%100000==0:
             print('set to 0')
-            self.goal_queue = torch.zeros((5, 2), device=self.device)
-            self.goal_queue_dist = torch.zeros((5,), device=self.device)
+            self.goal_queue = torch.zeros((10, 2), device=self.device)
+            self.goal_queue_dist = torch.zeros((10,), device=self.device)
 
         dist_arg = self.goal_queue_dist.argsort(axis=0)
 
-        r, _ = torch.topk(reward,5,largest=True, dim=0)
+        r, _ = torch.topk(reward,10,largest=True, dim=0)
 
         if eval==False:
-            for ix in range(5):
+            for ix in range(10):
                 if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
                     self.goal_queue_dist[dist_arg[ix]] = r[ix]
                     self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
@@ -338,7 +338,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             	
                 
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
            
             #batch moving average tracks how many states are moving in & out of each 10x10grid between every update batch. (should divide by 2)

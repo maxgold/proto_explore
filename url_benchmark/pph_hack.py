@@ -18,6 +18,7 @@ import wandb
 from dm_env import specs
 import pandas as pd
 import dmc
+from torch import distributions as pyd
 import utils
 from scipy.spatial.distance import cdist
 from logger import Logger, save
@@ -315,16 +316,17 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.distance_goal_init = {}
-        self.proto_goals_dist = np.zeros((5, 1))
-        self.proto_goals = np.zeros((5, 2))
-        self.proto_goals_matrix = np.zeros((60,60)) 
+        self.proto_goals_dist = np.zeros((10, 1))
+        self.proto_goals = np.zeros((10, 2))
+        self.proto_goals_matrix = np.zeros((60,60))
+        self.proto_goals_id = np.zeros((10, 2))
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
         self.reached_goals=np.empty((0,2))
         self.proto_goals_alt=[]
         self.proto_explore=False
-        self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
+        self.goal_freq = np.zeros((6,6))
         self.previous_matrix = None
         self.current_matrix = None
     
@@ -742,7 +744,6 @@ class Workspace:
                 print('proto dist', self.proto_goals_dist)
 
         
-        self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
 
@@ -1049,12 +1050,26 @@ class Workspace:
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
                     print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 if self.global_step>self.cfg.switch_gc:
-                    idx = np.random.randint(0, self.proto_goals.shape[0])
+                    #import IPython as ipy; ipy.embed(colors='neutral')
+                    inv_freq = (1/(self.goal_freq+1))
+                    goal_score = np.zeros((self.proto_goals.shape[0],))
+                    
+                    for ix,x in enumerate(self.proto_goals_id):
+                        x = x.astype(int)
+                        goal_score[ix] = inv_freq[x[0], x[1]]
+                    
+                    goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
+                    idx = pyd.Categorical(goal_prob).sample().item()
+                    print('goal score', goal_score)
+                    print('goal_prob', goal_prob)
+                    #idx = np.random.randint(0, self.proto_goals.shape[0])
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
                     idx_x = int(self.proto_goals[idx][0]*100)+29
                     idx_y = int(self.proto_goals[idx][1]*100)+29
                     self.proto_goals_matrix[idx_x,idx_y]+=1
+                    self.goal_freq[idx_x//10, idx_y//10]+=1
+                    
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
@@ -1071,8 +1086,11 @@ class Workspace:
                 episode_step = 0
                 episode_reward = 0
 
-            if (self.global_step-10)%10000==0:
+            if self.global_step%10000==0:
                 self.proto_goals = self.agent.goal_queue.clone().detach().cpu().numpy()
+                for ix,x in enumerate(self.proto_goals):
+                    self.proto_goals_id[ix] = np.array([(int(self.proto_goals[ix][0]*100)+29)//10, (int(self.proto_goals[ix][1]*100)+29)//10]).astype(int)
+
                 print('goals', self.proto_goals)
                 print('goal dist', self.agent.goal_queue_dist)
             

@@ -81,8 +81,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
         self.update_proto_every = update_proto_every
         print(self.obs_dim)
-        self.goal_queue = torch.zeros((5, 2), device=self.device)
-        self.goal_queue_dist = torch.zeros((5,), device=self.device)
+        self.goal_queue = torch.zeros((10, 2), device=self.device)
+        self.goal_queue_dist = torch.zeros((10,), device=self.device)
         #self.load_protos = load_protos
 
         # models
@@ -184,17 +184,17 @@ class ProtoXAgent(DDPGEncoder1Agent):
         reward = dist
         
         
-        if step==10000 or step%100000==0:
+        if step==10000 or (step+500)%100000==0:
             print('set to 0')
-            self.goal_queue = torch.zeros((5, 2), device=self.device)
-            self.goal_queue_dist = torch.zeros((5,), device=self.device)
+            self.goal_queue = torch.zeros((10, 2), device=self.device)
+            self.goal_queue_dist = torch.zeros((10,), device=self.device)
         
         dist_arg = self.goal_queue_dist.argsort(axis=0)
 
-        r, _ = torch.topk(reward,5,largest=True, dim=0)
+        r, _ = torch.topk(reward,10,largest=True, dim=0)
 
         if eval==False:
-            for ix in range(5):
+            for ix in range(10):
                 if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
                     self.goal_queue_dist[dist_arg[ix]] = r[ix]
                     self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
@@ -280,8 +280,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         loss2 = torch.square(torch.norm(prod - torch.eye(prod.shape[0], device=self.device), p=2))
        # #loss2 = (torch.norm(torch.norm(s_ - v_, dim=1, p=2) - torch.norm(s_p - v_p, p=2, dim=1), dim=0, p='fro'))
         
-        #dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
-        #all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
+        dist = torch.norm(s_p[:,None,:] - self.protos.weight.data.clone(), dim=1, p=2)
+        all_dists, _ = torch.topk(dist, self.protos.weight.data.shape[0], dim=1, largest=False) 
 
         ##sep
         ##pushing away second closest proto first, can try to push several away at once later
@@ -482,9 +482,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
             next_obs = self.encoder(next_obs)
             rand_obs = self.encoder(rand_obs)
 
-            #obs = F.normalize(obs)
-            #next_obs = F.normalize(next_obs)
-            #rand_obs = F.normalize(rand_obs)
+            obs = F.normalize(obs)
+            next_obs = F.normalize(next_obs)
+            rand_obs = F.normalize(rand_obs)
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
