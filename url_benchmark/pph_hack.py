@@ -527,6 +527,9 @@ class Workspace:
         
         if self.cfg.proto_goal_intr:
             goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
+        elif self.cfg.proto_goal_random:
+            self.proto_goals = a[_proto[:, 0].detach().clone().cpu().numpy()]
+
         else:
             self.eval_intrinsic(encoded, a)
 
@@ -708,7 +711,7 @@ class Workspace:
         p = _proto.clone().detach().cpu().numpy()
         
         #if self.global_step==self.cfg.switch_gc or self.global_step%100000==0:
-        if self.global_step%(self.cfg.eval_every_frames//2)==0:
+        if self.global_step%(self.cfg.eval_every_frames//2)==0 and self.cfg.proto_goal_intr==False:
             self.proto_goals_alt = a[p[:, proto_indices], :2]
 #       else:
 #            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
@@ -743,7 +746,6 @@ class Workspace:
                 print('proto goals', self.proto_goals)
                 print('proto dist', self.proto_goals_dist)
 
-        
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
 
@@ -1051,25 +1053,33 @@ class Workspace:
                     print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 if self.global_step>self.cfg.switch_gc:
                     #import IPython as ipy; ipy.embed(colors='neutral')
-                    inv_freq = (1/(self.goal_freq+1))
+                    if np.any(self.goal_freq==0):
+                        inv_freq = (1/(self.goal_freq+1))
+                    else:
+                        inv_freq = (1/self.goal_freq)  
                     goal_score = np.zeros((self.proto_goals.shape[0],))
                     
                     for ix,x in enumerate(self.proto_goals_id):
                         x = x.astype(int)
                         goal_score[ix] = inv_freq[x[0], x[1]]
-                    
+                         
                     goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
-                    idx = pyd.Categorical(goal_prob).sample().item()
-                    print('goal score', goal_score)
-                    print('goal_prob', goal_prob)
+                    
+                    if self.cfg.proto_goal_intr:
+                        idx = pyd.Categorical(goal_prob).sample().item()
+                        print('goal score', goal_score)
+                        print('goal_prob', goal_prob)
+                    elif self.cfg.proto_goal_random:
+                        idx = np.random.randint(self.agent.protos.weight.data.shape[0])
+                        
                     #idx = np.random.randint(0, self.proto_goals.shape[0])
+                    print('proto_goals', self.proto_goals)
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
                     idx_x = int(self.proto_goals[idx][0]*100)+29
                     idx_y = int(self.proto_goals[idx][1]*100)+29
                     self.proto_goals_matrix[idx_x,idx_y]+=1
                     self.goal_freq[idx_x//10, idx_y//10]+=1
-                    
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()

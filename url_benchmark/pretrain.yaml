@@ -112,6 +112,7 @@ proto_goal_min_topk: False
 proto_goal_mix: False
 mix: .5
 proto_goal_intr: False
+proto_goal_random: False
 #experiment
 experiment: exp
 
