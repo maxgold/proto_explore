@@ -193,8 +193,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
                     self.goal_queue_dist[dist_arg[ix]] = r[ix]
                     self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
-                    print('new goal', obs_state[_[ix],:2])
-                    print('dist', r[ix])
  
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
@@ -328,10 +326,10 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
             
-            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+            obs, action, reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             
-            extr_reward=extr_reward.float()
+            extr_reward=reward.float()
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
 
@@ -408,7 +406,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             else:
                 reward = extr_reward
                 #if self.use_tb or self.use_wandb:
-                #    metrics['extr_reward'] = extr_reward.mean().item()
+                    #metrics['extr_reward'] = extr_reward.mean().item()
             
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
@@ -456,7 +454,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
-            metrics.update(self.update_encoder_func(obs, next_obs, step))
+            #metrics.update(self.update_encoder_func(obs, next_obs, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
