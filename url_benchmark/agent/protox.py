@@ -296,11 +296,11 @@ class ProtoXAgent(DDPGEncoder1Agent):
         ##clus
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
-        #if step>10000:
-        loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
-        #
-        #else:
-        #loss=loss1
+        if step>10000:
+            loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
+        
+        else:
+            loss=loss1
         
         if self.use_tb or self.use_wandb:    
             metrics['repr_loss1'] = loss1.item()
@@ -496,8 +496,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
             
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))
-            if step%2==0:
-                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            #if step%2==0:
+            #    metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
             # update critic target
             #if step <300000:
 

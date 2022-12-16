@@ -1051,7 +1051,10 @@ class Workspace:
                     print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 if self.global_step>self.cfg.switch_gc:
                     #import IPython as ipy; ipy.embed(colors='neutral')
-                    inv_freq = (1/(self.goal_freq+1))
+                    if np.any(self.goal_freq==0):
+                        inv_freq = (1/(self.goal_freq+1))
+                    else:
+                        inv_freq = (1/self.goal_freq)
                     goal_score = np.zeros((self.proto_goals.shape[0],))
                     
                     for ix,x in enumerate(self.proto_goals_id):
