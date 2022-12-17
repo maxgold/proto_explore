@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoLapAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, **kwargs):
+                 num_iterations, lagr,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -75,6 +75,7 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         self.prev_heatmap = np.zeros((10,10))
         self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
+        self.lagr = lagr
         #self.load_protos = load_protos
 
         # models
@@ -147,11 +148,14 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step):
+    def compute_intr_reward(self, obs, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder(obs)
+            if eval==False:
+                z = self.encoder(obs)
+            else:
+                z = obs 
             z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
@@ -245,11 +249,11 @@ class ProtoLapAgent(DDPGEncoder1Agent):
         if step>10000:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.exp(-torch.norm(s_-v, p=2).sum(-1)).mean()
-            loss = loss1+.2*loss2
+            loss = loss1+self.lagr*loss2
         else:
             loss1 = -(q_t * log_p_s).sum(dim=1).mean()
             loss2 = torch.tensor(0)
-            loss=loss1 + .2*loss2
+            loss=loss1 + self.lagr*loss2
         if self.use_tb or self.use_wandb:
             
             metrics['repr_loss1'] = loss1.item()

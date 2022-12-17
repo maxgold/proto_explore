@@ -46,7 +46,7 @@ class Projector(nn.Module):
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, **kwargs):
+                 num_iterations, update_proto_every, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -76,6 +76,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.prev_heatmap = np.zeros((10,10))
         self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
+        self.update_proto_every = update_proto_every
+        self.goal_queue = torch.zeros((10, 2), device=self.device)
+        self.goal_queue_dist = torch.zeros((10,), device=self.device)
         print('tau', tau)
         print('it', num_iterations)
 
@@ -119,7 +122,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #                                            bias=False).to(self.device)
         #    self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
         #    self.projector = Projector(pred_dim, proj_dim).to(self.device)
-
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
@@ -150,7 +152,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step, eval=False):
+    def compute_intr_reward(self, obs, obs_state, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
@@ -181,6 +183,21 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         dist = all_dists[:, -1:]
         reward = dist
 
+        if step==10000 or step%100000==0:
+            print('set to 0')
+            self.goal_queue = torch.zeros((10, 2), device=self.device)
+            self.goal_queue_dist = torch.zeros((10,), device=self.device)
+
+        dist_arg = self.goal_queue_dist.argsort(axis=0)
+
+        r, _ = torch.topk(reward,10,largest=True, dim=0)
+
+        if eval==False:
+            for ix in range(10):
+                if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
+                    self.goal_queue_dist[dist_arg[ix]] = r[ix]
+                    self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
+ 
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
         #    import IPython as ipy; ipy.embed(colors='neutral')
@@ -294,7 +311,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         metrics = dict()
         encoder_loss = F.mse_loss(obs, next_obs)
-        
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss'] = encoder_loss.item()
@@ -314,17 +330,17 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
             
-            obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+            obs, action, reward, discount, next_obs, goal = utils.to_torch(
             batch, self.device)
             
-            extr_reward=extr_reward.float()
+            extr_reward=reward.float()
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
 
             	
                 
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
                     batch, self.device)
            
             #batch moving average tracks how many states are moving in & out of each 10x10grid between every update batch. (should divide by 2)
@@ -364,7 +380,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                     plt.savefig(f"batch_moving_avg_{step}.png")
                     
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs = utils.to_torch(
                     batch, self.device)
             extr_reward = extr_reward.float()
         else:
@@ -385,7 +401,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             if self.reward_free:
                 metrics.update(self.update_proto(obs, next_obs, step))
                 with torch.no_grad():
-                    intr_reward = self.compute_intr_reward(next_obs, step)
+                    intr_reward = self.compute_intr_reward(next_obs, next_obs_state, step)
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()
@@ -394,7 +410,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             else:
                 reward = extr_reward
                 #if self.use_tb or self.use_wandb:
-                #    metrics['extr_reward'] = extr_reward.mean().item()
+                    #metrics['extr_reward'] = extr_reward.mean().item()
             
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
@@ -442,7 +458,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
-            metrics.update(self.update_encoder_func(obs, next_obs, step))
+            #metrics.update(self.update_encoder_func(obs, next_obs, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,

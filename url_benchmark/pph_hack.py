@@ -18,6 +18,7 @@ import wandb
 from dm_env import specs
 import pandas as pd
 import dmc
+from torch import distributions as pyd
 import utils
 from scipy.spatial.distance import cdist
 from logger import Logger, save
@@ -30,7 +31,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -54,13 +55,15 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.proj_dim = proj_dim
     cfg.lagr = lagr
     cfg.margin = margin
+    cfg.stddev_schedule = stddev_schedule
+    cfg.stddev_clip = stddev_clip
     if cfg.name=='protox':
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
         cfg.lagr3 = lagr3
 
-    if cfg.name=='protov2':
-        cfg.update_proto_every=update_proto_every
+    cfg.update_proto_every=update_proto_every
+    print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
 def get_state_embeddings(agent, states):
@@ -235,7 +238,8 @@ class Workspace:
                                 lagr1=cfg.lagr1,
                                 lagr2=cfg.lagr2,
                                 lagr3=cfg.lagr3,
-                                margin=cfg.margin) 
+                                margin=cfg.margin,
+                                update_proto_every=cfg.update_proto_every)
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -312,16 +316,19 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.distance_goal_init = {}
-        self.proto_goals_dist = np.zeros((5, 1))
-        self.proto_goals = np.zeros((5, 2))
-        self.proto_goals_matrix = np.zeros((60,60)) 
+        self.proto_goals_dist = np.zeros((10, 1))
+        self.proto_goals = np.zeros((10, 2))
+        self.proto_goals_matrix = np.zeros((60,60))
+        self.proto_goals_id = np.zeros((10, 2))
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
         self.reached_goals=np.empty((0,2))
         self.proto_goals_alt=[]
         self.proto_explore=False
-        self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
+        self.goal_freq = np.zeros((6,6))
+        self.previous_matrix = None
+        self.current_matrix = None
     
     @property
     def global_step(self):
@@ -380,6 +387,31 @@ class Workspace:
         heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=False,proto=True)
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
 
+        #metric on exploration 
+        
+        self.previous_matrix = self.current_matrix
+        self.current_matrix=self.replay_storage.state_visitation_proto
+        if self.previous_matrix is None:
+            print('first try')
+        else:
+            diff = self.current_matrix - self.previous_matrix
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10,6))
+            sns.heatmap(np.log(1 + diff.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+            ax.set_title(self.global_step)
+
+            plt.savefig(f"./{self.global_step}_exploration_diff.png")
+            wandb.save(f"./{self.global_step}_exploration_diff.png")
+            
+            new = np.where(self.previous_matrix==0, diff, 0).sum()
+            #add in later a metric to determine how good the intr_reward measure is 
+            #maybe take a grid around the proto goal and see if state visitation =0 for at least half of the grid 
+            
+            
+            
+        
+            
+        ################
         protos = self.agent.protos.weight.data.detach().clone()
 
         replay_buffer = make_replay_offline(eval_env_goal,
@@ -473,12 +505,31 @@ class Workspace:
         encoded = torch.cat(encoded,axis=0)
         proto = torch.cat(proto,axis=0)
         actual_proto = torch.cat(actual_proto,axis=0)
+        
+        sample_dist = torch.norm(proto[:,None,:] - proto[None,:, :], dim=2, p=2)
+        df = pd.DataFrame()
+        df['x'] = a[:,0].round(2)
+        df['y'] = a[:,1].round(2)
+        df['r'] = sample_dist[0].clone().detach().cpu().numpy()
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+        result.fillna(0, inplace=True)
+        sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        ax.set_title('{}, {}'.format(self.global_step, a[0,:2]))  
+
+        plt.savefig(f"./{self.global_step}_dist_heatmap.png")
+        wandb.save(f"./{self.global_step}_dist_heatmap.png")
 
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
+
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
         
         if self.cfg.proto_goal_intr:
             goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
+        elif self.cfg.proto_goal_random:
+            self.proto_goals = a[_proto[:, 0].detach().clone().cpu().numpy()]
+
         else:
             self.eval_intrinsic(encoded, a)
 
@@ -562,6 +613,7 @@ class Workspace:
         
         #next: dist & similarities between prototypes 
         proto_self = torch.norm(protos[:,None,:] - protos[None,:, :], dim=2, p=2)
+        print('proto dist', proto_self[0])
         all_dists_proto_self, _proto_self = torch.topk(proto_self, protos.shape[0], dim=1, largest=False)
 
         with torch.no_grad():
@@ -659,7 +711,7 @@ class Workspace:
         p = _proto.clone().detach().cpu().numpy()
         
         #if self.global_step==self.cfg.switch_gc or self.global_step%100000==0:
-        if self.global_step%(self.cfg.eval_every_frames//2)==0:
+        if self.global_step%(self.cfg.eval_every_frames//2)==0 and self.cfg.proto_goal_intr==False:
             self.proto_goals_alt = a[p[:, proto_indices], :2]
 #       else:
 #            tmp, tmp_ = torch.topk(_proto[:, 2], 3, dim=0, largest=True)
@@ -683,17 +735,17 @@ class Workspace:
             elif self.cfg.proto_goal_mix:
                 self.proto_goals = a[_proto[_sample_mix.clone().detach(), 0].clone().detach().cpu().numpy(),:2]
             elif self.cfg.proto_goal_intr:
-                new_dist_arg = self.proto_goals_dist.argsort()
+                dist_arg = self.proto_goals_dist.argsort(axis=0)
+                
+                #import IPython as ipy; ipy.embed(colors='neutral')
                 for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
-                    if x > self.proto_goals_dist[new_dist_arg[ix]]:
-                        self.proto_goals_dist[new_dist_arg[ix]] = x
-                        self.proto_goals[new_dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
+                    if x > self.proto_goals_dist[dist_arg[ix]]:
+                        self.proto_goals_dist[dist_arg[ix]] = x
+                        self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
 
                 print('proto goals', self.proto_goals)
                 print('proto dist', self.proto_goals_dist)
 
-        
-        self.goal_freq = np.zeros((self.proto_goals.shape[0],1))
         dist_matrices = [_proto, _proto_sim]
         self_mat = [_proto_self, _proto_sim_self]
 
@@ -915,7 +967,7 @@ class Workspace:
         #closest_points = dist_mat.argmin(-1)
         #proto2d = states[closest_points.cpu(), :2]
         with torch.no_grad():
-            reward = self.agent.compute_intr_reward(encoded, self._global_step, eval=True)
+            reward = self.agent.compute_intr_reward(encoded, None, self._global_step, eval=True)
         
         if self.cfg.proto_goal_intr:
             #import IPython as ipy; ipy.embed(colors='neutral') 
@@ -942,6 +994,7 @@ class Workspace:
         #    print('saving')
         #    print(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step))
         #    save(str(self.work_dir)+'/eval_intr_reward_{}.csv'.format(self._global_step), [[obs[x].cpu().detach().numpy(), reward[x].cpu().detach().numpy(), q[x].cpu().detach().numpy(), self._global_step]])
+        print('r')
         if self.cfg.proto_goal_intr:
             return r, _
 
@@ -958,7 +1011,7 @@ class Workspace:
         
         time_step = self.train_env.reset()
         meta = self.agent.init_meta() 
-         
+        self.train_video_recorder.init(self.train_env) 
         if self.cfg.obs_type == 'pixels':
             self.replay_storage.add(time_step, meta, True)  
             print('replay2')
@@ -971,6 +1024,9 @@ class Workspace:
 
             if time_step.last():
                 self._global_episode += 1
+                if self.global_step%5000==0:
+                    self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                
                 # wait until all the metrics schema is populated
                 if metrics is not None:
                     # log stats
@@ -996,12 +1052,34 @@ class Workspace:
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))
                     print('sampled init', (rand_init[0]*sign[rand][0], rand_init[1]*sign[rand][1]))   
                 if self.global_step>self.cfg.switch_gc:
-                    idx = np.random.randint(0, self.proto_goals.shape[0])
+                    #import IPython as ipy; ipy.embed(colors='neutral')
+                    if np.any(self.goal_freq==0):
+                        inv_freq = (1/(self.goal_freq+1))
+                    else:
+                        inv_freq = (1/self.goal_freq)  
+                    goal_score = np.zeros((self.proto_goals.shape[0],))
+                    
+                    for ix,x in enumerate(self.proto_goals_id):
+                        x = x.astype(int)
+                        goal_score[ix] = inv_freq[x[0], x[1]]
+                         
+                    goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
+                    
+                    if self.cfg.proto_goal_intr:
+                        idx = pyd.Categorical(goal_prob).sample().item()
+                        print('goal score', goal_score)
+                        print('goal_prob', goal_prob)
+                    elif self.cfg.proto_goal_random:
+                        idx = np.random.randint(self.agent.protos.weight.data.shape[0])
+                        
+                    #idx = np.random.randint(0, self.proto_goals.shape[0])
+                    print('proto_goals', self.proto_goals)
                     self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                               self.cfg.action_repeat, self.cfg.seed, init_state=(self.proto_goals[idx][0], self.proto_goals[idx][1]))
                     idx_x = int(self.proto_goals[idx][0]*100)+29
                     idx_y = int(self.proto_goals[idx][1]*100)+29
                     self.proto_goals_matrix[idx_x,idx_y]+=1
+                    self.goal_freq[idx_x//10, idx_y//10]+=1
                     print('init', self.proto_goals[idx])
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
@@ -1012,15 +1090,27 @@ class Workspace:
                 # try to save snapshot
                 if self.global_frame in self.cfg.snapshots:
                     self.save_snapshot()
+
+                self.train_video_recorder.init(self.train_env)
+                
                 episode_step = 0
                 episode_reward = 0
 
+            if self.global_step%10000==0:
+                self.proto_goals = self.agent.goal_queue.clone().detach().cpu().numpy()
+                for ix,x in enumerate(self.proto_goals):
+                    self.proto_goals_id[ix] = np.array([(int(self.proto_goals[ix][0]*100)+29)//10, (int(self.proto_goals[ix][1]*100)+29)//10]).astype(int)
+
+                print('goals', self.proto_goals)
+                print('goal dist', self.agent.goal_queue_dist)
+            
             # try to evaluate
             if eval_every_step(self.global_step) and self.global_step!=0:
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
                 if self.cfg.debug:
                     self.eval()
+                    self.eval_proto()
                 elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
@@ -1063,9 +1153,9 @@ class Workspace:
                 self.replay_storage.add(time_step, meta, True)
             else:
                 self.replay_storage.add(time_step, meta)
+            self.train_video_recorder.record(self.train_env)
             episode_step += 1
             self._global_step += 1
-            
 
             #if self._global_step%100000==0 and self._global_step!=0:
             #    print('saving agent')

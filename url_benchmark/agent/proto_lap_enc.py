@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoLapEncAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, **kwargs):
+                 num_iterations, lagr, margin, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -75,6 +75,8 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
         self.prev_heatmap = np.zeros((10,10))
         self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
+        self.lagr = lagr
+        self.margin = margin
         #self.load_protos = load_protos
 
         # models
@@ -147,11 +149,14 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
         C = F.normalize(C, dim=1, p=2)
         self.protos.weight.data.copy_(C)
 
-    def compute_intr_reward(self, obs, step):
+    def compute_intr_reward(self, obs, step, eval=False):
         self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
-            z = self.encoder(obs)
+            if eval==False:
+                z = self.encoder(obs)
+            else:
+                z = obs 
             z = self.predictor(z)
             z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
@@ -194,7 +199,11 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
-
+        
+        v = self.encoder(rand_obs)
+        v = self.predictor(v)
+        v = F.normalize(v, dim=1, p=2)
+        
         # target network
         with torch.no_grad():
             t = self.encoder_target(next_obs)
@@ -239,8 +248,8 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
                 
         # loss
         loss1 = -(q_t * log_p_s).sum(dim=1).mean()
-        loss2 = torch.tensor(0)
-        loss=loss1 + .2*loss2
+        loss2 = torch.exp(-torch.norm(s_-v, p=2).sum(-1)).mean()
+        loss=loss1 + self.lagr*loss2
         if self.use_tb or self.use_wandb:
             
             metrics['repr_loss1'] = loss1.item()
@@ -256,7 +265,7 @@ class ProtoLapEncAgent(DDPGEncoder1Agent):
 
         metrics = dict() 
 
-        encoder_loss = torch.amax(torch.norm(obs-next_obs, dim=1, p=2) - torch.norm(obs-rand_obs, dim=1, p=2) + 1, 0)
+        encoder_loss = torch.amax(torch.norm(obs-next_obs, dim=1, p=2) - torch.norm(obs-rand_obs, dim=1, p=2) + self.margin, 0)
 
         if self.use_tb or self.use_wandb:
             metrics['encoder_loss'] = encoder_loss.item()

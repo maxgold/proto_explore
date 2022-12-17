@@ -39,4 +39,5 @@ lagr1: .2
 lagr2: .2
 lagr3: .2
 margin: 0
+update_proto_every: 2
 update_encoder: ${update_encoder}

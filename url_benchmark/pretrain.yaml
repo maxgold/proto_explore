@@ -70,7 +70,7 @@ reward_euclid: False
 pos_reward: True
 neg_reward: False
 eval_after_step: 990000
-episode_length: 100
+episode_length: 500
 num_protos: 512
 episode_reset_length: 500
 stddev_schedule: .2
@@ -90,14 +90,14 @@ tau: .1
 sl: False
 asym: False
 goal_num: 20
-update_proto_every: 10
+update_proto_every: 2
 loss: False
 debug: False
 lagr: .2
 lagr1: .2
 lagr2: .2
 lagr3: .2
-margin: .5
+margin: .005
 og: True
 proto_goal_med: True
 proto_goal_mean: False
@@ -112,7 +112,9 @@ proto_goal_min_topk: False
 proto_goal_mix: False
 mix: .5
 proto_goal_intr: False
-# experiment
+proto_goal_random: False
+loss_gc: False
+#experiment
 experiment: exp
 
 path: /home/ubuntu/proto_explore/url_benchmark/models/eval_8_23_4
