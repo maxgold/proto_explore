@@ -19,6 +19,7 @@ from dm_env import specs
 import pandas as pd
 import dmc
 import utils
+from torch import distributions as pyd
 from scipy.spatial.distance import cdist
 from logger import Logger, save
 from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer, ndim_grid, make_replay_offline
@@ -526,38 +527,93 @@ class Workspace:
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
 
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
-        
+       
         proto_indices = np.random.randint(10)
         p = _proto.clone().detach().cpu().numpy()
         self.proto_goals_alt = a[p[:, proto_indices], :2]
 
         if self.cfg.proto_goal_intr:
             goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
+            dist_arg = self.proto_goals_dist.argsort(axis=0)
+            
+            for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
+                if x > self.proto_goals_dist[dist_arg[ix]]:
+                    self.proto_goals_dist[dist_arg[ix]] = x
+                    self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
+
+            print('proto goals', self.proto_goals)
+            print('proto dist', self.proto_goals_dist)
         elif self.cfg.proto_goal_random:
             self.proto_goals = a[_proto[:, 0].detach().clone().cpu().numpy()]
 
-        else:
-            self.eval_intrinsic(encoded, a)
 
-        
-            if index_==0:
-                file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
-                plt.savefig(file1)
-                wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
-#             elif index_==1:
-#                 file1= self.work_dir / f"10nn_actual_prototypes_sim_{self.global_step}.png"
-#                 plt.savefig(file1)
-#                 wandb.save(f"10nn_actual_prototypes_sim_{self.global_step}.png")
+        filenames=[]
+        plt.clf()
+        fig, ax = plt.subplots()
+        dist_np = np.empty((protos.shape[1], _proto.shape[1], 2))
+        for ix in range(protos.shape[0]):
+            txt=''
+            df = pd.DataFrame()
+            count=0
+            for i in range(a.shape[0]+1):
+                if i!=a.shape[0]:
+                    df.loc[i,'x'] = a[i,0]
+                    df.loc[i,'y'] = a[i,1]
+                    if i in _proto[ix,:]:
+                        df.loc[i, 'c'] = str(ix+1)
+                        dist_np[ix,count,0] = a[i,0]
+                        dist_np[ix,count,1] = a[i,1]
+                        count+=1
 
-            #import IPython as ipy; ipy.embed(colors='neutral')
-            if self.global_step >= (self.cfg.num_train_frames//2-100):
-                fig, ax = plt.subplots()
-                self.final_df.plot(ax=ax)
-                ax.set_xticks(self.final_df.index)
-                plt.savefig(self.work_dir / f"proto_states.png")
-                wandb.save(f"proto_states.png")
+                    elif ix==0 and (i not in _proto[ix,:]):
+                        #color all samples blue
+                        df.loc[i,'c'] = str(0)
 
-                
+            palette = {
+                            '0': 'tab:blue',
+                                '1': 'tab:orange',
+                                '2': 'black',
+                                '3':'silver',
+                                '4':'green',
+                                '5':'red',
+                                '6':'purple',
+                                '7':'brown',
+                                '8':'pink',
+                                '9':'gray',
+                                '10':'olive',
+                                '11':'cyan',
+                                '12':'yellow',
+                                '13':'skyblue',
+                                '14':'magenta',
+                                '15':'lightgreen',
+                                '16':'blue',
+                                '17':'lightcoral',
+                                '18':'maroon',
+                                '19':'saddlebrown',
+                                '20':'peru',
+                                '21':'tan',
+                                '22':'darkkhaki',
+                                '23':'darkolivegreen',
+                                '24':'mediumaquamarine',
+                                '25':'lightseagreen',
+                                '26':'paleturquoise',
+                                '27':'cadetblue',
+                                '28':'steelblue',
+                                '29':'thistle',
+                                '30':'slateblue',
+                                '31':'hotpink',
+                                '32':'papayawhip'
+                    }
+            ax=sns.scatterplot(x="x", y="y",
+                      hue="c",palette=palette,
+                      data=df,legend=True)
+            sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+            #ax.set_title("\n".join(wrap(txt,75)))
+
+            file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
+            plt.savefig(file1)
+            wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
+
 
 
     def eval(self):
@@ -869,7 +925,7 @@ class Workspace:
 
                 if episode_step== 0 and self.global_step!=0:
                     
-                    if self.proto_explore:
+                    if self.proto_explore and self.actor:
                         time_step = self.train_env.reset()
                     else:
                         self.recorded=False               
@@ -977,7 +1033,9 @@ class Workspace:
                 episode_step += 1
 
                 if self.actor1:
-                    if goal_state in self.reached_goals and time_step1.reward > 1.7 and self.proto_explore==False and episode_step > 20:
+                    
+                    
+                    if (goal_state in self.reached_goals and (time_step1.reward > 1.7) and (self.proto_explore==False) and (episode_step> 20)) or (episode_reward > 100):
                         print('proto_goals', self.proto_goals)
                         idx_x = int(goal_state[0]*100)+29
                         idx_y = int(goal_state[1]*100)+29
@@ -1005,6 +1063,7 @@ class Workspace:
                             episode_step=0
 
                             if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                                print('reached and saving gc last')
                                 self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
 
@@ -1014,9 +1073,10 @@ class Workspace:
 
                             time_step1 = self.train_env1.reset()
                             self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                            self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
+                                self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                             time_step_no_goal = self.train_env_no_goal.reset()
                             meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                            self.proto_explore=False
                             #print('time step', time_step1.observation['observations'])
                             #print('sampled goal', goal_state) 
 
@@ -1024,47 +1084,50 @@ class Workspace:
                             self.proto_explore=True
 
 
-                if episode_step<490 and self.actor1 and self.proto_explore:
-                    print('reached start exploring')
-                    print(self.reached_goals)
-                    
-                    if goal_state in self.proto_goals:
-                        goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
-                        self.goal_freq[goal_idx]+=1
-                    
-                    self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
-                    self.reached_goals = np.unique(self.reached_goals, axis=0)
-                    
-                    self.actor=True
-                    self.actor1=False
-                    
-                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
-                        self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+                    if episode_step<490 and self.proto_explore:
+                        print('reached start exploring')
+                        print(self.reached_goals)
                         
-                    episode_reward=0
-                    episode_step=0
-                    current_state = time_step1.observation['observations'][:2]
-                    print('current_state', current_state)
-                    self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
-                                              self.cfg.action_repeat, seed=None, goal=goal_state, 
-                                              init_state=(current_state[0], current_state[1]))
-                    #reset so the first part doesn't try to save episode for time_step1.last() 
-                    time_step1 = self.train_env1.reset()
-                    print('should reset to', current_state)
-                    print('new env state', self.train_env._env.physics.state())
-                    time_step = self.train_env.reset()
-                    print('reset state', time_step.observation['observations'])
-                    meta = self.agent.update_meta(meta, self._global_step, time_step)
+                        print('proto_goals', self.proto_goals)
+                        idx_x = int(goal_state[0]*100)+29
+                        idx_y = int(goal_state[1]*100)+29
+                        self.proto_goals_matrix[idx_x,idx_y]+=1
+                        self.goal_freq[idx_x//10, idx_y//10]+=1
 
-                    if self.cfg.obs_type == 'pixels' and time_step.last()==False:
-                        self.replay_storage.add(time_step, meta, True, last=False)
+                        self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
+                        self.reached_goals = np.unique(self.reached_goals, axis=0)
 
-                if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
-                    
-                    metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                    metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-                    #self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        self.actor=True
+                        self.actor1=False
+
+                        if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                            print('reached and save gc last 2')
+                            self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
+
+                        episode_reward=0
+                        episode_step=0
+                        current_state = time_step1.observation['observations'][:2]
+                        print('current_state', current_state)
+                        self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state, 
+                                                  init_state=(current_state[0], current_state[1]))
+                        #reset so the first part doesn't try to save episode for time_step1.last() 
+                        time_step1 = self.train_env1.reset()
+                        print('should reset to', current_state)
+                        print('new env state', self.train_env._env.physics.state())
+                        time_step = self.train_env.reset()
+                        print('reset state', time_step.observation['observations'])
+                        meta = self.agent.update_meta(meta, self._global_step, time_step)
+
+                        if self.cfg.obs_type == 'pixels' and time_step.last()==False:
+                            self.replay_storage.add(time_step, meta, True, last=False)
+
+                    if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
+
+                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
+                        #self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                 self._global_step += 1
             
