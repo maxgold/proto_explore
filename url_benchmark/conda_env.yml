@@ -15,7 +15,8 @@ dependencies:
   - pytorch::torchaudio
   - pip:
     - termcolor==1.1.0
-    - git+git://github.com/deepmind/dm_control.git
+      #- git+git://github.com/deepmind/dm_control.git
+      #- git+git://github.com/deepmind/dm_control.git@mujoco_2.1.0_eol
     - tb-nightly
     - imageio==2.9.0
     - imageio-ffmpeg==0.4.4
