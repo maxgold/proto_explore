@@ -950,7 +950,6 @@ class Workspace:
                             idx = np.random.randint(self.agent.protos.weight.data.shape[0])
 
                         goal_state = np.array([self.proto_goals[idx][0], self.proto_goals[idx][1]])
-                        goal_idx = idx
                         self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state)
@@ -1041,6 +1040,7 @@ class Workspace:
                         idx_y = int(goal_state[1]*100)+29
                         self.proto_goals_matrix[idx_x,idx_y]+=1
                         self.goal_freq[idx_x//10, idx_y//10]+=1
+                        print('goal freq', self.goal_freq)
                         random_num = np.random.uniform()
                         #50% of the time, let gc sample new goal and try to learn another goal
                         if random_num > .5:
@@ -1048,15 +1048,11 @@ class Workspace:
 
                             if self.reached_goals.shape[0]!=0:
                                 goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
-                                if goal_dist < .05:
+                                if goal_dist < .02:
                                     self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
                                     min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
 
                             goal_state = self.proto_goals_alt[min_dist]
-                            if goal_state in self.proto_goals:
-                                goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
-                            else:
-                                goal_idx=np.inf
                             print('new goal', goal_state) 
                             print('sampling new goal')
                             episode_reward=0
@@ -1091,6 +1087,7 @@ class Workspace:
                         idx_y = int(goal_state[1]*100)+29
                         self.proto_goals_matrix[idx_x,idx_y]+=1
                         self.goal_freq[idx_x//10, idx_y//10]+=1
+                        print('goal freq', self.goal_freq)
 
                         self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
                         self.reached_goals = np.unique(self.reached_goals, axis=0)
