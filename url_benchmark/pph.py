@@ -528,6 +528,7 @@ class Workspace:
 
         all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
        
+        #choose a random kth neighbor (k=np.random.randint(10)) of each prototype
         proto_indices = np.random.randint(10)
         p = _proto.clone().detach().cpu().numpy()
         self.proto_goals_alt = a[p[:, proto_indices], :2]
@@ -906,7 +907,7 @@ class Workspace:
                         self.save_snapshot()
                     episode_step = 0
                     episode_reward = 0
-                    if self.proto_explore_count<=5 and self.proto_explore:
+                    if self.proto_explore_count<=10 and self.proto_explore:
                         self.actor=True
                         self.actor1=False
                         self.proto_explore_count+=1
@@ -1041,6 +1042,9 @@ class Workspace:
                         idx_y = int(goal_state[1]*100)+29
                         self.proto_goals_matrix[idx_x,idx_y]+=1
                         self.goal_freq[idx_x//10, idx_y//10]+=1
+
+                        self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
+                        self.reached_goals = np.unique(self.reached_goals, axis=0) 
                         random_num = np.random.uniform()
                         #50% of the time, let gc sample new goal and try to learn another goal
                         if random_num > .5:

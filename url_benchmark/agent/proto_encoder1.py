@@ -159,11 +159,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             if eval==False:
                 z = self.encoder(obs)
             else:
-<<<<<<< HEAD
-                z = obs 
-=======
                 z = obs
->>>>>>> 384322623ede4ccee6e399546d4b908f774b6c66
             z = self.predictor(z)
             #z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
@@ -392,8 +388,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-            if actor1:
-                goal = self.aug(goal)
            
         if actor1==False:
 

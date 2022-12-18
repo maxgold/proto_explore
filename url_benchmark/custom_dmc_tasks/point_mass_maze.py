@@ -315,7 +315,7 @@ def reach_hard2_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
     print('hard2')
     task_name = 'reach_hard2_no_goal'
     physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal'))
-    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=(-.28,.28))
+    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -495,8 +495,8 @@ def reach_custom_goal_hard2(
     goal=(0.1, -0.1),
 ):
     """Returns the Run task."""
-    assert abs(goal[0]) <= 0.14
-    assert abs(goal[1]) <= 0.14
+    assert abs(goal[0]) <= 0.29
+    assert abs(goal[1]) <= 0.29
     goal = environment_kwargs.pop("goal", (0.1, -0.1))
     xml = get_model_and_assets("reach_hard2_no_goal")
     #xml = get_model_and_assets("reach_ud_hs")
@@ -542,7 +542,7 @@ class MultiTaskPointMassMaze(base.Task):
             self._target = target_loc
         super().__init__(random=random)
         
-        if init_state is None and target_id!=15:
+        if init_state is None:
             self._init_state = (np.random.uniform(-.25, -.29), np.random.uniform(0.25, .29))
             #self._init_state = (np.random.uniform(-.15, -.29), np.random.uniform(0.15, .29))
         else:
