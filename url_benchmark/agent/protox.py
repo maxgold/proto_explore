@@ -317,9 +317,14 @@ class ProtoXAgent(DDPGEncoder1Agent):
  
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
+<<<<<<< HEAD
+        metrics = dict() 
+        loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
+=======
         metrics = dict()
         loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
         #loss1 = F.mse_loss(obs, next_obs)
+>>>>>>> 0efb981b017c2f0a67c4a5ec1da20fd5ea15b02a
         loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
         encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
         #encoder_loss = loss1
@@ -508,6 +513,10 @@ class ProtoXAgent(DDPGEncoder1Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
             
+<<<<<<< HEAD
+            #metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+=======
+>>>>>>> 0efb981b017c2f0a67c4a5ec1da20fd5ea15b02a
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward

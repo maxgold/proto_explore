@@ -376,9 +376,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                     plt.savefig(f"batch_moving_avg_{step}.png")
                     
         elif actor1==False:
-            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs = utils.to_torch(
+            obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
-            extr_reward = extr_reward.float()
         else:
             return metrics
         
@@ -389,8 +388,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
-            if actor1:
-                goal = self.aug(goal)
            
         if actor1==False:
 

@@ -495,8 +495,8 @@ def reach_custom_goal_hard2(
     goal=(0.1, -0.1),
 ):
     """Returns the Run task."""
-    assert abs(goal[0]) <= 0.14
-    assert abs(goal[1]) <= 0.14
+    assert abs(goal[0]) <= 0.29
+    assert abs(goal[1]) <= 0.29
     goal = environment_kwargs.pop("goal", (0.1, -0.1))
     xml = get_model_and_assets("reach_hard2_no_goal")
     #xml = get_model_and_assets("reach_ud_hs")

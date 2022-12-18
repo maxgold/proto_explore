@@ -550,8 +550,10 @@ class ReplayBuffer(IterableDataset):
             meta.append(episode[spec.name][idx - 1])
         
         obs = episode["observation"][idx - 1]
+        obs_state =  episode["state"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         
@@ -597,7 +599,7 @@ class ReplayBuffer(IterableDataset):
             obs_state =  episode["state"][idx - 1]
             return (obs, obs_state, action, reward, discount, next_obs, *meta)
         else:
-            return (obs, action, reward, discount, next_obs, *meta)
+            return (obs, action, reward, discount, next_obs, next_obs_state, *meta)
     
 
     def _sample_sl(self):
@@ -701,8 +703,8 @@ class ReplayBuffer(IterableDataset):
             obs = episode["observation"][idx - 1]
             obs_state = episode["state"][idx - 1]
             action = episode["action"][idx]
-            next_obs = episode["observation"][idx]
-            next_obs_state = episode["state"][idx]
+            next_obs = episode["observation"][idx + self._nstep - 1]
+            next_obs_state = episode["state"][idx + self._nstep - 1]
             reward = np.zeros_like(episode["reward"][idx])
             discount = np.ones_like(episode["discount"][idx])
             offset = 0 
@@ -725,16 +727,17 @@ class ReplayBuffer(IterableDataset):
             obs = episode["observation"][idx-1]
             obs_state = episode["state"][idx-1]
             action = episode["action"][idx]
-            next_obs = episode['observation'][idx]
-            next_obs_state = episode['state'][idx]
-            idx_goal = np.random.randint(min(idx - 1, episode_len(episode)-1),episode_len(episode))
+            next_obs = episode['observation'][idx + self._nstep - 1]
+            next_obs_state = episode['state'][idx + self._nstep - 1]
+            idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
             
-            offset=idx_goal-idx
+            offset = idx_goal - idx
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
             for i in range(self._nstep):
-                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])
                 reward += discount * step_reward
+                reward += discount * discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
 
         elif key <= self.hybrid_pct and self.goal_proto:
