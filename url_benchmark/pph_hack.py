@@ -1141,10 +1141,10 @@ class Workspace:
                 metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
-#             #save agent
-#             if self._global_step%200000==0 and self._global_step!=0:
-#                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-#                 torch.save(self.agent, path)
+             #save agent
+            if self._global_step%200000==0 and self._global_step!=0:
+                path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                torch.save(self.agent, path)
 
             # take env step
             time_step = self.train_env.step(action)
