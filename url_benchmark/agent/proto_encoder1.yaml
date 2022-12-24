@@ -18,7 +18,7 @@ num_expl_steps: ??? # to be specified later
 hidden_dim: ???
 feature_dim: 50
 stddev_schedule: 0.3
-stddev_clip: 0.3
+stddev_clip: 0.2
 nstep: 3
 batch_size: ???
 init_critic: true

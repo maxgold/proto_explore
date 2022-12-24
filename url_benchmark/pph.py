@@ -1052,7 +1052,7 @@ class Workspace:
 
                             if self.reached_goals.shape[0]!=0:
                                 goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
-                                if goal_dist < .05:
+                                if goal_dist < .02:
                                     self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
                                     min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
 
