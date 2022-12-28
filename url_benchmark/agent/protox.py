@@ -317,14 +317,9 @@ class ProtoXAgent(DDPGEncoder1Agent):
  
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
-<<<<<<< HEAD
         metrics = dict() 
         loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
-=======
-        metrics = dict()
-        loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
         #loss1 = F.mse_loss(obs, next_obs)
->>>>>>> 0efb981b017c2f0a67c4a5ec1da20fd5ea15b02a
         loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
         encoder_loss = torch.amax(loss1 - loss2 + self.margin, 0)
         #encoder_loss = loss1
@@ -388,8 +383,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             return metrics
 
         batch = next(replay_iter)
-        if actor1 and step % self.update_gc==0:
-            
+        if actor1 and step % self.update_gc==0: 
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, rand_obs = utils.to_torch(
             batch, self.device)
 
@@ -513,10 +507,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
             
-<<<<<<< HEAD
-            #metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
-=======
->>>>>>> 0efb981b017c2f0a67c4a5ec1da20fd5ea15b02a
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -526,13 +517,15 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            rand_obs = self.encoder(rand_obs)
             goal = self.encoder(goal)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                rand_obs = rand_obs.detach()
                 goal=goal.detach()
-        
+             
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
@@ -543,7 +536,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
         return metrics
 
     def get_q_value(self, obs,action):
