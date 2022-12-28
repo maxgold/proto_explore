@@ -949,31 +949,18 @@ class Workspace:
                     self.eval_proto()
 
                 if episode_step== 0 and self.global_step!=0:
+                  
                     
-                    if self.proto_explore and self.actor and self.proto_explore_count==0:
-                        episode_reward=0
-                        episode_step=0
-                        print('current_init', self.current_init)
-                        self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
-                                                  self.cfg.action_repeat, seed=None, goal=goal_state, 
-                                                  init_state=self.current_init)
-                        #reset so the first part doesn't try to save episode for time_step1.last() 
-                        time_step1 = self.train_env1.reset()
-                        print('should reset to', self.current_init)
-                        print('new env state', self.train_env._env.physics.state())
+                    if self.proto_explore and self.actor:
+                        print('proto_explore, actor')
                         time_step = self.train_env.reset()
-                        print('reset state', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
-
+                        
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
                             self.replay_storage.add(time_step, meta, True, last=False)
-                    
-                    elif self.proto_explore and self.actor:
-                        
-                        time_step = self.train_env.reset()
-                    
                         
                     else:
+                        print('else')
                         self.recorded=False
 
                         if np.any(self.goal_freq==0):
