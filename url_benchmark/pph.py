@@ -907,14 +907,27 @@ class Workspace:
                     # try to save snapshot
                     if self.global_frame in self.cfg.snapshots:
                         self.save_snapshot()
+                    
                     episode_step = 0
                     episode_reward = 0
-                    if self.proto_explore_count<=10 and self.proto_explore:
+                    
+                    if self.proto_explore_count <= 10 and self.proto_explore:
+                        
                         self.actor=True
                         self.actor1=False
                         self.proto_explore_count+=1
+
+                    elif self.proto_explore and self.proto_explore_count > 10:
                         
-                    elif self.gc_explore and self.gc_explore_count<=10:
+                        self.actor1=True
+                        self.actor=False
+                        self.proto_explore=False
+                        self.proto_explore_count=0
+                        self.gc_explore=True
+                        self.gc_explore_count=0
+                        
+                    elif self.gc_explore and self.gc_explore_count <= 10:
+
                         self.actor1=True
                         self.actor=False
                         self.proto_explore=False
@@ -922,17 +935,13 @@ class Workspace:
                         self.gc_explore_count+=1
                         
                     elif self.gc_explore and self.gc_explore_count>10:
+                        
                         self.actor1=False
                         self.actor=True
-                        self.proto_explore=True
+                        self.proto_explore=False
+                        self.gc_explore=False
                         self.gc_explore_count=0
                         
-                    elif self.proto_explore_count>10 and self.proto_explore:
-                        self.actor1=True
-                        self.actor=False
-                        self.proto_explore=False
-                        self.proto_explore_count=0
-                
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     if self.global_step%100000==0:
@@ -940,31 +949,18 @@ class Workspace:
                     self.eval_proto()
 
                 if episode_step== 0 and self.global_step!=0:
+                  
                     
-                    if self.proto_explore and self.actor and self.proto_explore_count==0:
-                        episode_reward=0
-                        episode_step=0
-                        print('current_init', self.current_init)
-                        self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
-                                                  self.cfg.action_repeat, seed=None, goal=goal_state, 
-                                                  init_state=self.current_init)
-                        #reset so the first part doesn't try to save episode for time_step1.last() 
-                        time_step1 = self.train_env1.reset()
-                        print('should reset to', self.current_init)
-                        print('new env state', self.train_env._env.physics.state())
+                    if self.proto_explore and self.actor:
+                        print('proto_explore, actor')
                         time_step = self.train_env.reset()
-                        print('reset state', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
-
+                        
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
                             self.replay_storage.add(time_step, meta, True, last=False)
-                    
-                    elif self.proto_explore and self.actor:
-                        
-                        time_step = self.train_env.reset()
-                    
                         
                     else:
+                        print('else')
                         self.recorded=False
 
                         if np.any(self.goal_freq==0):
@@ -1107,8 +1103,8 @@ class Workspace:
                         episode_reward=0
                         episode_step=0
                         
-                        self.gc_explore=True
-                        print('gc explore')
+                        self.proto_explore=True
+                        print('proto explore')
 
                         if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
                             print('reached and save gc last 2')
@@ -1124,6 +1120,11 @@ class Workspace:
                         self.cfg.action_repeat, seed=None, goal=goal_state, init_state=self.current_init)
                         time_step_no_goal = self.train_env_no_goal.reset()
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
+
+                        self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
+                                                  self.cfg.action_repeat, seed=None, goal=goal_state,
+                                                  init_state=self.current_init)
+                        time_step = self.train_env.reset()
 
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
 
