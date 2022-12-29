@@ -217,6 +217,84 @@ class ReplayBufferStorage:
             print('storing episode, w/ goal')
             
             
+    def add_goal_general(self, time_step, meta, goal, goal_state=False,pixels=False, last=False, asym=False):
+        
+        for key, value in meta.items():
+            
+            self._current_episode_goal[key].append(value)
+            
+        for spec in self._data_specs:
+            
+            if spec.name == 'observation' and pixels:
+                
+                value = time_step[spec.name]
+                self._current_episode_goal['observation'].append(value['pixels'])
+                self._current_episode_goal['state'].append(value['observations'])
+                
+            else:
+                value = time_step[spec.name]
+                
+                if np.isscalar(value):
+                    
+                    value = np.full(spec.shape, value, spec.dtype)
+                    
+                assert spec.shape == value.shape and spec.dtype == value.dtype
+                self._current_episode_goal[spec.name].append(value)
+                
+        if pixels and asym==False:
+            
+            goal = np.transpose(goal, (2,0,1))
+            self._current_episode_goal['goal_state'].append(goal_state)
+            
+        elif pixels and asym:
+            
+            self._current_episode_goal['goal_state'].append(goal_state)
+
+        self._current_episode_goal['goal'].append(goal)
+
+        if time_step.last() or last:
+            
+            print('replay last')
+            episode = dict()
+            for spec in self._data_specs:
+                
+                if spec.name == 'observation' and pixels:
+                    
+                    value1 = self._current_episode_goal['observation']
+                    value2 = self._current_episode_goal['state']
+                    episode['observation'] = np.array(value1, spec.dtype)
+                    episode['state'] = np.array(value2, 'float32')
+                    
+                else:
+                    
+                    value = self._current_episode_goal[spec.name]
+                    episode[spec.name] = np.array(value, spec.dtype)
+
+            for spec in self._meta_specs:
+                
+                value = self._current_episode_goal[spec.name]
+                episode[spec.name] = np.array(value, spec.dtype)
+                
+            value = self._current_episode_goal['goal']
+            
+            if pixels and asym==False:
+                
+                episode['goal'] = np.array(value).astype(int)
+                
+            else:
+                
+                episode['goal'] = np.array(value, np.float64)
+            
+            if pixels:
+                
+                value = self._current_episode_goal['goal_state']
+                episode['goal_state'] = np.array(value, np.float64)
+                
+            self._current_episode_goal = defaultdict(list)
+            self._store_episode(episode, actor1=True)
+            print('storing episode, w/ goal')
+            
+            
     def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False):
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)

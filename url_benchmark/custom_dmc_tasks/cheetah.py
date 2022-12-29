@@ -87,7 +87,7 @@ def flip(time_limit=_DEFAULT_TIME_LIMIT,
 
 @SUITE.add('benchmarking')
 def flip_backward(time_limit=_DEFAULT_TIME_LIMIT,
-                  random=None,
+                  random=None, 
                   environment_kwargs=None):
     """Returns the run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
@@ -137,7 +137,8 @@ class Cheetah(base.Task):
         """Returns an observation of the state, ignoring horizontal position."""
         obs = collections.OrderedDict()
         # Ignores horizontal position to maintain translational invariance.
-        obs['position'] = physics.data.qpos[1:].copy()
+        #???????
+        obs['position'] = physics.data.qpos.copy()
         obs['velocity'] = physics.velocity()
         return obs
 
