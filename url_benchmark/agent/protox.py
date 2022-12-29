@@ -198,8 +198,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
                     self.goal_queue_dist[dist_arg[ix]] = r[ix]
                     self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
-                    print('new goal', obs_state[_[ix],:2])
-                    print('dist', r[ix])
         
         
 
@@ -264,7 +262,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 fig, ax = plt.subplots()
 
                 quant = torch.quantile(matrix, self.q, dim=1)
-                print('q', quant.shape)
                 df = pd.DataFrame(quant.cpu().numpy().T)
                 df.plot(ax=ax,figsize=(15,5))
                 ax.set_xticks(np.arange(0, matrix.shape[0], 100))
