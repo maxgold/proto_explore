@@ -791,6 +791,11 @@ class Workspace:
 
                     #    self.replay_storage.add(time_step, meta, True)
                     if self.cfg.obs_type=='pixels': 
+                        rand_init = np.random.uniform(.25,.29,size=(2,))
+                        rand_init[0] = rand_init[0]*(-1)
+                        self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                                                        self.cfg.action_repeat, seed=None, goal=self.first_goal, 
+                                                        init_state=rand_init)
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
@@ -945,6 +950,7 @@ class Workspace:
                         self.proto_explore=False
                         self.gc_explore=False
                         self.gc_explore_count=0
+                        self.proto_explore_count=0
                         
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
@@ -956,6 +962,9 @@ class Workspace:
                   
                     
                     if self.proto_explore and self.actor:
+                        self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
+                                                   self.cfg.frame_stack,self.cfg.action_repeat, 
+                                                   seed=None, goal=goal_state, init_state=self.current_init)
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
@@ -990,13 +999,18 @@ class Workspace:
                         goal_idx = idx
                         if self.gc_explore:
                             print('gc exploreing')
+                            print('currenr', self.current_init)
                             self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init)
                         else:
+                            rand_init = np.random.uniform(.25,.29,size=(2,))
+                            rand_init[0] = rand_init[0]*(-1)
+
                             self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state)
+                                                   seed=None, goal=goal_state, init_state = rand_init)
+                            
                         time_step1 = self.train_env1.reset()
                         self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                                                             self.cfg.action_repeat, seed=None, goal=goal_state, 
@@ -1111,6 +1125,9 @@ class Workspace:
                         episode_step=0
                         
                         self.proto_explore=True
+                        self.gc_explore = False
+                        self.actor = True
+                        self.actor1 = False
                         print('proto explore')
 
                         if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
@@ -1118,6 +1135,8 @@ class Workspace:
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
                         self.current_init = time_step1.observation['observations'][:2]
+                        print('current', self.current_init)
+                        print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
 
                         self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,

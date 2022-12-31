@@ -562,9 +562,9 @@ class MultiTaskPointMassMaze(base.Task):
           physics: An instance of `mujoco.Physics`.
         """
         randomizers.randomize_limited_and_rotational_joints(physics, self.random)
-        physics.data.qpos[0] = np.random.uniform(-.25, -.29)
-        physics.data.qpos[1] = np.random.uniform(0.25, .29)
-        #physics.data.qpos[0], physics.data.qpos[1] = self._init_state
+        #physics.data.qpos[0] = np.random.uniform(-.25, -.29)
+        #physics.data.qpos[1] = np.random.uniform(0.25, .29)
+        physics.data.qpos[0], physics.data.qpos[1] = self._init_state
         # import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos["target"][:] = self._target
 
