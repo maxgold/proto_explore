@@ -248,7 +248,10 @@ class Workspace:
                                 lagr2=cfg.lagr2,
                                 lagr3=cfg.lagr3,
                                 margin=cfg.margin,
-                                update_proto_every=cfg.update_proto_every)
+                                update_proto_every=cfg.update_proto_every,
+                                stddev_schedule=cfg.stddev_schedule, 
+                                stddev_clip=cfg.stddev_clip
+                                )
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -269,7 +272,9 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size,
                                 lagr=cfg.lagr,
-                                margin=cfg.margin)
+                                margin=cfg.margin,
+                                stddev_schedule=cfg.stddev_schedule, 
+                                stddev_clip=cfg.stddev_clip)
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()

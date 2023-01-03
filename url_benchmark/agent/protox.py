@@ -314,7 +314,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
  
     def update_encoder_func(self, obs, next_obs, rand_obs, step):
 
-        metrics = dict() 
+        metrics = dict()
         loss1 = torch.norm(obs-next_obs, dim=1,p=2).mean()
         #loss1 = F.mse_loss(obs, next_obs)
         loss2 = torch.norm(obs-rand_obs, dim=1,p=2).mean()
