@@ -227,8 +227,10 @@ class DDPGEncoder1Agent:
                  init_critic,
                  use_tb,
                  use_wandb,
+                 stddev_schedule2,
+                 stddev_clip2,
                  meta_dim=0,
-                **kwargs):
+                 **kwargs):
         self.reward_free = reward_free
         self.obs_type = obs_type
         self.obs_shape = obs_shape
@@ -245,12 +247,16 @@ class DDPGEncoder1Agent:
         self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
+        self.stddev_schedule2 = stddev_schedule2
+        self.stddev_clip2 = stddev_clip2
         self.init_critic = init_critic
         self.feature_dim = feature_dim
         self.feature_dim_gc = 32 
         self.solved_meta = None
         print('stddev schedule', stddev_schedule)
         print('stddev_clip', stddev_clip)
+        print('stddev schedule2', stddev_schedule2)
+        print('stddev_clip2', stddev_clip2)
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
@@ -374,7 +380,7 @@ class DDPGEncoder1Agent:
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(inpt, stddev)
         if eval_mode:
             action = dist.mean
@@ -417,9 +423,9 @@ class DDPGEncoder1Agent:
         metrics = dict()
 
         with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
+            stddev = utils.schedule(self.stddev_schedule2, step)
             dist = self.actor2(next_obs, stddev)
-            next_action = dist.sample(clip=self.stddev_clip)
+            next_action = dist.sample(clip=self.stddev_clip2)
             target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
@@ -468,9 +474,9 @@ class DDPGEncoder1Agent:
     def update_actor2(self, obs, step):
         metrics = dict()
 
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(obs, stddev)
-        action = dist.sample(clip=self.stddev_clip)
+        action = dist.sample(clip=self.stddev_clip2)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
         Q1, Q2 = self.critic2(obs, action)
         Q = torch.min(Q1, Q2)

@@ -102,7 +102,7 @@ def encoding_grid(agent, work_dir, cfg, env, model_step):
         pix = pix.astype(np.float64)
         states = states.astype(np.float64)
         states = states.reshape(-1,2)
-        grid = pix.reshape(-1,9, 84, 84)
+        grid = pix.reshape(-1,3*self.cfg.frame_stack, 84, 84)
         grid = torch.tensor(grid).cuda().float()
         grid = get_state_embeddings(agent, grid)
         return grid, states
@@ -200,24 +200,23 @@ class Workspace:
                              use_wandb=cfg.use_wandb)
         # create envs
         #task = PRIMAL_TASKS[self.cfg.domain]
-        self.no_goal_task = 'point_mass_maze_reach_no_goal'
         goal_array = ndim_grid(2,self.cfg.goal_num)
         idx = np.random.randint(0,goal_array.shape[0])
         self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
         self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=self.first_goal)
         print('goal', self.first_goal)
-        self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+        self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=None)
         #import IPython as ipy; ipy.embed(colors='neutral')
-        print('no goal task env', self.no_goal_task)
-        self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+        print('no goal task env', self.cfg.task_no_goal)
+        self.train_env_goal = dmc.make(self.cfg.task_no_goal, 'states', cfg.frame_stack,
                                    1, seed=None, goal=None)
         self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, seed=None, goal=self.first_goal)
-        self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
+        self.eval_env_no_goal = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                    cfg.action_repeat, seed=None, goal=None)
-        self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
+        self.eval_env_goal = dmc.make(self.cfg.task_no_goal, 'states', cfg.frame_stack,
                                    1, seed=None, goal=None)
         self.goal_queue = np.zeros((50, 2))
         self.goal_queue_ptr = 0 
@@ -226,7 +225,8 @@ class Workspace:
         for ix,x in enumerate(self.goal_array):
             print(x[0])
             print(x[1])
-            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+            if (-.21<x[0]<-.17 and .01<x[1]<.03) or (-.02<x[0]<.06 and .01<x[1]<.03) or (-.02<x[0]<.22 and 0.09<x[1]<.11) or (-.1<x[0]<.1 and 0.18<x[1]<.21) or (-.28<x[0]<-.22 and .09<x[1]<.11) or (-.1<x[0]<-.03 and -.08<x[1]<-.06) or (-.05<x[0]<.01 and -.15<x[1]<-.13) or (-.12<x[0]<.1 and -.21<x[1]<-.19) or (-.01<x[0]<.01 and -.05<x[1]<-.01) or (-.15<x[0]<-.13 and -.1<x[1]<-.02) or (-.23<x[0]<-.21 and -.16<x[1]<-.08) or (.09<x[0]<.11 and -.13<x[1]<-.01) or (.19<x[0]<.21 and -.15<x[1]<-.03) or (-.02<x[0]<.02 and .22<x[1]<.28):
+
                 lst.append(ix)
                 print('del',x)
         self.goal_array=np.delete(self.goal_array, lst,0)
@@ -239,7 +239,7 @@ class Workspace:
                                 cfg.obs_type,
                                 self.train_env1.observation_spec(),
                                 self.train_env1.action_spec(),
-                                (9, 84, 84),
+                                (3*self.cfg.frame_stack, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 True,
                                 cfg.agent,
@@ -257,7 +257,7 @@ class Workspace:
                                 cfg.obs_type,
                                 self.train_env1.observation_spec(),
                                 self.train_env1.action_spec(),
-                                (9, 84, 84),
+                                (3*self.cfg.frame_stack, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 True,
                                 cfg.agent,
@@ -277,7 +277,7 @@ class Workspace:
                                 cfg.obs_type,
                                 self.train_env1.observation_spec(),
                                 self.train_env1.action_spec(),
-                                (9, 84, 84),
+                                (3*self.cfg.frame_stack, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 True,
                                 cfg.agent,
@@ -287,30 +287,30 @@ class Workspace:
                                 cfg.feature_dim)
         
         if self.cfg.load_model:
-            model = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            model = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #model  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
             #model = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_model_from(model)
         
         if self.cfg.load_model and self.cfg.load_proto:
-            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.14/210339_proto_encoder1_lambda/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_protos_from(proto)
         if self.cfg.load_model and self.cfg.load_encoder:
-            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/2022.10.10/213411_proto_encoder1_cassio/optimizer_proto_encoder1_1000000.pth')
             self.agent.init_encoder_from(proto.encoder)
 
         if self.cfg.load_encoder and self.cfg.load_proto==False and self.cfg.load_model==False:
 
             #encoder = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
-            encoder = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/encoder_proto_1000000.pth')
+            encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/encoder_proto_encoder1_1000000.pth')
             #encoder = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/encoder_proto_1000000.pth')
             self.agent.init_encoder_from(encoder)
         if self.cfg.load_proto and self.cfg.load_model==False:
             #proto  = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/models/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
             #proto = torch.load('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/encoder/2022.09.09/072830_proto_lambda/optimizer_proto_1000000.pth')
-            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.11.08/190638_proto_lap/optimizer_proto_lap_1000000.pth')
+            proto = torch.load('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/optimizer_proto_encoder1_1000000.pth')
             #proto  = torch.load('/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/optimizer_proto_1000000.pth')
             self.agent.init_protos_from(proto) 
 
@@ -327,7 +327,7 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
       #  self.replay_storage2 = ReplayBufferStorage(data_specs, meta_specs,
       #                                            self.work_dir / 'buffer2')
-        self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.09.07/144129_proto/buffer2/buffer_copy/') 
+        self.replay_goal_dir = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2022.12.18/215722_proto_encoder1/buffer2/buffer_copy/') 
 
         self.replay_offline = Path()    
     # create replay buffer
@@ -355,7 +355,8 @@ class Workspace:
                                                     True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct,return_iterable=True,
                                                     sl=cfg.sl,
-                                                    loss=cfg.loss)
+                                                    loss=cfg.loss,
+                                                    tile=cfg.frame_stack)
              
 
         self._replay_iter1 = None
@@ -374,7 +375,7 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-        self.unreachable_goal = np.empty((0,9,84,84))
+        self.unreachable_goal = np.empty((0,3*self.cfg.frame_stack,84,84))
         self.unreachable_state = np.empty((0,2))
         self.loaded = False
         self.loaded_uniform = False
@@ -554,7 +555,7 @@ class Workspace:
             state=state[idx]
             state=state.reshape(1024,4)
             print('state shape',state.shape)
-            obs = torch.empty(1024, 9, 84, 84)
+            obs = torch.empty(1024, 3*self.cfg.frame_stack, 84, 84)
             states = np.empty((1024,4),np.float)
             grid_embeddings = torch.empty(1024, 128)
             meta = self.agent.init_meta()
@@ -700,7 +701,7 @@ class Workspace:
     
 
     def eval_intrinsic(self, model):
-        grid_embeddings = torch.empty(1024, 9, 84, 84)
+        grid_embeddings = torch.empty(1024, 3*self.cfg.frame_stack, 84, 84)
         states = torch.empty(1024, 2)
         for i in range(1024):
             grid, state = encoding_grid(self.agent, self.work_dir, self.cfg, self.eval_env, model)
@@ -741,14 +742,14 @@ class Workspace:
             goal_state = np.array([x[0], x[1]])
             self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state)
-            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
+            self.eval_env_goal = dmc.make(self.cfg.task_no_goal, 'states', self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=None)
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
 
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
-                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                self.eval_env_no_goal = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                 	self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
                 time_step_no_goal = self.eval_env_no_goal.reset()
 
@@ -764,7 +765,8 @@ class Workspace:
                                                 time_step_goal,
                                                 meta,
                                                 self._global_step,
-                                                eval_mode=True)
+                                                eval_mode=True,
+                                                tile=self.cfg.frame_stack)
                         else:
                             action = self.agent.act(time_step.observation,
                                                 meta,
@@ -816,7 +818,7 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step1 = self.train_env1.reset()
-        self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+        self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                 self.cfg.action_repeat, seed=None, goal=self.first_goal, init_state=time_step1.observation['observations'][:2])
         time_step_no_goal = self.train_env_no_goal.reset()
         time_step_goal = self.train_env_goal.reset()
@@ -971,7 +973,7 @@ class Workspace:
                                                       self.cfg.action_repeat, seed=None, goal=goal_state)
                     
                     time_step1 = self.train_env1.reset()
-                    self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                     self.cfg.action_repeat, seed=None, goal=goal_state, init_state=time_step1.observation['observations'][:2])
                     time_step_no_goal = self.train_env_no_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1) 
@@ -994,7 +996,8 @@ class Workspace:
                                                 time_step_goal.copy(),
                                                 meta,
                                                 self._global_step,
-                                                eval_mode=False)
+                                                eval_mode=False, 
+                                                tile=self.cfg.frame_stack)
                     else:
                         action = self.agent.act(time_step.observation,
                                             meta,
@@ -1065,7 +1068,7 @@ class Workspace:
                     for x in range(len(df1)):
                         goal_array_.append(self.goal_array[df1.iloc[x,1]])
 
-                    for x in range(5):
+                    for x in range(10):
                         ptr = self.goal_queue_ptr
                         self.goal_queue[ptr] = goal_array_[x]
                         self.goal_queue_ptr = (ptr + 1) % self.goal_queue.shape[0]
@@ -1094,13 +1097,14 @@ class Workspace:
                     print('new env state', self.train_env1._env.physics.state())
                     time_step1 = self.train_env1.reset()
                     print('reset state', time_step1.observation['observations'])
-                    self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state, init_state=(current_state[0], current_state[1]))
                     time_step_no_goal = self.train_env_no_goal.reset()
                     print('no goal reset', time_step_no_goal.observation['observations'])
                     #time_step_goal = self.train_env_goal.reset()
                     meta = self.agent.update_meta(meta, self._global_step, time_step1)
                     print('sampled goal', goal_state)
+                    print('goal queue', self.goal_queue)
 
                     with self.train_env_goal.physics.reset_context():
                         time_step_goal = self.train_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1],0,0]))
