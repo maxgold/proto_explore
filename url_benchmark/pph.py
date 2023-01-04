@@ -158,8 +158,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
                     
             plt.clf()
             fig, ax = plt.subplots(figsize=(15,5))
-            labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50',
-                    'mov_avg_100', 'mov_avg_200', 'mov_avg_500']
+            labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50']
 
             for ix,x in enumerate(indices):
                 ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix], label=labels[ix])
@@ -930,7 +929,7 @@ class Workspace:
 
                     for ix,x in enumerate(indices):
                         if self.v_queue_ptr-x<0:
-                            lst = torch.cat([self.v_queue[:self.v_queue_ptr], self.v_queue[self.v_queue_ptr-x:]])
+                            lst = np.concatenate([self.v_queue[:self.v_queue_ptr], self.v_queue[self.v_queue_ptr-x:]], axis=0)
                             sets[ix][self.count]=lst.mean()
                         else:
                             sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
