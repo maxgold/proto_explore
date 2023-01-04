@@ -813,9 +813,9 @@ class ReplayBuffer(IterableDataset):
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
             for i in range(self._nstep):
-                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])
+                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
                 reward += discount * step_reward
-                reward += discount * discount * step_reward
+                #reward += discount * discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
 
         elif key <= self.hybrid_pct and self.goal_proto:
@@ -1056,7 +1056,7 @@ class OfflineReplayBuffer(IterableDataset):
         idx = np.random.randint(0, episode_len(episode)) + 1
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
         reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
@@ -1079,7 +1079,7 @@ class OfflineReplayBuffer(IterableDataset):
         idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
         goal = episode["observation"][idx + self.offset][:2]
         rewards = []
         cand_goals = np.random.uniform(-.2,.2, size=(50,2))
