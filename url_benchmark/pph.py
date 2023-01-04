@@ -1172,8 +1172,9 @@ class Workspace:
                         print('u', self.unreached_goals)
                         print('g', goal_state)
                         if np.round(goal_state,2) in self.unreached_goals:
-                            self.unreached_goals = [i for i in self.unreached_goals if i != goal_state]
-                            print('removed goal from unreached', goal_state)
+                            index=np.where((self.unreached_goals ==np.round(goal_state,2)).all(axis=1))
+                            self.unreached_goals = np.delete(self.unreached_goals, index,axis=0)
+                            print('removed goal from unreached', np.round(goal_state,2))
                             print('unreached', self.unreached_goals)
                         
                         ##first reset gc agent from here and try to reach the nearby goals for 10 episodes 
