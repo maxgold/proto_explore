@@ -165,8 +165,8 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
                 ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix], label=labels[ix])
             ax.legend()
 
-            plt.savefig(f"proto_moving_avg_{step}.png")
-            wandb.save(f"proto_moving_avg_{step}.png")
+            plt.savefig(f"proto_moving_avg_{model_step}.png")
+            wandb.save(f"proto_moving_avg_{model_step}.png")
                 
 
 
@@ -398,7 +398,7 @@ class Workspace:
         self.mov_avg_100 = np.zeros((2000,))
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
-        self.unreached_goals = []
+        self.unreached_goals = np.empty((0,2))
     
     @property
     def global_step(self):
@@ -929,7 +929,7 @@ class Workspace:
                             self.mov_avg_50]
 
                     for ix,x in enumerate(indices):
-                        if chg_ptr-x<0:
+                        if self.v_queue_ptr-x<0:
                             lst = torch.cat([self.v_queue[:self.v_queue_ptr], self.v_queue[self.v_queue_ptr-x:]])
                             sets[ix][self.count]=lst.mean()
                         else:
@@ -1044,7 +1044,7 @@ class Workspace:
 #                         elif self.cfg.proto_goal_random:
 
                         s = self.agent.protos.weight.data.shape[0]
-                        num = s+len(self.unreached_goals)
+                        num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
                         
             
@@ -1167,9 +1167,14 @@ class Workspace:
 
                         self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
                         self.reached_goals = np.unique(self.reached_goals, axis=0)
-                        if goal_state in self.unreached_goals:
-                            self.unreached_goals = [i for i in self.unreached_goals if i != goal_state]
-                            print('removed goal from unreached', goal_state)
+                        self.unreached_goals = np.round(self.unreached_goals,2)
+                        
+                        print('u', self.unreached_goals)
+                        print('g', goal_state)
+                        if np.round(goal_state,2) in self.unreached_goals:
+                            index=np.where((self.unreached_goals ==np.round(goal_state,2)).all(axis=1))
+                            self.unreached_goals = np.delete(self.unreached_goals, index,axis=0)
+                            print('removed goal from unreached', np.round(goal_state,2))
                             print('unreached', self.unreached_goals)
                         
                         ##first reset gc agent from here and try to reach the nearby goals for 10 episodes 
@@ -1215,8 +1220,8 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                     if episode_step==499 and episode_reward <=100:
-                        self.unreached_goals.append(goal_state)
-                        
+                        self.unreached_goals=np.append(self.unreached_goals, np.round(goal_state[None,:],2), axis=0)
+                         
                     
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
 
