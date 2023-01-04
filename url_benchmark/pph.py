@@ -398,7 +398,7 @@ class Workspace:
         self.mov_avg_100 = np.zeros((2000,))
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
-        self.unreached_goals = []
+        self.unreached_goals = np.empty((0,2))
     
     @property
     def global_step(self):
@@ -1044,7 +1044,7 @@ class Workspace:
 #                         elif self.cfg.proto_goal_random:
 
                         s = self.agent.protos.weight.data.shape[0]
-                        num = s+len(self.unreached_goals)
+                        num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
                         
             
@@ -1167,7 +1167,11 @@ class Workspace:
 
                         self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
                         self.reached_goals = np.unique(self.reached_goals, axis=0)
-                        if goal_state in self.unreached_goals:
+                        self.unreached_goals = np.round(self.unreached_goals,2)
+                        
+                        print('u', self.unreached_goals)
+                        print('g', goal_state)
+                        if np.round(goal_state,2) in self.unreached_goals:
                             self.unreached_goals = [i for i in self.unreached_goals if i != goal_state]
                             print('removed goal from unreached', goal_state)
                             print('unreached', self.unreached_goals)
@@ -1214,8 +1218,8 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                     if episode_step==499 and episode_reward <=100:
-                        self.unreached_goals.append(goal_state)
-                        
+                        self.unreached_goals=np.append(self.unreached_goals, np.round(goal_state[None,:],2), axis=0)
+                         
                     
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
 
