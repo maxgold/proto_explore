@@ -165,8 +165,8 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
                 ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix], label=labels[ix])
             ax.legend()
 
-            plt.savefig(f"proto_moving_avg_{step}.png")
-            wandb.save(f"proto_moving_avg_{step}.png")
+            plt.savefig(f"proto_moving_avg_{model_step}.png")
+            wandb.save(f"proto_moving_avg_{model_step}.png")
                 
 
 
@@ -929,7 +929,7 @@ class Workspace:
                             self.mov_avg_50]
 
                     for ix,x in enumerate(indices):
-                        if chg_ptr-x<0:
+                        if self.v_queue_ptr-x<0:
                             lst = torch.cat([self.v_queue[:self.v_queue_ptr], self.v_queue[self.v_queue_ptr-x:]])
                             sets[ix][self.count]=lst.mean()
                         else:
