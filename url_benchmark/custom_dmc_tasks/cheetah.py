@@ -59,7 +59,7 @@ def get_model_and_assets():
 
 @SUITE.add('benchmarking')
 def run_backward(time_limit=_DEFAULT_TIME_LIMIT,
-                 random=None,
+                 random=None, init_state=None, 
                  environment_kwargs=None):
     """Returns the run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
@@ -73,7 +73,7 @@ def run_backward(time_limit=_DEFAULT_TIME_LIMIT,
 
 @SUITE.add('benchmarking')
 def flip(time_limit=_DEFAULT_TIME_LIMIT,
-                 random=None,
+                 random=None, init_state=None,
                  environment_kwargs=None):
     """Returns the run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
@@ -87,7 +87,7 @@ def flip(time_limit=_DEFAULT_TIME_LIMIT,
 
 @SUITE.add('benchmarking')
 def flip_backward(time_limit=_DEFAULT_TIME_LIMIT,
-                  random=None, 
+                  random=None, init_state=None,
                   environment_kwargs=None):
     """Returns the run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
@@ -112,7 +112,7 @@ class Physics(mujoco.Physics):
 
 class Cheetah(base.Task):
     """A `Task` to train a running Cheetah."""
-    def __init__(self, forward=True, flip=False, random=None):
+    def __init__(self, forward=True, flip=False, random=None, init_state=None):
         self._forward = 1 if forward else -1
         self._flip = flip
         super(Cheetah, self).__init__(random=random)
