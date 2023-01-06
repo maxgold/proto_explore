@@ -1047,7 +1047,7 @@ class Workspace:
                         idx = np.random.randint(num)
                         
             
-                        if idx > self.agent.protos.weight.data.shape[0]:
+                        if idx >= self.agent.protos.weight.data.shape[0]:
                     
                             goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
                         

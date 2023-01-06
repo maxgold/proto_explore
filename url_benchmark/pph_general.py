@@ -32,7 +32,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -64,6 +64,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.lagr3 = lagr3
 
     cfg.update_proto_every=update_proto_every
+    cfg.stddev_schedule2 = stddev_schedule2
+    cfg.stddev_clip2 = stddev_clip2
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -133,6 +135,26 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
 
         plt.savefig(f"./{model_step}_proto_goal_heatmap.png")
         wandb.save(f"./{model_step}_proto_goal_heatmap.png")
+        
+        #moving avg of pixels != 0 :
+        
+
+        indices=[5,10,20,50]
+        sets = [self.mov_avg_5, self.mov_avg_10, self.mov_avg_20,
+                self.mov_avg_50]
+        
+        if self.global_step%100000==0:
+                    
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(15,5))
+            labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50']
+
+            for ix,x in enumerate(indices):
+                ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix], label=labels[ix])
+            ax.legend()
+
+            plt.savefig(f"proto_moving_avg_{model_step}.png")
+            wandb.save(f"proto_moving_avg_{model_step}.png")
 
 
         
@@ -224,7 +246,12 @@ class Workspace:
                                 lagr2=cfg.lagr2,
                                 lagr3=cfg.lagr3,
                                 margin=cfg.margin,
-                                update_proto_every=cfg.update_proto_every)
+                                update_proto_every=cfg.update_proto_every,
+                                stddev_schedule=cfg.stddev_schedule, 
+                                stddev_clip=cfg.stddev_clip,
+                                stddev_schedule2=cfg.stddev_schedule2,
+                                stddev_clip2=cfg.stddev_clip2
+                                )
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -245,8 +272,9 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size,
                                 lagr=cfg.lagr,
-                                margin=cfg.margin)
-            
+                                margin=cfg.margin,
+                                stddev_schedule=cfg.stddev_schedule, 
+                                stddev_clip=cfg.stddev_clip)
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -344,6 +372,17 @@ class Workspace:
         self.goal_freq = np.zeros((6,6))
         self.previous_matrix = None
         self.current_matrix = None
+        self.v_queue_ptr = 0 
+        self.v_queue = np.zeros((2000,))
+        self.count=0
+        self.mov_avg_5 = np.zeros((2000,))
+        self.mov_avg_10 = np.zeros((2000,))
+        self.mov_avg_20 = np.zeros((2000,))
+        self.mov_avg_50 = np.zeros((2000,))
+        self.mov_avg_100 = np.zeros((2000,))
+        self.mov_avg_200 = np.zeros((2000,))
+        self.mov_avg_500 = np.zeros((2000,))
+        self.unreached_goals = np.empty((0,2))
     
     @property
     def global_step(self):
@@ -770,7 +809,7 @@ class Workspace:
                         self.replay_storage.add(time_step, meta, True)
                     else:
                         self.replay_storage.add(time_step, meta)
-                        
+                    print('proto', time_step.observation['observations'][:2])
                     # try to save snapshot
                     if self.global_frame in self.cfg.snapshots:
                         self.save_snapshot()
@@ -857,6 +896,28 @@ class Workspace:
                         
                     self.eval_proto()
                 
+                #record changes in proto heatmap
+                if self.global_step%1000==0 and self.global_step>50000:
+                    
+                    total_v = np.count_nonzero(self.replay_storage.state_visitation_proto)
+                    print('total visitation', total_v)
+                    v_ptr = self.v_queue_ptr
+                    self.v_queue[v_ptr] = total_v
+                    self.v_queue_ptr = (v_ptr+1) % self.v_queue.shape[0]
+                    
+                    indices=[5,10,20,50]
+                    sets = [self.mov_avg_5, self.mov_avg_10, self.mov_avg_20,
+                            self.mov_avg_50]
+
+                    for ix,x in enumerate(indices):
+                        if self.v_queue_ptr-x<0:
+                            lst = np.concatenate([self.v_queue[:self.v_queue_ptr], self.v_queue[self.v_queue_ptr-x:]], axis=0)
+                            sets[ix][self.count]=lst.mean()
+                        else:
+                            sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
+
+                    self.count+=1
+                
                 if ((time_step1.last() and self.actor1) or (time_step.last() and self.actor)) and self.global_step!=self.cfg.switch_gc:
                     print('last')
                     self._global_episode += 1
@@ -890,6 +951,7 @@ class Workspace:
                     episode_step = 0
                     episode_reward = 0
                     
+                    #proto explores first, followed by gc, then gc resets
                     if self.proto_explore_count <= 10 and self.proto_explore:
                         
                         self.actor=True
@@ -902,9 +964,8 @@ class Workspace:
                         self.actor=False
                         self.proto_explore=False
                         self.proto_explore_count=0
-                        self.gc_explore=True
+                        self.gc_explore=False
                         self.gc_explore_count=0
-                        print('should start gc')
                         
                     elif self.gc_explore and self.gc_explore_count <= 10:
 
@@ -915,12 +976,13 @@ class Workspace:
                         self.gc_explore_count+=1
                         
                     elif self.gc_explore and self.gc_explore_count>10:
-                       
+                        
                         self.actor1=True
                         self.actor=False
                         self.proto_explore=False
                         self.gc_explore=False
                         self.gc_explore_count=0
+                        self.proto_explore_count=0
                         
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
@@ -947,31 +1009,40 @@ class Workspace:
                         
                         ##################################################################################
                         #think about how this is going to work in high dim for reached goal frequency 
-                        if np.any(self.goal_freq==0):
-                            inv_freq = (1/(self.goal_freq+1))
+#                         if np.any(self.goal_freq==0):
+#                             inv_freq = (1/(self.goal_freq+1))
+#                         else:
+#                             inv_freq = (1/self.goal_freq)  
+#                         goal_score = np.zeros((self.proto_goals.shape[0],))
+
+#                         for ix,x in enumerate(self.proto_goals_id):
+#                             x = x.astype(int)
+#                             goal_score[ix] = inv_freq[x[0], x[1]]
+
+#                         goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
+
+#                         if self.cfg.proto_goal_intr:
+#                             idx = pyd.Categorical(goal_prob).sample().item()
+#                             print('goal score', goal_score)
+#                             print('goal_prob', goal_prob)
+#                         elif self.cfg.proto_goal_random:
+
+                        s = self.agent.protos.weight.data.shape[0]
+                        num = s+self.unreached_goals.shape[0]
+                        idx = np.random.randint(num)
+                        
+                        if idx >= self.agent.protos.weight.data.shape[0]:
+                    
+                            goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
+                        
                         else:
-                            inv_freq = (1/self.goal_freq)  
-                        goal_score = np.zeros((self.proto_goals.shape[0],))
-
-                        for ix,x in enumerate(self.proto_goals_id):
-                            x = x.astype(int)
-                            goal_score[ix] = inv_freq[x[0], x[1]]
-
-                        goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
-
-                        if self.cfg.proto_goal_intr:
-                            idx = pyd.Categorical(goal_prob).sample().item()
-                            print('goal score', goal_score)
-                            print('goal_prob', goal_prob)
-                        elif self.cfg.proto_goal_random:
-                            idx = np.random.randint(self.agent.protos.weight.data.shape[0])
-
-                        goal_state = np.array([self.proto_goals[idx][0], self.proto_goals[idx][1]])
+                            goal_state = np.array([self.proto_goals[idx][0], self.proto_goals[idx][1]])
+                        
                         goal_idx = idx
                         
                         if self.gc_explore:
                             print('gc exploreing')
-                            
+                            print('current', self.current_init)
                             if self.pmm:
                             
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
@@ -1051,6 +1122,7 @@ class Workspace:
                         time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))   
                         meta = self.agent.update_meta(meta, self._global_step, time_step1) 
                         print('time step', time_step1.observation['observations'])
+                        print('time step goal', time_step_goal.observation['observations'])
                         print('sampled goal', goal_state)
                         
 
