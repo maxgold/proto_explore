@@ -381,7 +381,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         else:
             return metrics
         
-        action = action.reshape(-1,2)
+        #action = action.reshape(-1,2)
         discount = discount.reshape(-1,1)
 
         # augment and encode

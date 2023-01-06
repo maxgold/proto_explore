@@ -320,7 +320,7 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None):
+def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=False):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
         env = suite.load(domain,
@@ -330,11 +330,18 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
                                                 goal=goal),
                          visualize_reward=visualize_reward)
     else:
-        env = cdmc.make(domain,
+        if pmm:
+            env = cdmc.make(domain,
                         task,
                         task_kwargs=dict(random=seed, init_state=init_state),
                         environment_kwargs=dict(flat_observation=True,
                                                goal=goal),
+                        visualize_reward=visualize_reward)
+        else:
+            env = cdmc.make(domain,
+                        task,
+                        task_kwargs=dict(random=seed, init_state=init_state),
+                        environment_kwargs=dict(flat_observation=True),
                         visualize_reward=visualize_reward)
 
     env = ActionDTypeWrapper(env, np.float32)
@@ -352,6 +359,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
 def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
         goal=None, init_state=None):
     assert obs_type in ['states', 'pixels']
+    print('name', name)
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
         _, _, _, task = name.split('_', 3)
@@ -363,7 +371,11 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     domain = dict(cup='ball_in_cup').get(domain, domain)
 
     make_fn = _make_jaco if domain == 'jaco' else _make_dmc
-    env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, init_state=init_state)
+    if name.startswith('point_mass_maze'):
+        print('pmm')
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, init_state=init_state)
+    else:
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, pmm=False)
 
     if obs_type == 'pixels':
         env = FrameStackWrapper(env, frame_stack)

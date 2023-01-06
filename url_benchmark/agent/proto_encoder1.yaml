@@ -38,3 +38,5 @@ lagr: .2
 margin: .1
 update_proto_every: 2
 update_encoder: ${update_encoder}
+stddev_schedule2: ???
+stddev_clip2: ???

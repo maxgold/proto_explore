@@ -429,7 +429,6 @@ class DDPGEncoder1Agent:
             target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
-
         Q1, Q2 = self.critic2(obs, action)
         critic2_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 

@@ -94,7 +94,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta,pixels=False, last=False):
+    def add(self, time_step, meta,pixels=False, last=False, pmm=True):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -103,15 +103,16 @@ class ReplayBufferStorage:
                 self._current_episode['observation'].append(value['pixels'])
                 self._current_episode['state'].append(value['observations'])
                 
-                tmp_state = value['observations']*100
-                idx_x = int(tmp_state[0])+29
-                idx_y = int(tmp_state[1])+29
-                self.state_visitation_proto[idx_x,idx_y]+=1
+                if pmm:
+                    tmp_state = value['observations']*100
+                    idx_x = int(tmp_state[0])+29
+                    idx_y = int(tmp_state[1])+29
+                    self.state_visitation_proto[idx_x,idx_y]+=1
                 
-                tmp_state = tmp_state/3
-                idx_x = int(tmp_state[0])+9
-                idx_y = int(tmp_state[1])+9
-                self.state_visitation_proto_pct[idx_x,idx_y]+=1
+                    tmp_state = tmp_state/3
+                    idx_x = int(tmp_state[0])+9
+                    idx_y = int(tmp_state[1])+9
+                    self.state_visitation_proto_pct[idx_x,idx_y]+=1
                 
             else:
                 
@@ -148,6 +149,7 @@ class ReplayBufferStorage:
                 value = time_step_no_goal[spec.name]
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
+                
                 
                 tmp_state = value['observations']*100
                 idx_x = int(tmp_state[0])+29
@@ -215,7 +217,6 @@ class ReplayBufferStorage:
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
             print('storing episode, w/ goal')
-            
             
     def add_goal_general(self, time_step, meta, goal, goal_state=False,pixels=False, last=False, asym=False):
         
@@ -295,7 +296,7 @@ class ReplayBufferStorage:
             print('storing episode, w/ goal')
             
             
-    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False):
+    def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False, pmm=True):
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
         for spec in self._data_specs:
@@ -306,16 +307,18 @@ class ReplayBufferStorage:
                 value2 = time_step[spec.name]
                 self._current_episode_goal['state'].append(value2['observations'])
                 
-                tmp_state = value2['observations']*100
-                idx_x = int(tmp_state[0])+29
-                idx_y = int(tmp_state[1])+29
-                self.state_visitation_gc[idx_x,idx_y]+=1
-                tmp_state = tmp_state/3
-                idx_x = int(tmp_state[0])+9
-                idx_y = int(tmp_state[1])+9
-                self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                if pmm:
+                    tmp_state = value2['observations']*100
+                    idx_x = int(tmp_state[0])+29
+                    idx_y = int(tmp_state[1])+29
+                    self.state_visitation_gc[idx_x,idx_y]+=1
+                    tmp_state = tmp_state/3
+                    idx_x = int(tmp_state[0])+9
+                    idx_y = int(tmp_state[1])+9
+                    self.state_visitation_gc_pct[idx_x,idx_y]+=1
 
-            elif spec.name=='reward':
+            elif spec.name=='reward' and pmm:
+                
                 value = np.array([reward]).reshape((-1,))*2
                 self._current_episode_goal['reward'].append(value)
 
@@ -337,7 +340,7 @@ class ReplayBufferStorage:
         goal = np.array([goal]).reshape((-1,))
         self._current_episode_goal['goal'].append(goal)
 
-        if goal_state is not None:
+        if goal_state is not None and pmm:
             self._current_episode_goal['goal_state'].append(goal_state)
             idx_x = int(goal_state[0]*100)+29
             idx_y = int(goal_state[1]*100)+29
