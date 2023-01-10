@@ -1,7 +1,7 @@
+import math
 import random
 import re
 import time
-import math
 
 import numpy as np
 import torch
