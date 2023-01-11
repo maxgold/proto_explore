@@ -233,11 +233,7 @@ class ReplayBufferStorage:
                 self._current_episode_goal['state'].append(value['observations'])
                 
                 index = value['observations'].shape[0]//2
-                print('len of state', index)
                 val = -np.linalg.norm(value['observations'][:index] - goal_state[:index])
-                print('state', value['observations'][:index])
-                print('goal state', goal_state)
-                print('r', val.reshape(1,))
                 self._current_episode_goal['reward'].append(val.reshape(1,))
                 
             else:
@@ -813,7 +809,6 @@ class ReplayBuffer(IterableDataset):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
-            print('r1', reward)
             
             
         elif key <= self.hybrid_pct and self.goal_proto==False:
@@ -836,7 +831,6 @@ class ReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 #reward += discount * discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
-            print('r2', reward)
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(episode_len(episode)-self._nstep)+1

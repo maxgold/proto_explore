@@ -323,11 +323,18 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
 def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=True):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
-        env = suite.load(domain,
+        if pmm:
+            env = suite.load(domain,
                          task,
                          task_kwargs=dict(random=seed),
-                         environment_kwargs=dict(flat_observation=True,
-                                                goal=goal),
+                         environment_kwargs=dict(flat_observation=True,goal=goal),
+                                                
+                         visualize_reward=visualize_reward)
+        else:
+            env = suite.load(domain,
+                         task,
+                         task_kwargs=dict(random=seed),
+                         environment_kwargs=dict(flat_observation=True),
                          visualize_reward=visualize_reward)
     else:
         if pmm:
