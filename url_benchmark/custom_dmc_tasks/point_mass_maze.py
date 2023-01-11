@@ -58,6 +58,7 @@ TASKS = [
 
 
 def make(task, task_kwargs=None, environment_kwargs=None, visualize_reward=False):
+    print('task', task)
     task_kwargs = task_kwargs or {}
     if environment_kwargs is not None:
         task_kwargs = task_kwargs.copy()
