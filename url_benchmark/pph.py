@@ -915,7 +915,7 @@ class Workspace:
                     
                  
                 #record changes in proto heatmap
-                if self.global_step%1000==0 and self.global_step>50000:
+                if self.global_step%1000==0 and self.global_step>5000:
                     
                     total_v = np.count_nonzero(self.replay_storage.state_visitation_proto)
                     print('total visitation', total_v)
@@ -1204,6 +1204,7 @@ class Workspace:
                         print('proto explore')
 
                         if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                            print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
                         self.current_init = time_step1.observation['observations'][:2]

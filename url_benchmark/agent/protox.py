@@ -262,7 +262,6 @@ class ProtoXAgent(DDPGEncoder1Agent):
                 fig, ax = plt.subplots()
 
                 quant = torch.quantile(matrix, self.q, dim=1)
-                print('q', quant.shape)
                 df = pd.DataFrame(quant.cpu().numpy().T)
                 df.plot(ax=ax,figsize=(15,5))
                 ax.set_xticks(np.arange(0, matrix.shape[0], 100))
@@ -381,8 +380,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             return metrics
 
         batch = next(replay_iter)
-        if actor1 and step % self.update_gc==0:
-            
+        if actor1 and step % self.update_gc==0: 
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, rand_obs = utils.to_torch(
             batch, self.device)
 
@@ -506,7 +504,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
             
-            #metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -516,13 +514,15 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            rand_obs = self.encoder(rand_obs)
             goal = self.encoder(goal)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                rand_obs = rand_obs.detach()
                 goal=goal.detach()
-        
+             
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
@@ -533,7 +533,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-
+            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
         return metrics
 
     def get_q_value(self, obs,action):

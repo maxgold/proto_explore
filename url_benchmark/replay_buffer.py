@@ -232,6 +232,14 @@ class ReplayBufferStorage:
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
                 
+                index = value['observations'].shape[0]//2
+                print('len of state', index)
+                val = -np.linalg.norm(value['observations'][:index] - goal_state[:index])
+                print('state', value['observations'][:index])
+                print('goal state', goal_state)
+                print('r', val.reshape(1,))
+                self._current_episode_goal['reward'].append(val.reshape(1,))
+                
             else:
                 value = time_step[spec.name]
                 
@@ -456,7 +464,9 @@ class ReplayBuffer(IterableDataset):
         asym=False,
         loss=False,
         test=False,
-        tile=1):
+        tile=1,
+        pmm=True,
+        obs_shape=4):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -465,6 +475,7 @@ class ReplayBuffer(IterableDataset):
         self._episode_fns = []
         self._episodes = dict()
         self._nstep = nstep
+        print('nstep', nstep)
         self._discount = discount
         self._fetch_every = fetch_every
         self._samples_since_last_fetch = fetch_every
@@ -487,6 +498,8 @@ class ReplayBuffer(IterableDataset):
         self.loss = loss
         self.test = test
         self.tile = tile
+        self.pmm = pmm
+        self.index = obs_shape//2
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -800,6 +813,7 @@ class ReplayBuffer(IterableDataset):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
                 discount *= episode["discount"][idx + i] * self._discount
+            print('r1', reward)
             
             
         elif key <= self.hybrid_pct and self.goal_proto==False:
@@ -815,11 +829,14 @@ class ReplayBuffer(IterableDataset):
             goal = episode["observation"][idx_goal]
             goal_state = episode["state"][idx_goal]
             for i in range(self._nstep):
-                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                if self.pmm:
+                    step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                else:
+                    step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index])
                 reward += discount * step_reward
                 #reward += discount * discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
-
+            print('r2', reward)
         elif key <= self.hybrid_pct and self.goal_proto:
             #import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(episode_len(episode)-self._nstep)+1
@@ -1410,7 +1427,7 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(
@@ -1437,6 +1454,8 @@ def make_replay_loader(
         tile=tile,
         fetch_every=1000,
         save_snapshot=save_snapshot,
+        pmm=pmm,
+        obs_shape=obs_shape
         )
 
     loader = torch.utils.data.DataLoader(

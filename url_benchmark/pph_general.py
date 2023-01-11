@@ -307,7 +307,9 @@ class Workspace:
                                                     True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct, replay_dir2=self.work_dir / 'buffer2',
                                                     loss=cfg.loss_gc, test=cfg.test,
-                                                    tile=cfg.frame_stack)
+                                                    tile=cfg.frame_stack,
+                                                    pmm=self.pmm,
+                                                    obs_shape=self.train_env1.physics.state().shape[0])
         else:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
@@ -317,8 +319,9 @@ class Workspace:
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct, loss=cfg.loss_gc, test=cfg.test,
-                                                    tile=cfg.frame_stack)
-
+                                                    tile=cfg.frame_stack,
+                                                    pmm=self.pmm,
+                                                    obs_shape=self.train_env1.physics.state().shape[0])
 
         self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
