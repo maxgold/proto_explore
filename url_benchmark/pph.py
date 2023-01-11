@@ -915,7 +915,7 @@ class Workspace:
                     
                  
                 #record changes in proto heatmap
-                if self.global_step%100==0 and self.global_step>5000:
+                if self.global_step%1000==0 and self.global_step>5000:
                     
                     total_v = np.count_nonzero(self.replay_storage.state_visitation_proto)
                     print('total visitation', total_v)
