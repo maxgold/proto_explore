@@ -877,9 +877,9 @@ class Workspace:
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
 #                 #save agent
-#                 if self._global_step%200000==0 and self._global_step!=0:
-#                     path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-#                     torch.save(self.agent, path)
+                 if self._global_step%200000==0 and self._global_step!=0:
+                     path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
+                     torch.save(self.agent, path)
 
                 # take env step
                 time_step = self.train_env.step(action)
@@ -1050,7 +1050,6 @@ class Workspace:
                             goal_state = np.array([self.proto_goals[idx][0], self.proto_goals[idx][1]])
                         elif  idx < self.agent.protos.weight.data.shape[0]:
                             goal_state = self.proto_goals[idx]
-                        print('gs3', goal_state) 
                         goal_idx = idx
                         
                         if self.gc_explore:
@@ -1133,7 +1132,6 @@ class Workspace:
                         time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))   
                         meta = self.agent.update_meta(meta, self._global_step, time_step1) 
                         print('time step', time_step1.observation['observations'])
-                        print('time step goal', time_step_goal)
                         print('sampled goal', goal_state)
                         
 

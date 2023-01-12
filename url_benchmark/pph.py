@@ -935,6 +935,17 @@ class Workspace:
                             sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
 
                     self.count+=1
+                
+                #save stats
+                #change to 100k when not testing
+                if self.global_step%10000==0:
+                    df = pd.DataFrame()
+                    df['mov_avg_5'] = self.mov_avg_5
+                    df['mov_avg_10'] = self.mov_avg_10
+                    df['mov_avg_20'] = self.mov_avg_20
+                    df['mov_avg_50'] = self.mov_avg_50
+                    path = os.path.join(self.work_dir, 'exploration_{}_{}.csv'.format(str(self.cfg.agent.name),self._global_step))
+                    df.to_csv(path, index=False)
                     
                 if ((time_step1.last() and self.actor1) or (time_step.last() and self.actor)) and self.global_step!=self.cfg.switch_gc:
                     self._global_episode += 1
@@ -966,22 +977,22 @@ class Workspace:
                     episode_step = 0
                     episode_reward = 0
                     #proto explores first, followed by gc, then gc resets
-                    if self.proto_explore_count <= 10 and self.proto_explore:
+                    if self.proto_explore_count <= 25 and self.proto_explore:
                         
                         self.actor=True
                         self.actor1=False
                         self.proto_explore_count+=1
 
-                    elif self.proto_explore and self.proto_explore_count > 10:
+                    elif self.proto_explore and self.proto_explore_count > 25:
                         
                         self.actor1=True
                         self.actor=False
                         self.proto_explore=False
                         self.proto_explore_count=0
-                        self.gc_explore=False
+                        self.gc_explore=True
                         self.gc_explore_count=0
                         
-                    elif self.gc_explore and self.gc_explore_count <= 10:
+                    elif self.gc_explore and self.gc_explore_count <= 20:
 
                         self.actor1=True
                         self.actor=False
@@ -989,7 +1000,7 @@ class Workspace:
                         self.proto_explore_count=0
                         self.gc_explore_count+=1
                         
-                    elif self.gc_explore and self.gc_explore_count>10:
+                    elif self.gc_explore and self.gc_explore_count>20:
                         
                         self.actor1=True
                         self.actor=False
@@ -1056,21 +1067,33 @@ class Workspace:
                         
 
                         goal_idx = idx
-                        if self.gc_explore:
-                            
-                            print('gc exploreing')
-                            print('current', self.current_init)
+                        #v1: gc always starts from the most recently reached goal 
+                        
+                        if self.cfg.test1:
+                            print('gc ALWYAS exploreing')
                             self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init)
-                        else:
-                            
-                            rand_init = np.random.uniform(.25,.29,size=(2,))
-                            rand_init[0] = rand_init[0]*(-1)
 
-                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                   self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state, init_state = rand_init)
+
+                        #v2: let gc explor from most recently reached goal, else start from scratch 
+                        else:
+                            if self.gc_explore:
+
+                                print('gc exploreing')
+                                print('current', self.current_init)
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
+                                                       self.cfg.frame_stack,self.cfg.action_repeat, 
+                                                       seed=None, goal=goal_state, init_state=self.current_init)
+                            else:
+                                print('gc NOT exploreing')
+
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
+
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
+                                                       self.cfg.frame_stack,self.cfg.action_repeat, 
+                                                       seed=None, goal=goal_state, init_state = rand_init)
                             
                         time_step1 = self.train_env1.reset()
                         
