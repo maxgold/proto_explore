@@ -1053,12 +1053,13 @@ class Workspace:
 #                             print('goal_prob', goal_prob)
 #                         elif self.cfg.proto_goal_random:
 
-                        s = self.agent.protos.weight.data.shape[0]
+                        
+                        s = self.proto_goals.shape[0]
                         num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
                         
             
-                        if idx >= self.agent.protos.weight.data.shape[0]:
+                        if idx >= s:
                     
                             goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
                         
