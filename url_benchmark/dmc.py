@@ -320,7 +320,7 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=False):
+def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=True):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
         env = suite.load(domain,

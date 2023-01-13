@@ -1300,6 +1300,7 @@ class OfflineReplayBuffer(IterableDataset):
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
+    print('s', seed)
     np.random.seed(seed)
     random.seed(seed)
 
