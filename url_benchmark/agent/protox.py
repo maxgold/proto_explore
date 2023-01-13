@@ -241,33 +241,33 @@ class ProtoXAgent(DDPGEncoder1Agent):
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
-        if step%1000==0 and step!=0:
-            self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
-            self.proto_distr_max[self.count] = q_t.amax(dim=0)
-            self.proto_distr_med[self.count], _ = q_t.median(dim=0)
-            self.proto_distr_min[self.count] = q_t.amin(dim=0)
-            
-            self.count+=1
-        
-        if step%100000==0:
-            sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
-            names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
-            fig, ax = plt.subplots()
-            top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
-            df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
-            df.plot(ax=ax,figsize=(15,5))
-            ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
-            #ax.set_xscale('log')
-            plt.savefig(f"proto_distribution_step{step}.png")
-            
-            for i, matrix in enumerate(sets):
-                fig, ax = plt.subplots()
+        #if step%1000==0 and step!=0:
+        #    self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
+        #    self.proto_distr_max[self.count] = q_t.amax(dim=0)
+        #    self.proto_distr_med[self.count], _ = q_t.median(dim=0)
+        #    self.proto_distr_min[self.count] = q_t.amin(dim=0)
+        #    
+        #    self.count+=1
+       # 
+       # if step%100000==0:
+       #     sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
+       #     names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
+       #     fig, ax = plt.subplots()
+       #     top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
+       #     df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
+       #     df.plot(ax=ax,figsize=(15,5))
+       #     ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
+       #     #ax.set_xscale('log')
+       #     plt.savefig(f"proto_distribution_step{step}.png")
+       #     
+       #     for i, matrix in enumerate(sets):
+       #         fig, ax = plt.subplots()
 
-                quant = torch.quantile(matrix, self.q, dim=1)
-                df = pd.DataFrame(quant.cpu().numpy().T)
-                df.plot(ax=ax,figsize=(15,5))
-                ax.set_xticks(np.arange(0, matrix.shape[0], 100))
-                plt.savefig(names[i])
+       #         quant = torch.quantile(matrix, self.q, dim=1)
+       #         df = pd.DataFrame(quant.cpu().numpy().T)
+       #         df.plot(ax=ax,figsize=(15,5))
+       #         ax.set_xticks(np.arange(0, matrix.shape[0], 100))
+       #         plt.savefig(names[i])
             
         #if step%1000==0:
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
@@ -295,7 +295,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
         ##clus
         loss4 = -torch.mean(torch.exp(-1/2 * torch.square(all_dists[:,0])))
 
-        if step>50000:
+        if step>10000:
             loss=loss1  + self.lagr1*loss2 + self.lagr2*loss3 + self.lagr3*loss4
         
         else:
