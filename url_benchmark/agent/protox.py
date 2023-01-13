@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -84,6 +84,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.goal_queue = torch.zeros((10, 2), device=self.device)
         self.goal_queue_dist = torch.zeros((10,), device=self.device)
         #self.load_protos = load_protos
+        self.update_enc_proto = update_enc_proto
+        self.update_enc_gc = update_enc_gc
 
         # models
         if self.gc_only==False:
@@ -503,8 +505,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            
-            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            if self.update_enc_proto:
+                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -533,7 +535,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-            metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            if self.update_enc_gc:
+                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
         return metrics
 
     def get_q_value(self, obs,action):

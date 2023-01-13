@@ -115,6 +115,8 @@ mix: .5
 proto_goal_intr: False
 proto_goal_random: False
 loss_gc: False
+update_enc_proto: False
+update_enc_gc: False
 #experiment
 experiment: exp
 
