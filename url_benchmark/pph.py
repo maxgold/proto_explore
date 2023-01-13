@@ -398,6 +398,7 @@ class Workspace:
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0,2))
+        self.current_init = None
     
     @property
     def global_step(self):
