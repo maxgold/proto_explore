@@ -1072,10 +1072,18 @@ class Workspace:
                         
                         if self.cfg.test1:
                             print('gc ALWYAS exploreing')
-                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                   self.cfg.frame_stack,self.cfg.action_repeat, 
+                            if self.current_init is not None:
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
                                                    seed=None, goal=goal_state, init_state=self.current_init)
+                            else:
+                                print('no current init yet')
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
 
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                       self.cfg.frame_stack,self.cfg.action_repeat,
+                                                       seed=None, goal=goal_state, init_state = rand_init) 
 
                         #v2: let gc explor from most recently reached goal, else start from scratch 
                         else:
