@@ -1031,10 +1031,20 @@ class Workspace:
                     if self.proto_explore and self.actor:
                         
                         #now the proto explores from any reached goals by gc
-                        init_idx=np.random.randint(len(self.current_init))
-                        self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
+                        if len(self.current_init)>0:
+                            init_idx=np.random.randint(len(self.current_init))
+                            self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init[init_idx])
+                        else:
+                            print('no current init yet')
+                            rand_init = np.random.uniform(.25,.29,size=(2,))
+                            rand_init[0] = rand_init[0]*(-1)
+
+                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                       self.cfg.frame_stack,self.cfg.action_repeat,
+                                                       seed=None, goal=goal_state, init_state = rand_init) 
+                        
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
