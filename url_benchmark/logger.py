@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import torch
-import torchvision
+#import torchvision
 import wandb
 from termcolor import colored
 
