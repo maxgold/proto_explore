@@ -46,7 +46,7 @@ class Projector(nn.Module):
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -79,6 +79,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.update_proto_every = update_proto_every
         self.goal_queue = torch.zeros((10, 2), device=self.device)
         self.goal_queue_dist = torch.zeros((10,), device=self.device)
+        self.update_enc_proto = update_enc_proto
+        self.update_enc_gc = update_enc_gc
         print('tau', tau)
         print('it', num_iterations)
 
@@ -415,7 +417,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             
-            #metrics.update(self.update_encoder_func(obs, next_obs, step)) 
+            if self.update_enc_proto:
+                metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -451,7 +454,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
-            #metrics.update(self.update_encoder_func(obs, next_obs, step))
+            if self.update_enc_gc:
+                metrics.update(self.update_encoder_func(obs, next_obs, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,

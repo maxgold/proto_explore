@@ -52,6 +52,7 @@ tmux_session: ???
 intr_coef: 0
 offline_online: False
 test: False
+test1: False
 init_state: False
 gcsl: False
 bottom_left: False
@@ -114,6 +115,8 @@ mix: .5
 proto_goal_intr: False
 proto_goal_random: False
 loss_gc: False
+update_enc_proto: False
+update_enc_gc: False
 #experiment
 experiment: exp
 

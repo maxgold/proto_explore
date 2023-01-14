@@ -31,7 +31,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -65,6 +65,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.update_proto_every=update_proto_every
     cfg.stddev_schedule2 = stddev_schedule2
     cfg.stddev_clip2 = stddev_clip2
+    cfg.update_enc_proto = update_enc_proto
+    cfg.update_enc_gc = update_enc_gc
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -265,8 +267,9 @@ class Workspace:
                                 stddev_schedule=cfg.stddev_schedule, 
                                 stddev_clip=cfg.stddev_clip,
                                 stddev_schedule2=cfg.stddev_schedule2,
-                                stddev_clip2=cfg.stddev_clip2
-                                )
+                                stddev_clip2=cfg.stddev_clip2,
+                                update_enc_proto=cfg.update_enc_proto,
+                                update_enc_gc=cfg.update_enc_gc)
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -291,7 +294,9 @@ class Workspace:
                                 stddev_schedule=cfg.stddev_schedule, 
                                 stddev_clip=cfg.stddev_clip,
                                 stddev_schedule2=cfg.stddev_schedule2,
-                                stddev_clip2=cfg.stddev_clip2)
+                                stddev_clip2=cfg.stddev_clip2,
+                                update_enc_proto=cfg.update_enc_proto,
+                                update_enc_gc=cfg.update_enc_gc)
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -398,6 +403,7 @@ class Workspace:
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0,2))
+        self.current_init = []
     
     @property
     def global_step(self):
@@ -915,7 +921,7 @@ class Workspace:
                     
                  
                 #record changes in proto heatmap
-                if self.global_step%1000==0 and self.global_step>50000:
+                if self.global_step%1000==0 and self.global_step>5000:
                     
                     total_v = np.count_nonzero(self.replay_storage.state_visitation_proto)
                     print('total visitation', total_v)
@@ -935,6 +941,17 @@ class Workspace:
                             sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
 
                     self.count+=1
+                
+                #save stats
+                #change to 100k when not testing
+                if self.global_step%10000==0:
+                    df = pd.DataFrame()
+                    df['mov_avg_5'] = self.mov_avg_5
+                    df['mov_avg_10'] = self.mov_avg_10
+                    df['mov_avg_20'] = self.mov_avg_20
+                    df['mov_avg_50'] = self.mov_avg_50
+                    path = os.path.join(self.work_dir, 'exploration_{}_{}.csv'.format(str(self.cfg.agent.name),self._global_step))
+                    df.to_csv(path, index=False)
                     
                 if ((time_step1.last() and self.actor1) or (time_step.last() and self.actor)) and self.global_step!=self.cfg.switch_gc:
                     self._global_episode += 1
@@ -966,22 +983,22 @@ class Workspace:
                     episode_step = 0
                     episode_reward = 0
                     #proto explores first, followed by gc, then gc resets
-                    if self.proto_explore_count <= 10 and self.proto_explore:
+                    if self.proto_explore_count <= 25 and self.proto_explore:
                         
                         self.actor=True
                         self.actor1=False
                         self.proto_explore_count+=1
 
-                    elif self.proto_explore and self.proto_explore_count > 10:
+                    elif self.proto_explore and self.proto_explore_count > 25:
                         
                         self.actor1=True
                         self.actor=False
                         self.proto_explore=False
                         self.proto_explore_count=0
-                        self.gc_explore=False
+                        self.gc_explore=True
                         self.gc_explore_count=0
                         
-                    elif self.gc_explore and self.gc_explore_count <= 10:
+                    elif self.gc_explore and self.gc_explore_count <= 20:
 
                         self.actor1=True
                         self.actor=False
@@ -989,7 +1006,7 @@ class Workspace:
                         self.proto_explore_count=0
                         self.gc_explore_count+=1
                         
-                    elif self.gc_explore and self.gc_explore_count>10:
+                    elif self.gc_explore and self.gc_explore_count>20:
                         
                         self.actor1=True
                         self.actor=False
@@ -1004,14 +1021,19 @@ class Workspace:
                         self.eval()
                     self.eval_proto()
                     print('unreached', self.unreached_goals)
+                
+                #every 50k steps, proto just explores for 25 episodes at randomly selected reached goals by gc
+                if self.global_step%50000==0:
+                    self.proto_explore=True
 
                 if episode_step== 0 and self.global_step!=0:
                   
-                    
+                    init_idx=np.random.randint(len(self.current_init))
                     if self.proto_explore and self.actor:
+                        #now the proto explores from any reached goals by gc
                         self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state, init_state=self.current_init)
+                                                   seed=None, goal=goal_state, init_state=self.current_init[init_idx])
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
@@ -1042,12 +1064,12 @@ class Workspace:
 #                             print('goal_prob', goal_prob)
 #                         elif self.cfg.proto_goal_random:
 
-                        s = self.agent.protos.weight.data.shape[0]
+                        s = self.proto_goals.shape[0]
                         num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
                         
             
-                        if idx > self.agent.protos.weight.data.shape[0]:
+                        if idx >= s:
                     
                             goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
                         
@@ -1056,21 +1078,43 @@ class Workspace:
                         
 
                         goal_idx = idx
-                        if self.gc_explore:
-                            
-                            print('gc exploreing')
-                            print('current', self.current_init)
-                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                   self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state, init_state=self.current_init)
-                        else:
-                            
-                            rand_init = np.random.uniform(.25,.29,size=(2,))
-                            rand_init[0] = rand_init[0]*(-1)
+                        #v1: gc always starts from the most recently reached goal 
+                        
+                        if self.cfg.test1:
+                            print('gc ALWYAS exploreing')
+                            if len(self.current_init) != 0:
+                                init_idx=np.random.randint(len(self.current_init))
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
+                                                   seed=None, goal=goal_state, init_state=self.current_init[init_idx])
+                            else:
+                                print('no current init yet')
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
 
-                            self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                   self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state, init_state = rand_init)
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                       self.cfg.frame_stack,self.cfg.action_repeat,
+                                                       seed=None, goal=goal_state, init_state = rand_init) 
+
+                        #v2: let gc explor from most recently reached goal, else start from scratch 
+                        else:
+                            if self.gc_explore:
+
+                                print('gc exploreing')
+                                print('current', self.current_init)
+                                init_idx=np.random.randint(len(self.current_init))
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
+                                                       self.cfg.frame_stack,self.cfg.action_repeat, 
+                                                       seed=None, goal=goal_state, init_state=self.current_init[-1])
+                            else:
+                                print('gc NOT exploreing')
+
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
+
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
+                                                       self.cfg.frame_stack,self.cfg.action_repeat, 
+                                                       seed=None, goal=goal_state, init_state = rand_init)
                             
                         time_step1 = self.train_env1.reset()
                         
@@ -1204,16 +1248,17 @@ class Workspace:
                         print('proto explore')
 
                         if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                            print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
-                        self.current_init = time_step1.observation['observations'][:2]
+                        self.current_init.append(time_step1.observation['observations'][:2])
                         print('current', self.current_init)
                         print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
 
                         self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state,
-                                                  init_state=self.current_init)
+                                                  init_state=self.current_init[-1])
                         time_step = self.train_env.reset()
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 

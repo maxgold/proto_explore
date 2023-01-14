@@ -45,7 +45,7 @@ class Projector(nn.Module):
 class ProtoXAgent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, **kwargs):
+                 num_iterations, lagr1, lagr2, lagr3, margin, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -84,6 +84,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
         self.goal_queue = torch.zeros((10, 2), device=self.device)
         self.goal_queue_dist = torch.zeros((10,), device=self.device)
         #self.load_protos = load_protos
+        self.update_enc_proto = update_enc_proto
+        self.update_enc_gc = update_enc_gc
 
         # models
         if self.gc_only==False:
@@ -239,34 +241,33 @@ class ProtoXAgent(DDPGEncoder1Agent):
             scores_t = self.protos(t)
             q_t = sinkhorn_knopp(scores_t / self.tau)
         
-        if step%1000==0 and step!=0:
-            self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
-            self.proto_distr_max[self.count] = q_t.amax(dim=0)
-            self.proto_distr_med[self.count], _ = q_t.median(dim=0)
-            self.proto_distr_min[self.count] = q_t.amin(dim=0)
-            
-            self.count+=1
-        
-        if step%100000==0:
-            sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
-            names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
-            fig, ax = plt.subplots()
-            top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
-            df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
-            df.plot(ax=ax,figsize=(15,5))
-            ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
-            #ax.set_xscale('log')
-            plt.savefig(f"proto_distribution_step{step}.png")
-            
-            for i, matrix in enumerate(sets):
-                fig, ax = plt.subplots()
+        #if step%1000==0 and step!=0:
+        #    self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
+        #    self.proto_distr_max[self.count] = q_t.amax(dim=0)
+        #    self.proto_distr_med[self.count], _ = q_t.median(dim=0)
+        #    self.proto_distr_min[self.count] = q_t.amin(dim=0)
+        #    
+        #    self.count+=1
+       # 
+       # if step%100000==0:
+       #     sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
+       #     names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
+       #     fig, ax = plt.subplots()
+       #     top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
+       #     df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
+       #     df.plot(ax=ax,figsize=(15,5))
+       #     ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
+       #     #ax.set_xscale('log')
+       #     plt.savefig(f"proto_distribution_step{step}.png")
+       #     
+       #     for i, matrix in enumerate(sets):
+       #         fig, ax = plt.subplots()
 
-                quant = torch.quantile(matrix, self.q, dim=1)
-                print('q', quant.shape)
-                df = pd.DataFrame(quant.cpu().numpy().T)
-                df.plot(ax=ax,figsize=(15,5))
-                ax.set_xticks(np.arange(0, matrix.shape[0], 100))
-                plt.savefig(names[i])
+       #         quant = torch.quantile(matrix, self.q, dim=1)
+       #         df = pd.DataFrame(quant.cpu().numpy().T)
+       #         df.plot(ax=ax,figsize=(15,5))
+       #         ax.set_xticks(np.arange(0, matrix.shape[0], 100))
+       #         plt.savefig(names[i])
             
         #if step%1000==0:
         #    print(torch.argmax(q_t, dim=1).unique(return_counts=True))
@@ -381,8 +382,7 @@ class ProtoXAgent(DDPGEncoder1Agent):
             return metrics
 
         batch = next(replay_iter)
-        if actor1 and step % self.update_gc==0:
-            
+        if actor1 and step % self.update_gc==0: 
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, rand_obs = utils.to_torch(
             batch, self.device)
 
@@ -505,8 +505,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
-            
-            #metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
+            if self.update_enc_proto:
+                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
 
         elif actor1 and step % self.update_gc==0:
             reward = extr_reward
@@ -516,13 +516,15 @@ class ProtoXAgent(DDPGEncoder1Agent):
 
             obs = self.encoder(obs)
             next_obs = self.encoder(next_obs)
+            rand_obs = self.encoder(rand_obs)
             goal = self.encoder(goal)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
+                rand_obs = rand_obs.detach()
                 goal=goal.detach()
-        
+             
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
@@ -533,7 +535,8 @@ class ProtoXAgent(DDPGEncoder1Agent):
             # update critic target
             utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
-
+            if self.update_enc_gc:
+                metrics.update(self.update_encoder_func(obs, next_obs.detach(), rand_obs, step))
         return metrics
 
     def get_q_value(self, obs,action):
