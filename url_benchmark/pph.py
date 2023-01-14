@@ -404,6 +404,7 @@ class Workspace:
         self.mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0,2))
         self.current_init = []
+        self.proto_last_explore = 0
     
     @property
     def global_step(self):
@@ -976,6 +977,11 @@ class Workspace:
                     else:
                         self.replay_storage.add(time_step, meta)
 
+                    if self.proto_explore==False:
+                        self.proto_last_explore+=1
+                    else:
+                        self.proto_last_explore=0
+
                     # try to save snapshot
                     if self.global_frame in self.cfg.snapshots:
                         self.save_snapshot()
@@ -1023,11 +1029,15 @@ class Workspace:
                     print('unreached', self.unreached_goals)
                 
                 #every 50k steps, proto just explores for 25 episodes at randomly selected reached goals by gc
-                if self.global_step%50000==0:
-                    self.proto_explore=True
 
                 if episode_step== 0 and self.global_step!=0:
-                  
+                    if self.proto_last_explore > 100 and self.gc_explore==False:
+                        self.proto_explore=True
+                        self.actor=True
+                        self.actor1=False
+                        self.proto_last_explore=0
+                        print('proto last >100')
+
                     if self.proto_explore and self.actor:
                         
                         #now the proto explores from any reached goals by gc
