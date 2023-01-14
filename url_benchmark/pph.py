@@ -1028,9 +1028,10 @@ class Workspace:
 
                 if episode_step== 0 and self.global_step!=0:
                   
-                    init_idx=np.random.randint(len(self.current_init))
                     if self.proto_explore and self.actor:
+                        
                         #now the proto explores from any reached goals by gc
+                        init_idx=np.random.randint(len(self.current_init))
                         self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init[init_idx])
