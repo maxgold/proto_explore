@@ -80,6 +80,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.goal_queue = torch.zeros((10, 2), device=self.device)
         self.goal_queue_dist = torch.zeros((10,), device=self.device)
         self.update_enc_proto = update_enc_proto
+        print('update enc by proto', update_enc_proto)
+        print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
         print('tau', tau)
         print('it', num_iterations)
