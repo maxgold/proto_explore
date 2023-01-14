@@ -403,7 +403,7 @@ class Workspace:
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0,2))
-        self.current_init = None
+        self.current_init = []
     
     @property
     def global_step(self):
@@ -1021,14 +1021,19 @@ class Workspace:
                         self.eval()
                     self.eval_proto()
                     print('unreached', self.unreached_goals)
+                
+                #every 50k steps, proto just explores for 25 episodes at randomly selected reached goals by gc
+                if self.global_step%50000==0:
+                    self.proto_explore=True
 
                 if episode_step== 0 and self.global_step!=0:
                   
-                    
+                    init_idx=np.random.randint(len(self.current_init))
                     if self.proto_explore and self.actor:
+                        #now the proto explores from any reached goals by gc
                         self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                   seed=None, goal=goal_state, init_state=self.current_init)
+                                                   seed=None, goal=goal_state, init_state=self.current_init[init_idx])
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
@@ -1077,10 +1082,11 @@ class Workspace:
                         
                         if self.cfg.test1:
                             print('gc ALWYAS exploreing')
-                            if self.current_init is not None:
+                            if len(self.current_init) != 0:
+                                init_idx=np.random.randint(len(self.current_init))
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
                                                    self.cfg.frame_stack,self.cfg.action_repeat,
-                                                   seed=None, goal=goal_state, init_state=self.current_init)
+                                                   seed=None, goal=goal_state, init_state=self.current_init[init_idx])
                             else:
                                 print('no current init yet')
                                 rand_init = np.random.uniform(.25,.29,size=(2,))
@@ -1096,9 +1102,10 @@ class Workspace:
 
                                 print('gc exploreing')
                                 print('current', self.current_init)
+                                init_idx=np.random.randint(len(self.current_init))
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                        self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                       seed=None, goal=goal_state, init_state=self.current_init)
+                                                       seed=None, goal=goal_state, init_state=self.current_init[-1])
                             else:
                                 print('gc NOT exploreing')
 
@@ -1244,14 +1251,14 @@ class Workspace:
                             print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
-                        self.current_init = time_step1.observation['observations'][:2]
+                        self.current_init.append(time_step1.observation['observations'][:2])
                         print('current', self.current_init)
                         print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
 
                         self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
                                                   self.cfg.action_repeat, seed=None, goal=goal_state,
-                                                  init_state=self.current_init)
+                                                  init_state=self.current_init[-1])
                         time_step = self.train_env.reset()
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
