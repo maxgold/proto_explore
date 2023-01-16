@@ -1042,6 +1042,7 @@ class Workspace:
                         
                         #now the proto explores from any reached goals by gc
                         if len(self.current_init)>0:
+                            print('len of current init', len(self.current_init))
                             init_idx=np.random.randint(len(self.current_init))
                             self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
@@ -1091,7 +1092,6 @@ class Workspace:
                         
             
                         if idx >= s:
-                    
                             goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
                         
                         else:
@@ -1102,13 +1102,27 @@ class Workspace:
                         #v1: gc always starts from the most recently reached goal 
                         
                         if self.cfg.test1:
+
                             print('gc ALWYAS exploreing')
+
                             if len(self.current_init) != 0:
+
                                 init_idx=np.random.randint(len(self.current_init))
+                                
+                                if idx >= s:
+                                    min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[init_idx], (self.unreached_goals.shape[0],1)) - self.unreached_goals))
+                                    goal_state = self.unreached_goals[min_dist]
+
+                                else:
+                                    min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[init_idx], (self.proto_goals.shape[0],1)) - self.proto_goals))
+                                    goal_state = self.proto_goals[min_dist]
+
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
                                                    self.cfg.frame_stack,self.cfg.action_repeat,
                                                    seed=None, goal=goal_state, init_state=self.current_init[init_idx])
+                            
                             else:
+                                
                                 print('no current init yet')
                                 rand_init = np.random.uniform(.25,.29,size=(2,))
                                 rand_init[0] = rand_init[0]*(-1)
@@ -1119,6 +1133,7 @@ class Workspace:
 
                         #v2: let gc explor from most recently reached goal, else start from scratch 
                         else:
+                            
                             if self.gc_explore:
 
                                 print('gc exploreing')
