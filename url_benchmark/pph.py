@@ -1041,11 +1041,25 @@ class Workspace:
                     if self.proto_explore and self.actor:
                         
                         #now the proto explores from any reached goals by gc
-                        if len(self.current_init)>0:
+                        if 3 >= len(self.current_init) > 0:
                             init_idx=np.random.randint(len(self.current_init))
                             self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init[init_idx])
+                        elif len(self.current_init) > 3:
+                            rand = np.random.uniform()
+                            #80%of the time choose goals from last three reached 
+                            if rand < .8:
+                                
+                                init_idx = np.random.randint(1,4)
+                                self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type,
+                                                        self.cfg.frame_stack,self.cfg.action_repeat,
+                                                        seed=None, goal=goal_state, init_state=self.current_init[-init_idx])
+                            else:
+                                init_idx=np.random.randint(len(self.current_init))
+                                self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
+                                                   seed=None, goal=goal_state, init_state=self.current_init[init_idx]) 
                         else:
                             print('no current init yet')
                             rand_init = np.random.uniform(.25,.29,size=(2,))
