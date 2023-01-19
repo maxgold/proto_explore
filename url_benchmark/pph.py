@@ -1240,6 +1240,11 @@ class Workspace:
                                                 self.global_step,
                                                 eval_mode=True)
                      
+                    if self.global_step > (self.cfg.num_seed_frames+self.cfg.switch_gc):
+
+                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
                     
@@ -1305,7 +1310,7 @@ class Workspace:
                             print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
-                        self.current_init = np.append(self.current_init, time_step1.observation['observations'][:2], axis=0)
+                        self.current_init = np.append(self.current_init, time_step1.observation['observations'][None,:2], axis=0)
                         print('current', self.current_init)
                         print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)

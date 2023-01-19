@@ -841,7 +841,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage.add(time_step, self.train_env.physics.get_state(), self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
         else:
             self.replay_storage.add(time_step, meta)  
 
@@ -874,7 +874,6 @@ class Workspace:
 
                     if self.cfg.obs_type=='pixels':
                         time_step = self.train_env.reset()
-                        print('proto', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
                     else:
@@ -1075,7 +1074,7 @@ class Workspace:
                             time_step = self.train_env.reset()
                         
 
-                        print('proto', time_step.observation['observations'][:2])
+                        print('proto_explore', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
@@ -1264,8 +1263,13 @@ class Workspace:
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=True)
-                     
-                    time_step = self.train_env.step(action)
+
+                    if self.global_step > (self.cfg.num_seed_frames+self.cfg.switch_gc):
+
+                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
+		    time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
                     
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:

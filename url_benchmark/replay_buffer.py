@@ -94,7 +94,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, state=None, meta,pixels=False, last=False, pmm=True):
+    def add(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
