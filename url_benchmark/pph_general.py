@@ -201,8 +201,6 @@ class Workspace:
             self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                        cfg.action_repeat, seed=None, goal=None)
             print('no goal task env', self.no_goal_task)
-            self.train_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                       1, seed=None, goal=None)
             self.train_env = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
                                                       cfg.action_repeat, seed=None)
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
@@ -214,8 +212,6 @@ class Workspace:
         else:
             self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                        cfg.action_repeat, seed=None)
-            self.train_env_goal = dmc.make(self.cfg.task, 'states', cfg.frame_stack,
-                                       1, seed=None, goal=None)
             self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                                       cfg.action_repeat, seed=None)
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
@@ -309,7 +305,8 @@ class Workspace:
                                                     loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
-                                                    obs_shape=self.train_env1.physics.state().shape[0])
+                                                    obs_shape=self.train_env1.physics.state().shape[0],
+                                                    general=True)
         else:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
@@ -321,7 +318,8 @@ class Workspace:
                                                     cfg.hybrid_pct, loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
-                                                    obs_shape=self.train_env1.physics.state().shape[0])
+                                                    obs_shape=self.train_env1.physics.state().shape[0],
+                                                    general=True)
 
         self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
@@ -365,13 +363,19 @@ class Workspace:
         self.storage1=False
         self.distance_goal_init = {}
         self.proto_goals_dist = np.zeros((10, 1))
-        self.proto_goals = np.zeros((10, 2))
+        if self.cfg.proto_goal_intr:
+            dim=10
+        else:
+            dim=self.agent.protos.weight.data.shape[0]
+
+        self.proto_goals = np.zeros((dim, 9, 84, 84))
+        self.proto_goals_state = np.zeros((dim, self.train_env.physics.get_state().shape[0]))
         self.proto_goals_matrix = np.zeros((60,60))
-        self.proto_goals_id = np.zeros((10, 2))
+        self.proto_goals_id = np.zeros((dim, 2))
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
-        self.reached_goals=np.empty((0,2))
+        self.reached_goals=np.empty((0,self.train_env.physics.get_state().shape[0]))
         self.proto_goals_alt=[]
         self.proto_explore=False
         self.proto_explore_count=0
@@ -390,7 +394,10 @@ class Workspace:
         self.mov_avg_100 = np.zeros((2000,))
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
-        self.unreached_goals = np.empty((0,2))
+        self.unreached_goals = np.empty((0,self.train_env.physics.get_state().shape[0]))
+        self.proto_last_explore=0	   
+        self.current_init = []
+        self.unreached = False
     
     @property
     def global_step(self):
@@ -508,11 +515,6 @@ class Workspace:
         proto_indices = np.random.randint(10)
         
         p = _proto.clone().detach().cpu().numpy()
-        
-        if self.pmm:
-            self.proto_goals_alt = a[p[:, proto_indices], :2]
-        else:
-            self.proto_goals_alt = a[p[:, proto_indices]]
             
         if self.cfg.proto_goal_intr:
             goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
@@ -524,19 +526,43 @@ class Workspace:
                     
                     self.proto_goals_dist[dist_arg[ix]] = x
                     
-                    if self.pmm:
-                        self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
-                    else:
-                        self.proto_goals[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy()]
+                    closest_sample = goal_indices[ix].clone().detach().cpu().numpy()
+                    
+
+
+                    fn = eps[closest_sample]
+                    idx_ = index[closest_sample]
+                    ep = np.load(fn)
+
+                    with torch.no_grad():
+                        obs = ep['observation'][idx_]
+
+                    self.proto_goals[dist_arg[ix]] = obs
+                    self.proto_goals_state[dist_arg[ix]] = a[closest_sample]
 
             print('proto goals', self.proto_goals)
             print('proto dist', self.proto_goals_dist)
             
         elif self.cfg.proto_goal_random:
-            self.proto_goals = a[_proto[:, 0].detach().clone().cpu().numpy()]
+            
+            closest_sample = _proto[:, 0].detach().clone().cpu().numpy()
+            
+            for ix, x in enumerate(closest_sample):
+                
+                fn = eps[x]
+                idx_ = index[x]
+                ep = np.load(fn)
+                #pixels.append(ep['observation'][idx_])
+
+                with torch.no_grad():
+                    obs = ep['observation'][idx_]
+                    
+                self.proto_goals[ix] = obs
+            self.proto_goals_state = a[closest_sample]
 
 
         if self.pmm:
+            
             filenames=[]
             plt.clf()
             fig, ax = plt.subplots()
@@ -606,6 +632,16 @@ class Workspace:
                 
         ########################################################################
         #implement tsne for non-pmm prototype eval?
+        if self.global_step%100000==0: 
+            for ix in range(self.proto_goals_state.shape[0]):
+                 
+                with self.eval_env.physics.reset_context():
+                    self.eval_env.physics.set_state(self.proto_goals_state[ix])
+                
+                plt.clf()
+                img = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
+                plt.imsave(f"goals_{ix}_{self.global_step}.png", img)
+                wandb.save(f"goals_{ix}_{self.global_step}.png")
 
 
 
@@ -652,8 +688,8 @@ class Workspace:
                                                 meta,
                                                 self._global_step,
                                                 eval_mode=True,
-                                                tile=self.cfg.frame_stack
-                                                )
+                                                tile=1,
+                                                general=True)
                         else:
                             action = self.agent.act(time_step.observation,
                                                 meta,
@@ -697,16 +733,9 @@ class Workspace:
     def eval(self):
 
         for goal in self.proto_goals:
-            print('goal', goal)
             step, episode, total_reward = 0, 0, 0
             eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
             meta = self.agent.init_meta()
-            time_step_goal = self.train_env_goal.reset()
-            with self.train_env_goal.physics.reset_context():
-
-                time_step_goal = self.train_env_goal.physics.set_state(goal)
-
-            time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0)) 
         
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
@@ -715,19 +744,21 @@ class Workspace:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.obs_type == 'pixels' and self.pmm:
                             action = self.agent.act(time_step.observation['pixels'].copy(),
-                                                    time_step_goal.copy(),
+                                                    goal,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True,
-                                                    tile=self.cfg.frame_stack)
+                                                    tile=1,
+                                                    general=True)
                             #non-pmm
                         elif self.cfg.obs_type == 'pixels':
-                    	    action = self.agent.act(time_step.observation['pixels'].copy(),
-                                                    time_step_goal.copy(),
+                            action = self.agent.act(time_step.observation['pixels'].copy(),
+                                                    goal,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True,
-                                                    tile=self.cfg.frame_stack) 
+                                                    tile=1,
+                                                    general=True) 
                         else:
                             action = self.agent.act(time_step.observation,
                                             meta,
@@ -774,7 +805,6 @@ class Workspace:
         plt.savefig(f"./{self.global_step}_intr_reward.png")
         wandb.save(f"./{self.global_step}_intr_reward.png")
 
-        print('r')
         if self.cfg.proto_goal_intr:
             return r, _
 
@@ -790,7 +820,9 @@ class Workspace:
             self.eval_pmm()
         else:
             self.eval_proto()
-            self.eval()
+            #if self.global_step > 20000 and self.global_step%10000==0:
+            #    print('2')
+            #    self.eval()
         
         
     
@@ -809,17 +841,17 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage.add(time_step, meta, True, pmm=self.pmm)  
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
         else:
             self.replay_storage.add(time_step, meta)  
 
         metrics = None
         
-        if self.pmm:
-            goal_state = self.first_goal
-        else:
-            goal_state = time_step.observation['observations']
-            print('gs1', goal_state)
+        goal_idx = 0 
+        
+        if self.pmm==False:
+            time_step_no_goal = None
+        
         while train_until_step(self.global_step):
 
             if self.global_step < self.cfg.switch_gc:
@@ -844,7 +876,7 @@ class Workspace:
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
-                        self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
                     else:
                         self.replay_storage.add(time_step, meta)
                     print('proto', time_step.observation['observations'])
@@ -877,7 +909,7 @@ class Workspace:
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
 #                 #save agent
-                 if self._global_step%200000==0 and self._global_step!=0:
+                if self._global_step%200000==0 and self._global_step!=0:
                      path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                      torch.save(self.agent, path)
 
@@ -885,7 +917,7 @@ class Workspace:
                 time_step = self.train_env.step(action)
                 episode_reward += time_step.reward
                 if  self.cfg.obs_type=='pixels':
-                    self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
                 else:
                     self.replay_storage.add(time_step, meta)
                 episode_step += 1
@@ -895,41 +927,33 @@ class Workspace:
             
             else:
                 if self.global_step==self.cfg.switch_gc:
+                    
+                    episode_step=0
+                    episode_reward=0
+
                     self.actor1=True
                     self.actor=False
-                    print('1')
                     time_step1 = self.train_env1.reset()
                     #render first goal
                     
+                    goal_pix = self.proto_goals[0]
+                    goal_state = self.proto_goals_state[0]
+                    #only diff between self.pmm & other is that self.pmm needs train_env_no_goal
                     if self.pmm:
                         self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                                                             self.cfg.action_repeat, seed=None, goal=self.first_goal, 
                                                             init_state=time_step1.observation['observations'][:2])
                         time_step_no_goal = self.train_env_no_goal.reset()
-                        time_step_goal = self.train_env_goal.reset()
-                        with self.train_env_goal.physics.reset_context():
                         
-                            time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
-
-                        time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
                     #non-pmm we just use current state
-                    else:
-                        time_step_goal = self.train_env_goal.reset()
-                        with self.train_env_goal.physics.reset_context():
-                                time_step_goal = self.train_env_goal.physics.set_state(time_step.observation['observations'])
-                        time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, 
-                                                                                 camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
-                    #what does this do???
+                    
                     meta = self.agent.update_meta(meta, self._global_step, time_step1)
                     
-                    if self.cfg.obs_type == 'pixels' and self.pmm:
-                        self.replay_storage1.add_goal(time_step1, meta, time_step_goal, 
-                                                      time_step_no_goal,self.train_env_goal.physics.state(), True)
-                    elif self.cfg.obs_type == 'pixels':
-                        #add function to replay buffer
-                        self.replay_storage1.add_goal_general(time_step1, meta, time_step_goal, 
-                                                              self.train_env_goal.physics.state(), True)
-                        
+                    if self.cfg.obs_type == 'pixels':
+                        self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
+                                                              goal_pix, goal_state, 
+                                                              time_step_no_goal, True)
+
                     self.eval_proto()
                 
                 
@@ -950,14 +974,23 @@ class Workspace:
                             log('buffer_size', len(self.replay_storage1))
                             log('step', self.global_step)
 
-                    if self.cfg.obs_type =='pixels' and self.actor1 and self.pmm:
-                        self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
-                    elif self.cfg.obs_type =='pixels' and self.actor1:
-                        self.replay_storage1.add_goal_general(time_step1, meta, time_step_goal, self.train_env_goal.physics.state(), True, last=True)
+                    if self.cfg.obs_type =='pixels' and self.actor1:
+                        self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
+                                                              goal_pix, goal_state, 
+                                                              time_step_no_goal, True, last=True)
+                    
+
                     elif self.cfg.obs_type =='pixels' and self.actor:
-                        self.replay_storage.add(time_step, meta, True, last=True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
                     else:
                         self.replay_storage.add(time_step, meta)
+                    
+                    if self.proto_explore==False:
+                        self.proto_last_explore+=1
+                    else:
+                        self.proto_last_explore=0
+                    
+                    self.unreached=False
 
                     # try to save snapshot
                     if self.global_frame in self.cfg.snapshots:
@@ -966,23 +999,22 @@ class Workspace:
                     episode_step = 0
                     episode_reward = 0
                     
-                    #proto explores first, followed by gc, then gc resets
-                    if self.proto_explore_count <= 10 and self.proto_explore:
+                    if self.proto_explore_count <= 25 and self.proto_explore:
                         
                         self.actor=True
                         self.actor1=False
                         self.proto_explore_count+=1
 
-                    elif self.proto_explore and self.proto_explore_count > 10:
+                    elif self.proto_explore and self.proto_explore_count > 25:
                         
                         self.actor1=True
                         self.actor=False
                         self.proto_explore=False
                         self.proto_explore_count=0
-                        self.gc_explore=False
+                        self.gc_explore=True
                         self.gc_explore_count=0
                         
-                    elif self.gc_explore and self.gc_explore_count <= 10:
+                    elif self.gc_explore and self.gc_explore_count <= 20:
 
                         self.actor1=True
                         self.actor=False
@@ -990,7 +1022,7 @@ class Workspace:
                         self.proto_explore_count=0
                         self.gc_explore_count+=1
                         
-                    elif self.gc_explore and self.gc_explore_count>10:
+                    elif self.gc_explore and self.gc_explore_count>20:
                         
                         self.actor1=True
                         self.actor=False
@@ -998,173 +1030,151 @@ class Workspace:
                         self.gc_explore=False
                         self.gc_explore_count=0
                         self.proto_explore_count=0
-                        
+                    
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     self.evaluate()
 
+                
+                #every 50k steps, proto just explores for 25 episodes at randomly selected reached goals by gc
+
                 if episode_step== 0 and self.global_step!=0:
                     
+                    if self.proto_last_explore > 100 and self.gc_explore==False:
+                        
+                        self.proto_explore=True
+                        self.actor=True
+                        self.actor1=False
+                        self.proto_last_explore=0
+                        print('proto last >100')
+
                     if self.proto_explore and self.actor:
-                        time_step = self.train_env.reset()
-                        print('proto', time_step.observation['observations'])
+                        
+                        #now the proto explores from any reached goals by gc
+                        if len(self.current_init) > 0:
+                            
+                            init_idx=np.random.randint(len(self.current_init))
+                            
+                            time_step = self.train_env.reset()
+                            ##can't reset now
+                            with self.train_env.physics.reset_context():
+                                self.train_env.physics.set_state(self.current_init[init_idx])
+                            act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
+                            time_step = self.train_env.step(act_)
+                        else:
+                            
+                            print('no current init yet')
+                            if self.pmm:
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
+
+                                self.train_env = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                           self.cfg.frame_stack,self.cfg.action_repeat,
+                                                           seed=None, goal=goal_state, init_state = rand_init) 
+                            
+                            time_step = self.train_env.reset()
+                        
+
+                        print('proto', time_step.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
-                            self.replay_storage.add(time_step, meta, True, last=False, pmm=self.pmm)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=False, pmm=self.pmm)
                         
                     else:
                         print('else')
                         self.recorded=False
                         
-                        ##################################################################################
-                        #think about how this is going to work in high dim for reached goal frequency 
-#                         if np.any(self.goal_freq==0):
-#                             inv_freq = (1/(self.goal_freq+1))
-#                         else:
-#                             inv_freq = (1/self.goal_freq)  
-#                         goal_score = np.zeros((self.proto_goals.shape[0],))
-
-#                         for ix,x in enumerate(self.proto_goals_id):
-#                             x = x.astype(int)
-#                             goal_score[ix] = inv_freq[x[0], x[1]]
-
-#                         goal_prob = F.softmax(torch.tensor(goal_score), dim=0)
-
-#                         if self.cfg.proto_goal_intr:
-#                             idx = pyd.Categorical(goal_prob).sample().item()
-#                             print('goal score', goal_score)
-#                             print('goal_prob', goal_prob)
-#                         elif self.cfg.proto_goal_random:
-
-                        s = self.agent.protos.weight.data.shape[0]
+                        ###################################
+                        #sampling goal here
+                        s = self.proto_goals.shape[0]
                         num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
-                        
-                        if idx >= self.agent.protos.weight.data.shape[0] and self.pmm:
+                                   
+                        if idx >= s:
                     
-                            goal_state = np.array([self.unreached_goals[idx-s][0], self.unreached_goals[idx-s][1]])
-                        elif idx >= self.agent.protos.weight.data.shape[0]:
-                            goal_state = self.unreached_goals[idx-s]
-                        elif idx < self.agent.protos.weight.data.shape[0] and self.pmm:
-                            goal_state = np.array([self.proto_goals[idx][0], self.proto_goals[idx][1]])
-                        elif  idx < self.agent.protos.weight.data.shape[0]:
-                            goal_state = self.proto_goals[idx]
-                        goal_idx = idx
+                            goal_idx = idx-s
+                            goal_state = self.unreached_goals[goal_idx]
+                            with self.eval_env.physics.reset_context():
+                                self.eval_env.physics.set_state(goal_state)
+                            goal_pix = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                            goal_pix = np.transpose(goal_pix, (2,0,1))
+                            goal_pix = np.tile(goal_pix, (3,1,1))
+                            self.unreached=True
+                            
                         
-                        if self.gc_explore:
-                            print('gc exploreing')
-                            print('current', self.current_init)
-                            if self.pmm:
-                            
-                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                       self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                       seed=None, goal=goal_state, init_state=self.current_init)
-                            
-                            else:
-                                
-                                time_step1 = self.train_env1.physics.set_state(self.current_init)
-                                print('1')
-                                print('ts', time_step1.observations['observation'])
-                                print('train env', self.train_env1.physics.get_state())
-                                #check when debugging to make sure stepping in this environment works 
-                                print('check stepping in this env works')
-                                print("code in last part of random agent pm")
-                                import IPython as ipy; ipy.embed(colors='neutral')
-                                #make goal 
-                                
-                                #####################################################
-                                #follow this piece of code & make sure it's not being reset when it shouldn't be 
-                            
+                        else:
+                            goal_idx = idx
+                            goal_state = self.proto_goals_state[goal_idx]
+                            goal_pix = self.proto_goals[goal_idx]
+
+
+                        #v1: gc always starts from the most recently reached goal 
+                        
+                        #if self.cfg.test1:
+                        print('gc ALWYAS exploreing')
+                        if len(self.current_init) != 0:
+
+                            init_idx=np.random.randint(len(self.current_init))
+                            time_step1 = self.train_env1.reset()
+                            with self.train_env1.physics.reset_context():
+                                self.train_env1.physics.set_state(self.current_init[init_idx])
+                            act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
+                            time_step1 = self.train_env1.step(act_)
                         else:
 
-                            print('gc not exploring, either gc reset or proto exploring')
+                            print('no current init yet')
                             if self.pmm:
-                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                  self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                  seed=None, goal=goal_state)
-                            else:
-                                ###############################################################
-                                #double check that every dmc.make() for non-pmm doesn't use goal state
-                                #need to come up with a different way to calculate reward 
-                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
-                                                  self.cfg.frame_stack,self.cfg.action_repeat, 
-                                                  seed=None)
-                        
-                        #make goals for actor 1 
-                        if self.pmm:
-                            time_step1 = self.train_env1.reset()
 
+                                rand_init = np.random.uniform(.25,.29,size=(2,))
+                                rand_init[0] = rand_init[0]*(-1)
+
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
+                                                   seed=None, goal=goal_state, init_state = rand_init) 
+
+                            time_step1 = self.train_env1.reset()
+                                    
+
+                        if self.pmm:
                             self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                                                             self.cfg.action_repeat, seed=None, goal=goal_state, 
                                                             init_state=time_step1.observation['observations'][:2])
+                        
                             time_step_no_goal = self.train_env_no_goal.reset()
-                            time_step_goal = self.train_env_goal.reset()
-                            
-                            with self.train_env_goal.physics.reset_context():
-
-                                time_step_goal = self.train_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
-  
-                        
-                        #non-pmm
-                        elif self.gc_explore:
-                            #otherwise we are setting the state in this train_env1 & therefore shouldn't reset
-
-                            time_step_goal = self.train_env_goal.reset()
-                            
-                            with self.train_env_goal.physics.reset_context():
-                                    time_step_goal = self.train_env_goal.physics.set_state(
-                                                        np.array(goal_state))
-                                    ##change eval_proto so that it saves pos + vel as proto_goals
-                                    
-                        elif self.gc_explore==False and self.pmm==False:
-                            
-                            time_step1 = self.train_env1.reset()
-
-                            time_step_goal = self.train_env_goal.reset()
-                            
-                            with self.train_env_goal.physics.reset_context():
-
-                                time_step_goal = self.train_env_goal.physics.set_state(goal_state)
-                        
-                        
-                        #this part is same for both pmm & non-pmm
-                        time_step_goal = self.train_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))   
                         meta = self.agent.update_meta(meta, self._global_step, time_step1) 
                         print('time step', time_step1.observation['observations'])
-                        print('sampled goal', goal_state)
-                        
+                        print('sampled goal', goal_idx)
 
-                        if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.pmm:
-                            self.replay_storage1.add_goal(time_step1, meta, time_step_goal, 
-                                                          time_step_no_goal,self.train_env_goal.physics.state(), True, pmm=self.pmm)
-                            
-                        elif self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
-                            
-                            self.replay_storage1.add_goal_general(time_step1, meta,time_step_goal,
-                                                                  self.train_env_goal.physics.state(), True)
-                            
-                
+                       #unreached_goals : array of states (not pixel), need to set state & render to get pixel
+                        if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
+                            self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
+                                                                  goal_pix, goal_state,
+                                                                  time_step_no_goal, True)
+                        
                 # sample action
                 if self.actor1:
                     with torch.no_grad(), utils.eval_mode(self.agent):
                         if self.cfg.obs_type == 'pixels' and self.pmm:
                             action1 = self.agent.act(time_step_no_goal.observation['pixels'].copy(),
-                                                    time_step_goal.copy(),
+                                                    goal_pix,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=False,
-                                                    tile=self.cfg.frame_stack)
+                                                    tile=1,
+                                                    general=True)
+
                         #non-pmm
                         elif self.cfg.obs_type == 'pixels':
                             action1 = self.agent.act(time_step1.observation['pixels'].copy(),
-                                                    time_step_goal.copy(),
+                                                    goal_pix,
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=False,
-                                                    tile=self.cfg.frame_stack)
+                                                    tile=1,
+                                                    general=True)
                         else:
-                            action = self.agent.act(time_step.observation,
+                            action1 = self.agent.act(time_step.observation,
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=False,
@@ -1174,27 +1184,64 @@ class Workspace:
                     time_step1 = self.train_env1.step(action1)
                     if self.pmm:
                         time_step_no_goal = self.train_env_no_goal.step(action1)
-                    episode_reward += time_step1.reward
+                    
+                    
+                    #calculate reward
+                    if self.cfg.ot_reward:
+                        
+                        reward = self.agent.ot_rewarder(
+                             time_step1.observation['pixels'], goal_pix, self.global_step)
+                        
+#                     elif self.cfg.dac_reward:
+                        
+#                         reward = self.agent.dac_rewarder(time_step1.observation['pixels'], action1)
+                        
+                    elif self.cfg.neg_euclid:
+                        
+                        with torch.no_grad():
+                            obs = time_step1.observation['pixels']
+                            obs = torch.as_tensor(obs.copy(), device=self.device).unsqueeze(0)
+                            z1 = self.agent.encoder(obs)
+                            z1 = self.agent.predictor(z1)
+                            z1 = self.agent.projector(z1)
+                            
+                            z1 = F.normalize(z1, dim=1, p=2)
+                            if self.unreached==False: 
+                                goal = torch.as_tensor(goal_pix, device=self.device).unsqueeze(0).int()
+                            else:
+                                goal = torch.as_tensor(tmp_unreached.copy(), device=self.device).unsqueeze(0).int()
+                            z2 = self.agent.encoder(goal)
+                            z2 = self.agent.predictor(z2)
+                            z2 = self.agent.projector(z2)
+                            z2 = F.normalize(z2, dim=1, p=2)
+                        reward = -torch.norm(z1-z2, dim=-1, p=2).item()
+                    elif self.cfg.neg_euclid_state:
+                        
+                        reward = -np.linalg.norm(self.train_env1.physics.get_state() - goal_state, axis=-1, ord=2)
+                    elif self.cfg.actionable:
+                        
+                        print('not implemented yet: actionable_reward')
+                        
+                    time_step1 = time_step1._replace(reward=reward)
+                    if time_step1.reward > self.cfg.reward_cutoff:
+                        episode_reward += abs(time_step1.reward)
+                    #########
+                    #debut
+                    if time_step1.reward == 0:
+                        print('reward 0 episode step', episode_step)
 
-                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal==False and self.pmm:
+                    elif self.global_step%100==0:
+                        print('reward', time_step1.reward)
                         
-                        self.replay_storage1.add_goal(time_step1, meta, time_step_goal, 
-                                                      time_step_no_goal,self.train_env_goal.physics.state(), True)
+                    ##############
+                      
+                    
+                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and episode_reward < abs(self.cfg.reward_cutoff*20):
                         
-                    elif self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal==False:
-                        
-                        self.replay_storage1.add_goal_general(time_step1, meta, time_step_goal, 
-                                                      self.train_env_goal.physics.state(), True)
-                        
-                    elif self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal and episode_reward <= 100 and self.pmm:
-                        
-                        self.replay_storage1.add_goal(time_step1, meta, time_step_goal, 
-                                                      time_step_no_goal, self.train_env_goal.physics.state(), True)
-                        
-                    elif self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and self.cfg.resample_goal and episode_reward <= 100:
-                        
-                        self.replay_storage1.add_goal_general(time_step1, meta, time_step_goal, 
-                                                              self.train_env_goal.physics.state(), True)
+                        self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
+                                                              goal_pix, goal_state, 
+                                                      time_step_no_goal, True)
+                    
                         
                     elif self.cfg.obs_type == 'states':
                         self.replay_storage1.add_goal(time_step1, meta, goal)
@@ -1222,7 +1269,7 @@ class Workspace:
                     episode_reward += time_step.reward
                     
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:
-                        self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
                     elif time_step.last()==False and self.cfg.obs_type=='states':
                         self.replay_storage.add(time_step, meta)
@@ -1233,84 +1280,99 @@ class Workspace:
                 if self.actor1:
                     
                     #change to vicinity of reached_goals
-                    if (goal_state in self.reached_goals and (time_step1.reward > 1.7) and (self.proto_explore==False) and (episode_step> 20)) or (episode_reward > 100):
+                    #(goal_state in self.reached_goals and (reward > 1.7) and (self.proto_explore==False) and (episode_step> 20))
+                    if time_step1.reward == 0.:
+                        time_step1 = time_step1._replace(reward=-1)
+
+                    if episode_reward > abs(self.cfg.reward_cutoff*20) and episode_step>5:
+                        self.unreached=False
+                        print('r', episode_reward)
                         
-                        print('proto_goals', self.proto_goals)
                         if self.pmm:
                             idx_x = int(goal_state[0]*100)+29
                             idx_y = int(goal_state[1]*100)+29
                             self.proto_goals_matrix[idx_x,idx_y]+=1
                             self.goal_freq[idx_x//10, idx_y//10]+=1
 
-                        self.reached_goals = np.append(self.reached_goals, goal_state[None,:], axis=0)
+                        #reached_goals = array of indices corresponding to prototypes
+                        self.reached_goals = np.append(self.reached_goals, self.train_env1.physics.get_state()[None,:], axis=0)
                         self.reached_goals = np.unique(self.reached_goals, axis=0)
                         
                         ##first reset gc agent from here and try to reach the nearby goals for 10 episodes 
-                        if self.pmm:
-                            min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+                        #get min dist between current obs and prototypes
+                        
+                        with torch.no_grad():
+                            obs = time_step1.observation['pixels']
+                            obs = torch.as_tensor(obs.copy(), device=self.device).unsqueeze(0)
+                            z = self.agent.encoder(obs)
+                            z = self.agent.predictor(z)
+                            z = self.agent.projector(z)
+                            z = F.normalize(z, dim=1, p=2)
+                        protos = self.agent.protos.weight.data.detach().clone().cpu().numpy() 
+                        ###########################################
+                        #should we change this to only use this if random. not intr.
+                        goal_idx = np.argmin(np.linalg.norm(np.tile(z.detach().clone().cpu().numpy(),(protos.shape[0],1)) - protos))
+                        self.unreached=False 
+                        if goal_idx >= 16:
+                            print('sth wrong', goal_idx)
+                            print('unreached', self.unreached)
                             
-                            if self.reached_goals.shape[0]!=0:
-                                goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
-                                if goal_dist < .02:
-                                    self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
-                                    min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
-                                
-                        else:
-                            print("min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))")
-                            import IPython as ipy; ipy.embed(colors='neutral')
-                            min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+                        goal_pix = self.proto_goals[goal_idx]
+                        goal_state = self.proto_goals_state[goal_idx]
+                            
+                        ##############################################
+                        #taking this part out temperarily, so if affects anything 
+#                         if self.reached_goals.shape[0]!=0:
+#                             self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
 
-                            if self.reached_goals.shape[0]!=0:
-                                goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
-                                #may need to change this threshold in high dim
-                                if goal_dist < .02:
-                                    print('goaldist < .02, investigate')
-                                    print("min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))")
-                                    import IPython as ipy; ipy.embed(colors='neutral')
-                                    self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
-                                    min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
+#                             goal_dist = min(np.linalg.norm(self.proto_goals_alt[min_dist][None,:] - self.reached_goals, ord=2, axis=1))
+#                             if goal_dist < .02:
+#                                 self.proto_goals_alt = np.delete(self.proto_goals_alt, 0, min_dist)
+#                                 min_dist = np.argmin(np.linalg.norm(np.tile(time_step1.observation['observations'][:2], (self.proto_goals_alt.shape[0],1)) - self.proto_goals_alt))
 
-                        goal_state = self.proto_goals_alt[min_dist]
-                        print('gs2', goal_state) 
-                        if goal_state in self.proto_goals:
-                            goal_idx=np.where((self.proto_goals == goal_state).all(axis=1))[0]
-                        else:
-                            goal_idx=np.inf
-                        print('new goal', goal_state) 
-                        print('sampling new goal')
+                        print('goal', goal_idx) 
+                        
                         episode_reward=0
                         episode_step=0
                         
                         self.proto_explore=True
+                        self.gc_explore = False
+                        self.actor = True
+                        self.actor1 = False
                         print('proto explore')
 
-                        if self.cfg.obs_type == 'pixels' and time_step1.last()==False and self.pmm:
-                            self.replay_storage1.add_goal(time_step1, meta,time_step_goal, 
-                                                          time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
-                            self.current_init = time_step1.observation['observations'][:2]
-                            
-                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                        if self.cfg.obs_type == 'pixels' and time_step1.last()==False:
+                            print('last1')
+                            self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
+                                                                  goal_pix, goal_state,
+                                                          time_step_no_goal, True, last=True)
+                           
+                        meta = self.agent.update_meta(meta, self._global_step, time_step1)
+                       
+                        self.current_init.append(self.train_env1.physics.get_state())
+                        print('current', self.current_init)
+                        print('obs', self.train_env1.physics.get_state())
+                        meta = self.agent.update_meta(meta, self._global_step, time_step1)
 
-                            self.train_env = dmc.make(self.cfg.task_no_goal, self.cfg.obs_type, self.cfg.frame_stack,
-                                                  self.cfg.action_repeat, seed=None, goal=goal_state,
-                                                  init_state=self.current_init)
+                       
+                        time_step = self.train_env.reset()   
+                        print('before setting train env', self.train_env.physics.get_state())
+                        print('before setting train env1', self.train_env1.physics.get_state())
+                            
+                        with self.train_env.physics.reset_context():
+
+                            self.train_env.physics.set_state(self.train_env1.physics.get_state())
+                        act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
+                        time_step = self.train_env.step(act_) 
+                        print('after setting train env', self.train_env.physics.get_state())
+                        print('ts1', time_step1.observation['observations'])
+                        print('ts', time_step.observation['observations'])
                         
-                        elif self.cfg.obs_type == 'pixels' and time_step1.last()==False:
-                            self.replay_storage1.add_goal_general(time_step1, meta,time_step_goal,
-                                                                  self.train_env_goal.physics.state(), True, last=True)
-                            self.current_init = time_step1.observation['observations']
-                            
-                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
-                            
-                            with self.train_env1.physics.reset_context():
+                    if episode_step==499 and episode_reward < abs(self.cfg.reward_cutoff*20):
+                        #keeping this for now so the unreached list doesn't grow too fast
+                        if self.unreached==False:
+                            self.unreached_goals=np.append(self.unreached_goals, self.proto_goals_state[goal_idx][None,:], axis=0)
                         
-                                time_step1 = self.train_env1.physics.set_state(self.current_init)
-                            
-
-                        time_step = self.train_env.reset()
-                        meta = self.agent.update_meta(meta, self._global_step, time_step)
-                        print('should start proto')
-
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
 
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
@@ -1320,12 +1382,10 @@ class Workspace:
 
                 self._global_step += 1
             
-            if self._global_step%100000==0 and self._global_step!=0:
+            if self._global_step%200000==0 and self._global_step!=0:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
-                path_2 = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-                torch.save(self.agent.encoder, path_2)
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
