@@ -841,7 +841,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage.add(time_step, self.train_env.physics.get_state(), self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
         else:
             self.replay_storage.add(time_step, meta)  
 
