@@ -122,6 +122,8 @@ neg_euclid: False
 actionable: False
 reward_cutoff: 0
 neg_euclid_state: True
+nstep1: 3
+nstep2: 3
 #experiment
 experiment: exp
 
