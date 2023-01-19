@@ -443,7 +443,7 @@ class Workspace:
        
         while self.proto_goals.shape[0] < 10:
             self.proto_goals = np.append(self.proto_goals, np.array([[0., 0.]]), axis=0)
-
+            self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
         protos = self.agent.protos.weight.data.detach().clone()
 
         replay_buffer = make_replay_offline(eval_env_goal,
@@ -591,8 +591,10 @@ class Workspace:
         index = np.unique(index[0])
         print('delete goals', self.proto_goals[index])
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         index=np.where((self.proto_goals==0.).all(axis=1))[0]
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         print('current goals', self.proto_goals) 
             
             
@@ -1116,10 +1118,10 @@ class Workspace:
 
                             print('gc ALWYAS exploreing')
 
-                            if current_init.shape[0] != 0:
+                            if self.current_init.shape[0] != 0:
                                 if self.global_step%10000==0:
-                                    init_idx=np.random.randint(1,current_init.shape[0]+1)
-                                elif current_init.shape[0]>2:
+                                    init_idx=np.random.randint(1,self.current_init.shape[0]+1)
+                                elif self.current_init.shape[0]>2:
                                     init_idx=np.random.randint(1,4)
                                 else:
                                     init_idx = 1
@@ -1155,7 +1157,7 @@ class Workspace:
 
                                 print('gc exploreing')
                                 print('current', self.current_init)
-                                init_idx=np.random.randint(current_init.shape[0])
+                                init_idx=np.random.randint(self.current_init.shape[0])
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                        self.cfg.frame_stack,self.cfg.action_repeat, 
                                                        seed=None, goal=goal_state, init_state=self.current_init[-1])

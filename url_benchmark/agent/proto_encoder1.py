@@ -183,20 +183,20 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         dist = all_dists[:, -1:]
         reward = dist
 
-        if step==10000 or step%100000==0:
-            print('set to 0')
-            self.goal_queue = torch.zeros((10, 2), device=self.device)
-            self.goal_queue_dist = torch.zeros((10,), device=self.device)
+        #if step==10000 or step%100000==0:
+        #    print('set to 0')
+        #    self.goal_queue = torch.zeros((10, 2), device=self.device)
+        #    self.goal_queue_dist = torch.zeros((10,), device=self.device)
 
-        dist_arg = self.goal_queue_dist.argsort(axis=0)
+        #dist_arg = self.goal_queue_dist.argsort(axis=0)
 
-        r, _ = torch.topk(reward,10,largest=True, dim=0)
+        #r, _ = torch.topk(reward,10,largest=True, dim=0)
 
-        if eval==False:
-            for ix in range(10):
-                if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
-                    self.goal_queue_dist[dist_arg[ix]] = r[ix]
-                    self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
+        #if eval==False:
+        #    for ix in range(10):
+        #        if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
+        #            self.goal_queue_dist[dist_arg[ix]] = r[ix]
+        #            self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
  
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
