@@ -570,7 +570,6 @@ class Workspace:
 
                     self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
                 time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                print('2', self.eval_env_goal.physics.get_state())
                 with torch.no_grad(), utils.eval_mode(self.agent):
 
                     action = self.agent.act(time_step1.observation['pixels'],
@@ -801,7 +800,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage.add(time_step, meta, True)  
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True)  
         else:
             self.replay_storage.add(time_step, meta)  
 
@@ -840,7 +839,7 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         #meta = self.agent.init_meta()
 
-                        self.replay_storage.add(time_step, meta, True)
+                        self.replay_storage.add(time_step,self.train_env.physics.get_state(), meta, True)
                     else:
                         self.replay_storage.add(time_step, meta)
                         
@@ -895,7 +894,7 @@ class Workspace:
                 time_step = self.train_env.step(action)
                 episode_reward += time_step.reward
                 if  self.cfg.obs_type=='pixels':
-                    self.replay_storage.add(time_step, meta, True)
+                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True)
                 else:
                     self.replay_storage.add(time_step, meta)
                 episode_step += 1
@@ -982,7 +981,7 @@ class Workspace:
                     if self.cfg.obs_type =='pixels' and self.actor1:
                         self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal, self.train_env_goal.physics.state(), True, last=True)
                     elif self.cfg.obs_type =='pixels' and self.actor:
-                        self.replay_storage.add(time_step, meta, True, last=True)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True)
                     else:
                         self.replay_storage.add(time_step, meta)
 
@@ -1074,7 +1073,7 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
-                            self.replay_storage.add(time_step, meta, True, last=False)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=False)
                         
                     else:
                         print('else')
@@ -1249,7 +1248,7 @@ class Workspace:
                     episode_reward += time_step.reward
                     
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:
-                        self.replay_storage.add(time_step, meta, True)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True)
 
                     elif time_step.last()==False and self.cfg.obs_type=='states':
                         self.replay_storage.add(time_step, meta)
@@ -1338,8 +1337,6 @@ class Workspace:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
-                path_2 = os.path.join(self.work_dir, 'encoder_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
-                torch.save(self.agent.encoder, path_2)
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
