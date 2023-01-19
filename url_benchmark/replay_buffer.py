@@ -141,7 +141,6 @@ class ReplayBufferStorage:
             for spec in self._meta_specs:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
-            print('state', episode['state'])
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
@@ -1326,7 +1325,6 @@ class OfflineReplayBuffer(IterableDataset):
                         index
                         )
             else:
-                print('states parse', states)
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
