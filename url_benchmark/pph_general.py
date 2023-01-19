@@ -1264,11 +1264,11 @@ class Workspace:
                                                 self.global_step,
                                                 eval_mode=True)
 
-                    if self.global_step > (self.cfg.num_seed_frames):
+                    if self.global_step > (self.cfg.num_seed_frames+self.cfg.switch_gc):
 
-                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-                        self.logger.log_metrics(metrics, self.global_frame, ty='train') 
-                    
+                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                        self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
 		    time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
                     
