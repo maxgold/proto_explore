@@ -1305,7 +1305,7 @@ class Workspace:
                             print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
-                        self.current_init = np.append(self.current_init, time_step1.observation['observations'][:2], axis=0)
+                        self.current_init = np.append(self.current_init, time_step1.observation['observations'][None,:2], axis=0)
                         print('current', self.current_init)
                         print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
