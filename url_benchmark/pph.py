@@ -378,6 +378,8 @@ class Workspace:
         self.distance_goal_init = {}
         self.proto_goals_dist = np.zeros((10, 1))
         self.proto_goals = np.zeros((10, 2))
+        self.proto_goals_random = np.zeros((10, 2))
+        self.proto_goals_intr = np.zeros((10, 2))
         self.proto_goals_matrix = np.zeros((60,60))
         self.proto_goals_id = np.zeros((10, 2))
         self.actor=True
@@ -403,7 +405,7 @@ class Workspace:
         self.mov_avg_200 = np.zeros((2000,))
         self.mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0,2))
-        self.current_init = []
+        self.current_init = np.empty((0,2))
         self.proto_last_explore = 0
     
     @property
@@ -433,27 +435,15 @@ class Workspace:
 
     
     def eval_proto(self):
-        heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
+        if self.global_step%100000==0:
+            heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
         eval_env_goal = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
         #metric on exploration 
-        
-        self.previous_matrix = self.current_matrix
-        self.current_matrix=self.replay_storage.state_visitation_proto
-        if self.previous_matrix is None:
-            print('first try')
-        else:
-            diff = self.current_matrix - self.previous_matrix
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10,6))
-            sns.heatmap(np.log(1 + diff.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-            ax.set_title(self.global_step)
-
-            plt.savefig(f"./{self.global_step}_exploration_diff.png")
-            wandb.save(f"./{self.global_step}_exploration_diff.png")
-            
-            new = np.where(self.previous_matrix==0, diff, 0).sum()
-            
+       
+        while self.proto_goals.shape[0] < 10:
+            self.proto_goals = np.append(self.proto_goals, np.array([[0., 0.]]), axis=0)
+            self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
         protos = self.agent.protos.weight.data.detach().clone()
 
         replay_buffer = make_replay_offline(eval_env_goal,
@@ -477,32 +467,7 @@ class Workspace:
         state=state[idx]
         state=state.reshape(num_sample,4)
         a = state
-        count10,count01,count00,count11=(0,0,0,0)
-        # density estimate:
-        df = pd.DataFrame()
-        for state_ in a:
-            if state_[0]<0:
-                if state_[1]>=0:
-                    count10+=1
-                else:
-                    count00+=1
-            else:
-                if state_[1]>=0:
-                    count11+=1
-                else:
-                    count01+=1
-
-        df.loc[0,0] = count00/a.shape[0]
-        df.loc[0,1] = count01/a.shape[0]
-        df.loc[1,1] = count11/a.shape[0]
-        df.loc[1,0] = count10/a.shape[0]
-        labels=df
-        plt.clf()
-        fig, ax = plt.subplots()
-        sns.heatmap(df, cmap="Blues_r",cbar=False, annot=labels).invert_yaxis()
-        ax.set_title('data percentage')
-        plt.savefig(self.work_dir / f"data_pct_model_{self._global_step}.png")
-
+        
         def ndim_grid(ndims, space):
             L = [np.linspace(-.25,.25,space) for i in range(ndims)]
             return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
@@ -549,19 +514,6 @@ class Workspace:
         actual_proto = torch.cat(actual_proto,axis=0)
         
         sample_dist = torch.norm(proto[:,None,:] - proto[None,:, :], dim=2, p=2)
-        df = pd.DataFrame()
-        df['x'] = a[:,0].round(2)
-        df['y'] = a[:,1].round(2)
-        df['r'] = sample_dist[0].clone().detach().cpu().numpy()
-        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
-        result.fillna(0, inplace=True)
-        sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
-        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        ax.set_title('{}, {}'.format(self.global_step, a[0,:2]))  
-
-        plt.savefig(f"./{self.global_step}_dist_heatmap.png")
-        wandb.save(f"./{self.global_step}_dist_heatmap.png")
 
         proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
 
@@ -576,7 +528,7 @@ class Workspace:
             
             goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
             dist_arg = self.proto_goals_dist.argsort(axis=0)
-            
+            #import IPython as ipy; ipy.embed(colors='neutral') 
             for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
                 
                 if x > self.proto_goals_dist[dist_arg[ix]]:
@@ -590,8 +542,63 @@ class Workspace:
         elif self.cfg.proto_goal_random:
             
             self.proto_goals = a[_proto[:, 0].detach().clone().cpu().numpy(), :2]
+            
+        elif self.cfg.debug:
+            
+            goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
+            dist_arg = self.proto_goals_dist.argsort(axis=0)
+            
+            for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
+                
+                if x > self.proto_goals_dist[dist_arg[ix]]:
+                    
+                    self.proto_goals_dist[dist_arg[ix]] = x
+                    self.proto_goals_intr[dist_arg[ix]] = a[goal_indices[ix].clone().detach().cpu().numpy(),:2]
+            
+            self.proto_goals_random = a[_proto[:, 0].detach().clone().cpu().numpy(), :2]
+            
+            print('proto goals intr', self.proto_goals_intr)
+            print('proto dist', self.proto_goals_dist)
+            print('proto goals rand', self.proto_goals_random)
+            
+            
+            if self.global_step%200000==0:
+                #can change when testing
+                goal_state = self.proto_goals_random[0]
 
+                with self.eval_env_goal.physics.reset_context():
 
+                    self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
+                time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                print('2', self.eval_env_goal.physics.get_state())
+                with torch.no_grad(), utils.eval_mode(self.agent):
+
+                    action = self.agent.act(time_step1.observation['pixels'],
+                                            time_step_goal,
+                                            meta,
+                                            self._global_step,
+                                            eval_mode=True,
+                                            tile=self.cfg.frame_stack
+                                            )
+                print('goal_state')
+                print('act', action)
+
+        #take out goals that are close to already reached goals
+        #can try this in proto space too
+
+        #import IPython as ipy; ipy.embed(colors='neutral') 
+        index=np.where(((np.linalg.norm(self.proto_goals[:,None,:] - self.current_init[None,:,:],axis=-1, ord=2))<.05))
+        index = np.unique(index[0])
+        print('delete goals', self.proto_goals[index])
+        self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
+        index=np.where((self.proto_goals==0.).all(axis=1))[0]
+        self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
+        print('current goals', self.proto_goals) 
+            
+            
+            
         filenames=[]
         plt.clf()
         fig, ax = plt.subplots()
@@ -847,12 +854,12 @@ class Workspace:
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     self.logger.log('eval_total_time', self.timer.total_time(),
                                     self.global_frame)
-                    if self.cfg.debug:
-                        self.eval()
-                    elif self.cfg.agent.name=='protov2':
-                        self.eval_protov2()
-                    else:
-                        self.eval_proto()
+#                     if self.cfg.debug:
+#                         self.eval()
+#                     if self.cfg.agent.name=='protov2':
+#                         self.eval_protov2()
+#                     else:
+                    self.eval_proto()
 
                 meta = self.agent.update_meta(meta, self.global_step, time_step)
                 # sample action
@@ -1111,10 +1118,10 @@ class Workspace:
 
                             print('gc ALWYAS exploreing')
 
-                            if len(self.current_init) != 0:
+                            if self.current_init.shape[0] != 0:
                                 if self.global_step%10000==0:
-                                    init_idx=np.random.randint(1,len(self.current_init)+1)
-                                elif len(self.current_init)>2:
+                                    init_idx=np.random.randint(1,self.current_init.shape[0]+1)
+                                elif self.current_init.shape[0]>2:
                                     init_idx=np.random.randint(1,4)
                                 else:
                                     init_idx = 1
@@ -1150,7 +1157,7 @@ class Workspace:
 
                                 print('gc exploreing')
                                 print('current', self.current_init)
-                                init_idx=np.random.randint(len(self.current_init))
+                                init_idx=np.random.randint(self.current_init.shape[0])
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type, 
                                                        self.cfg.frame_stack,self.cfg.action_repeat, 
                                                        seed=None, goal=goal_state, init_state=self.current_init[-1])
@@ -1298,7 +1305,7 @@ class Workspace:
                             print('reached and save gc last 2')
                             self.replay_storage1.add_goal(time_step1, meta,time_step_goal, time_step_no_goal,self.train_env_goal.physics.state(), True, last=True)
 
-                        self.current_init.append(time_step1.observation['observations'][:2])
+                        self.current_init = np.append(self.current_init, time_step1.observation['observations'][:2], axis=0)
                         print('current', self.current_init)
                         print('obs', time_step1.observation['observations'][:2])
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
