@@ -151,6 +151,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
         utils.hard_update_params(protos.encoder, self.encoder)
+        
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)
