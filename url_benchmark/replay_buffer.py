@@ -94,15 +94,18 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta,pixels=False, last=False, pmm=True):
+    def add(self, time_step, state=None, meta,pixels=False, last=False, pmm=True):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
                 value = time_step[spec.name]    
                 self._current_episode['observation'].append(value['pixels'])
-                self._current_episode['state'].append(value['observations'])
-                
+                if state is not None:
+                    self._current_episode['state'].append(state)
+                else:
+                    self._current_episode['state'].append(value['observations'])
+
                 if pmm:
                     tmp_state = value['observations']*100
                     idx_x = int(tmp_state[0])+29
@@ -130,6 +133,7 @@ class ReplayBufferStorage:
                     value2 = self._current_episode['state']
                     episode['observation'] = np.array(value1, spec.dtype)
                     episode['state'] = np.array(value2, 'float32')
+                    
                 else:
                     value = self._current_episode[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
@@ -137,6 +141,7 @@ class ReplayBufferStorage:
             for spec in self._meta_specs:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
+            print('state', episode['state'])
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
@@ -1321,6 +1326,7 @@ class OfflineReplayBuffer(IterableDataset):
                         index
                         )
             else:
+                print('states parse', states)
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),

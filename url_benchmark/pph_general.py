@@ -841,7 +841,7 @@ class Workspace:
         meta = self.agent.init_meta() 
          
         if self.cfg.obs_type == 'pixels':
-            self.replay_storage.add(time_step, meta, True, pmm=self.pmm)  
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), self.train_env.physics.get_state(), meta, True, pmm=self.pmm)  
         else:
             self.replay_storage.add(time_step, meta)  
 
@@ -876,7 +876,7 @@ class Workspace:
                         time_step = self.train_env.reset()
                         print('proto', time_step.observation['observations'])
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
-                        self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
                     else:
                         self.replay_storage.add(time_step, meta)
                     print('proto', time_step.observation['observations'])
@@ -917,7 +917,7 @@ class Workspace:
                 time_step = self.train_env.step(action)
                 episode_reward += time_step.reward
                 if  self.cfg.obs_type=='pixels':
-                    self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
                 else:
                     self.replay_storage.add(time_step, meta)
                 episode_step += 1
@@ -981,7 +981,7 @@ class Workspace:
                     
 
                     elif self.cfg.obs_type =='pixels' and self.actor:
-                        self.replay_storage.add(time_step, meta, True, last=True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
                     else:
                         self.replay_storage.add(time_step, meta)
                     
@@ -1079,7 +1079,7 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
                         
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
-                            self.replay_storage.add(time_step, meta, True, last=False, pmm=self.pmm)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=False, pmm=self.pmm)
                         
                     else:
                         print('else')
@@ -1269,7 +1269,7 @@ class Workspace:
                     episode_reward += time_step.reward
                     
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:
-                        self.replay_storage.add(time_step, meta, True, pmm=self.pmm)
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
                     elif time_step.last()==False and self.cfg.obs_type=='states':
                         self.replay_storage.add(time_step, meta)
