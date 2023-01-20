@@ -1116,17 +1116,17 @@ class Workspace:
                         if self.cfg.test1:
 
                             print('gc ALWYAS exploreing')
-
-                            if self.current_init.shape[0] != 0:
-                                if self.global_step%10000==0:
-                                    init_idx=np.random.randint(1,self.current_init.shape[0]+1)
-                                elif self.current_init.shape[0]>2:
+                            if 3>len(self.current_init)>0:
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
+                                                   seed=None, goal=goal_state, init_state=self.current_init[-1])
+                            elif len(self.current_init)>=3:
+                                chance = np.random.uniform()
+                                if chance < .7:
                                     init_idx=np.random.randint(1,4)
                                 else:
-                                    init_idx = 1
-
-
-                                
+                                    init_idx = np.random.randint(self.current_init.shape[0])
+                               #ideally not using this this uses state info 
                                 if idx >= s:
                                     min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[-init_idx], (self.unreached_goals.shape[0],1)) - self.unreached_goals))
                                     goal_state = self.unreached_goals[min_dist]
@@ -1134,20 +1134,23 @@ class Workspace:
                                 else:
                                     min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[-init_idx], (self.proto_goals.shape[0],1)) - self.proto_goals))
                                     goal_state = self.proto_goals[min_dist]
-
-                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
-                                                   self.cfg.frame_stack,self.cfg.action_repeat,
-                                                   seed=None, goal=goal_state, init_state=self.current_init[-init_idx])
+ 
+                                self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type,
+                                                        self.cfg.frame_stack,self.cfg.action_repeat,
+                                                        seed=None, goal=goal_state,
+                                                        init_state=self.current_init[-init_idx]) 
                             
                             else:
-                                
-                                print('no current init yet')
                                 rand_init = np.random.uniform(.25,.29,size=(2,))
                                 rand_init[0] = rand_init[0]*(-1)
+				
+				
 
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
                                                        self.cfg.frame_stack,self.cfg.action_repeat,
-                                                       seed=None, goal=goal_state, init_state = rand_init) 
+                                                       seed=None, goal=goal_state, init_state = rand_init)
+ 
+                                print('no current init yet')
 
                         #v2: let gc explor from most recently reached goal, else start from scratch 
                         else:
