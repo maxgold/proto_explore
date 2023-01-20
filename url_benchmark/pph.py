@@ -1049,13 +1049,17 @@ class Workspace:
                     if self.proto_explore and self.actor:
                         
                         #now the proto explores from any reached goals by gc
-                        if len(self.current_init) > 2:
-                            print('len of current init', len(self.current_init))
-                            init_idx=np.random.randint(1,4)
-                            self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
+                        if self.current_init.shape[0] > 2:
+                            chance = np.random.uniform()
+                            if chance < .8:
+                                print('len of current init', self.current_init.shape[0])
+                                init_idx=np.random.randint(1,4)
+                                self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type, 
                                                    self.cfg.frame_stack,self.cfg.action_repeat, 
                                                    seed=None, goal=goal_state, init_state=self.current_init[-init_idx])
-                        elif len(self.current_init) > 0:
+                            else:
+                                init_idx=np.random.randint(1,4)
+                        elif self.current_init.shape[0]  > 0:
                             self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type,
                                                     self.cfg.frame_stack,self.cfg.action_repeat,
                                                     seed=None, goal=goal_state, init_state=self.current_init[-1])
