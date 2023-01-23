@@ -124,6 +124,7 @@ reward_cutoff: 0
 neg_euclid_state: True
 nstep1: 3
 nstep2: 3
+update_proto_opt: True
 #experiment
 experiment: exp
 

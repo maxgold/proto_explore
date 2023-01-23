@@ -46,7 +46,7 @@ class Projector(nn.Module):
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -83,6 +83,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         print('update enc by proto', update_enc_proto)
         print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
+        self.update_proto_opt = update_proto_opt
         print('tau', tau)
         print('it', num_iterations)
 
@@ -293,7 +294,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         
-        #self.proto_opt.zero_grad(set_to_none=True)
+        if self.update_proto_opt:
+            self.proto_opt.zero_grad(set_to_none=True)
         #loss.backward()
         #self.proto_opt.step()
 
@@ -306,6 +308,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.pred_opt.step()
         self.proj_opt.step()
         self.encoder_opt.step()
+        if self.update_proto_opt:
+            self.proto_opt.step()
         return metrics
 
     def update_encoder_func(self, obs, next_obs, step):

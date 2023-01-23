@@ -31,7 +31,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=2, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -67,6 +67,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.stddev_clip2 = stddev_clip2
     cfg.update_enc_proto = update_enc_proto
     cfg.update_enc_gc = update_enc_gc
+    cfg.update_proto_opt = update_proto_opt
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -296,7 +297,8 @@ class Workspace:
                                 stddev_schedule2=cfg.stddev_schedule2,
                                 stddev_clip2=cfg.stddev_clip2,
                                 update_enc_proto=cfg.update_enc_proto,
-                                update_enc_gc=cfg.update_enc_gc)
+                                update_enc_gc=cfg.update_enc_gc,
+                                update_proto_opt=cfg.update_proto_opt)
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
