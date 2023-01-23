@@ -56,7 +56,7 @@ TASKS = [
     ("reach_hard2_no_goal", np.array([-0.15, -0.15, 0.01])),
     ("reach_hard2_no_goal_v1", np.array([.2, .2, 0.01])),
     ("reach_hard2_no_goal_v2", np.array([.2, -0.05, 0.01])),
-    ("reach_hard2_no_goal_v3", np.array([.2, -0.05, 0.01])),
+    ("reach_hard2_no_goal_v3", np.array([-.15, -0.15, 0.01])),
     ("reach_room_no_goal_v1", np.array([.2, .2, 0.01])),
     ("reach_room_no_goal_v2", np.array([.2, -0.05, 0.01])),
 ]
@@ -370,8 +370,8 @@ def reach_hard2_no_goal_v3(time_limit=_DEFAULT_TIME_LIMIT,
     """Returns the Run task."""
     global task_name
     print('hard2')
-    task_name = 'reach_hard2_no_goal_v2'
-    physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal_v2'))
+    task_name = 'reach_hard2_no_goal_v3'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal_v3'))
     task = MultiTaskPointMassMaze(target_id=18, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,

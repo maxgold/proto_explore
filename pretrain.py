@@ -157,6 +157,7 @@ class Workspace:
 
     def train(self):
         # predicates
+        self.xylist = []
         train_until_step = utils.Until(self.cfg.num_train_frames,
                                        self.cfg.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
@@ -166,6 +167,7 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
+        self.xylist.append(time_step.physics)
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -191,6 +193,7 @@ class Workspace:
 
                 # reset env
                 time_step = self.train_env.reset()
+                self.xylist.append(time_step.physics)
                 meta = self.agent.init_meta()
                 self.replay_storage.add(time_step, meta)
                 self.train_video_recorder.init(time_step.observation)
@@ -223,8 +226,13 @@ class Workspace:
                     pickle.dump(self.log2, f)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
+            if self.global_step % 50000 == 0:
+                with (self.work_dir / "heatmap.pkl").open("wb") as f:
+                    pickle.dump(self.xylist, f)
+
             # take env step
             time_step = self.train_env.step(action)
+            self.xylist.append(time_step.physics)
             episode_reward += time_step.reward
             self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
