@@ -1252,7 +1252,8 @@ class Workspace:
 
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
+                        if self.cfg.update_gc_while_proto:
+                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
                     
@@ -1334,10 +1335,11 @@ class Workspace:
                          
                     
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
-
+                        
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
+                        if self.cfg.update_proto_while_gc:
+                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         #self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                 self._global_step += 1

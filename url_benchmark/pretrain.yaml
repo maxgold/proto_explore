@@ -125,6 +125,8 @@ neg_euclid_state: True
 nstep1: 3
 nstep2: 3
 update_proto_opt: True
+update_gc_while_proto: False
+update_proto_while_gc: False
 #experiment
 experiment: exp
 

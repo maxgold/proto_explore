@@ -294,7 +294,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         
-        if self.update_proto_opt:
+        if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.zero_grad(set_to_none=True)
         #loss.backward()
         #self.proto_opt.step()
@@ -308,7 +308,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.pred_opt.step()
         self.proj_opt.step()
         self.encoder_opt.step()
-        if self.update_proto_opt:
+        if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.step()
         return metrics
 
