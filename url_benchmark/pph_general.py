@@ -248,6 +248,12 @@ class Workspace:
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
                                      cfg.action_repeat, seed=None)
             
+        if cfg.cassio:
+            self.pwd = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark'
+        elif cfg.greene:
+            self.pwd = '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark'
+        elif cfg.pluto:
+            self.pwd = '/home/nina/proto_explore/url_benchmark'  
         # create agent
 
         if self.cfg.agent.name=='protox':
@@ -309,11 +315,13 @@ class Workspace:
                                 update_proto_opt=cfg.update_proto_opt)
             
         # initialize from pretrained
-        
-        if cfg.model_path is not None:
+        print('model p', cfg.model_path)
+        if cfg.model_path:
             assert os.path.isfile(self.pwd + cfg.model_path)
             pretrained_agent = torch.load(self.pwd + cfg.model_path)
             self.agent.init_from(pretrained_agent)
+            path = self.cfg.model_path.split('/')
+            path = Path(self.pwd+'/'.join(path[:-1]))
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -328,14 +336,11 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2')
-        
-        path = self.cfg.model_path.split('/')
-        path = Path(self.pwd+'/'.join(path[:-1]))
-        
+ 
 
         # create replay buffer
         print('regular or hybrid_gc loader')
-        if self.cfg.model_path is not None:
+        if self.cfg.model_path:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     True,
                                                     cfg.replay_buffer_gc,
@@ -1210,7 +1215,7 @@ class Workspace:
         if self.pmm==False:
             time_step_no_goal = None
             
-        if self.cfg.model_path is not None:
+        if self.cfg.model_path:
             self.eval_proto(evaluate=True)
         
         while train_until_step(self.global_step):

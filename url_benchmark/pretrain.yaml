@@ -128,7 +128,10 @@ update_proto_opt: True
 update_gc_while_proto: False
 update_proto_while_gc: False
 pmm_reward_cutoff: 100
-model_path: None
+model_path: False
+cassio: False
+greene: False
+pluto: False
 #experiment
 experiment: exp
 
