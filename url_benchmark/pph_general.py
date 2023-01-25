@@ -198,7 +198,7 @@ class Workspace:
         # create logger
         if cfg.use_wandb:
             exp_name = '_'.join([
-                cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
+                cfg.experiment, cfg.agent.name, cfg.task, cfg.obs_type,
                 str(cfg.seed), str(cfg.tmux_session),work_path 
             ])
             wandb.init(project="urlb1", group=cfg.agent.name, name=exp_name)
@@ -899,10 +899,11 @@ class Workspace:
     def make_env(self, actor1, init_idx, goal_state, pmm):
         
         if pmm:
+            goal_state = goal_state[:2]
             if init_idx is None:
                 
                 init_state = np.random.uniform(.25,.29,size=(2,))
-                init_state[0] = rand_init[0]*(-1)
+                init_state[0] = init_state[0]*(-1)
             
             else: 
                 
