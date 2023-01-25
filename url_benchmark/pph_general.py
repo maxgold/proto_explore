@@ -307,6 +307,14 @@ class Workspace:
                                 update_enc_proto=cfg.update_enc_proto,
                                 update_enc_gc=cfg.update_enc_gc,
                                 update_proto_opt=cfg.update_proto_opt)
+            
+        # initialize from pretrained
+        
+        if cfg.model_path is not None:
+            assert os.path.isfile(self.pwd + cfg.model_path)
+            pretrained_agent = torch.load(self.pwd + cfg.model_path)
+            self.agent.init_from(pretrained_agent)
+            
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
@@ -321,10 +329,40 @@ class Workspace:
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2')
         
+        path = self.cfg.model_path.split('/')
+        path = Path(self.pwd+'/'.join(path[:-1]))
+        
 
         # create replay buffer
         print('regular or hybrid_gc loader')
-        if self.cfg.combine_storage_gc:
+        if self.cfg.model_path is not None:
+            self.replay_loader1 = make_replay_loader(self.replay_storage1,
+                                                    True,
+                                                    cfg.replay_buffer_gc,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    False, cfg.nstep1, cfg.discount,
+                                                    True, cfg.hybrid_gc,cfg.obs_type,
+                                                    cfg.hybrid_pct, replay_dir2= path / 'buffer1',
+                                                    loss=cfg.loss_gc, test=cfg.test,
+                                                    tile=cfg.frame_stack,
+                                                    pmm=self.pmm,
+                                                    obs_shape=self.train_env1.physics.state().shape[0],
+                                                    general=True)
+            
+            self.replay_loader = make_replay_loader(self.replay_storage,
+                                                True,
+                                                cfg.replay_buffer_size,
+                                                cfg.batch_size,
+                                                cfg.replay_buffer_num_workers,
+                                                False, cfg.nstep, cfg.discount,
+                                                goal=False,
+                                                obs_type=cfg.obs_type,
+                                                replay_dir2= path / 'buffer2',
+                                                loss=cfg.loss,
+                                                test=cfg.test) 
+            
+        elif self.cfg.combine_storage_gc:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     True,
                                                     cfg.replay_buffer_gc,
@@ -338,6 +376,17 @@ class Workspace:
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
                                                     general=True)
+            
+            self.replay_loader = make_replay_loader(self.replay_storage,
+                                                False,
+                                                cfg.replay_buffer_size,
+                                                cfg.batch_size,
+                                                cfg.replay_buffer_num_workers,
+                                                False, cfg.nstep, cfg.discount,
+                                                goal=False,
+                                                obs_type=cfg.obs_type,
+                                                loss=cfg.loss,
+                                                test=cfg.test) 
         else:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     False,
@@ -351,8 +400,8 @@ class Workspace:
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
                                                     general=True)
-
-        self.replay_loader = make_replay_loader(self.replay_storage,
+            
+            self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
@@ -362,6 +411,8 @@ class Workspace:
                                                 obs_type=cfg.obs_type,
                                                 loss=cfg.loss,
                                                 test=cfg.test) 
+
+        
 
         self._replay_iter = None
         self._replay_iter1 = None
@@ -1418,7 +1469,7 @@ class Workspace:
                         episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
                       
                     
-                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm=False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
+                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm==False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
                         
                         self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
                                                               goal_pix, goal_state, 
@@ -1437,10 +1488,10 @@ class Workspace:
 
                     if self.global_step > (self.cfg.num_seed_frames+self.cfg.switch_gc):
 
-                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
                         if self.cfg.update_gc_while_proto:
-                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
+                            metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
