@@ -592,11 +592,14 @@ class Workspace:
         index = np.unique(index[0])
         print('delete goals', self.proto_goals[index])
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
         self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         index=np.where((self.proto_goals==0.).all(axis=1))[0]
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
         self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         print('current goals', self.proto_goals) 
+        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
             
             
             
@@ -905,17 +908,17 @@ class Workspace:
             #switching between gc & proto
             
             else:
+                
                 if self.global_step==self.cfg.switch_gc:
+                    
                     self.actor1=True
                     self.actor=False
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                                                        self.cfg.action_repeat, seed=None, goal=self.first_goal, 
-                                                        init_state=time_step1.observation['observations'][:2])
-                    
+                                                        self.cfg.action_repeat, seed=None, goal=None, 
+                                                        init_state=time_step1.observation['observations'][:2])     
                     time_step_no_goal = self.train_env_no_goal.reset()
                     time_step_goal = self.train_env_goal.reset()
-                    
 
                     with self.train_env_goal.physics.reset_context():
                         time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
@@ -1103,7 +1106,8 @@ class Workspace:
 #                             print('goal score', goal_score)
 #                             print('goal_prob', goal_prob)
 #                         elif self.cfg.proto_goal_random:
-
+                        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
+    
                         s = self.proto_goals.shape[0]
                         num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
