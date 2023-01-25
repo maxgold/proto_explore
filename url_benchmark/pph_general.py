@@ -398,7 +398,7 @@ class Workspace:
         else:
             dim=self.agent.protos.weight.data.shape[0]
 
-        self.proto_goals = np.zeros((dim, 9, 84, 84))
+        self.proto_goals = np.zeros((dim, 3*self.cfg.frame_stack, 84, 84))
         self.proto_goals_state = np.zeros((dim, self.train_env.physics.get_state().shape[0]))
         self.proto_goals_matrix = np.zeros((60,60))
         self.proto_goals_id = np.zeros((dim, 2))
@@ -578,7 +578,7 @@ class Workspace:
     
                     with self.eval_env_no_goal.physics.reset_context():
             
-                        self.eval_env_no_goal.physics.set_state(a[closest_sample])
+                        self.eval_env_no_goal.physics.set_state(a[closest_sample][0])
 
                     img = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
 
