@@ -224,7 +224,7 @@ class ReplayBufferStorage:
             print('storing episode, w/ goal')
             
     def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False):
-        assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
+        #assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
         if time_step_no_goal is not None:
             pmm=True
         else:

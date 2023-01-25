@@ -283,7 +283,7 @@ class Workspace:
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
-                                (3,84,84),
+                                (3*self.cfg.frame_stack,84,84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent,
                                 cfg.lr,
@@ -460,243 +460,267 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
     
-    def eval_proto(self):
+    def eval_proto(self, evaluate=False):
         
-        if self.global_step%100000==0 and self.pmm:
-            heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
-        
-        ########################################################################
-        #how should we measure exploration in non-pmm w/o heatmaps
-
-        
-        while self.proto_goals.shape[0] < 10:
-            self.proto_goals = np.append(self.proto_goals, np.array([[0., 0.]]), axis=0)
-            self.proto_goals_state = np.append(self.proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
-            self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
-        protos = self.agent.protos.weight.data.detach().clone()
-        
-
-        replay_buffer = make_replay_offline(self.eval_env,
-                                                self.work_dir / 'buffer2' / 'buffer_copy',
-                                                500000,
-                                                0,
-                                                0,
-                                                .99,
-                                                goal=False,
-                                                relabel=False,
-                                                model_step = self._global_step,
-                                                replay_dir2=False,
-                                                obs_type = 'pixels'
-                                                )
-
-        
-        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
-        state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
-
-        num_sample=600 
-        idx = np.random.randint(0, state.shape[0], size=num_sample)
-        state=state[idx]
-        state=state.reshape(num_sample,self.train_env.physics.get_state().shape[0])
-        a = state
-
-        encoded = []
-        proto = []
-        actual_proto = []
-        lst_proto = []
-
-        for x in idx:
-            fn = eps[x]
-            idx_ = index[x]
-            ep = np.load(fn)
-            #pixels.append(ep['observation'][idx_])
-
-            with torch.no_grad():
-                obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=self.device).unsqueeze(0)
-                z = self.agent.encoder(obs)
-                encoded.append(z)
-                z = self.agent.predictor(z)
-                z = self.agent.projector(z)
-                z = F.normalize(z, dim=1, p=2)
-                proto.append(z)
-                sim = self.agent.protos(z)
-                idx_ = sim.argmax()
-                actual_proto.append(protos[idx_][None,:])
-
-        encoded = torch.cat(encoded,axis=0)
-        proto = torch.cat(proto,axis=0)
-        actual_proto = torch.cat(actual_proto,axis=0)
-
-        sample_dist = torch.norm(proto[:,None,:] - proto[None,:, :], dim=2, p=2)
-        
-#         if self.pmm:
+        if evaluate:
             
-#             df = pd.DataFrame()
-#             df['x'] = a[:,0].round(2)
-#             df['y'] = a[:,1].round(2)
-#             df['r'] = sample_dist[0].clone().detach().cpu().numpy()
-#             result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
-#             result.fillna(0, inplace=True)
-#             sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
-#             ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-#             ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-#             ax.set_title('{}, {}'.format(self.global_step, a[0,:2]))  
-
-#             plt.savefig(f"./{self.global_step}_dist_heatmap.png")
-#             wandb.save(f"./{self.global_step}_dist_heatmap.png")
-
-        proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
-
-        all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
-
-        p = _proto.clone().detach().cpu().numpy()
+            path = self.cfg.model_path.split('/')
+            path = Path(self.pwd+'/'.join(path[:-1]))
+            replay_buffer = make_replay_offline(self.eval_env,
+                                                    path / 'buffer1' / 'buffer_copy',
+                                                    500000,
+                                                    0,
+                                                    0,
+                                                    .99,
+                                                    goal=False,
+                                                    relabel=False,
+                                                    model_step = 1000000,
+                                                    replay_dir2=False,
+                                                    obs_type = 'pixels'
+                                                    )
             
-        if self.cfg.proto_goal_intr:
+            state, actions, rewards, goal_states, eps, index = replay_buffer.parse_dataset(goal_state=True) 
+            import IPython as ipy; ipy.embed(colors='neutral')
             
-            goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
-            dist_arg = self.proto_goals_dist.argsort(axis=0)
-
-            for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
-                
-                if x > self.proto_goals_dist[dist_arg[ix]]:
-                    
-                    self.proto_goals_dist[dist_arg[ix]] = x
-                    closest_sample = goal_indices[ix].clone().detach().cpu().numpy()
-                    
-                    ##################################
-                    #may need to debug this 
-#                     fn = eps[closest_sample]
-#                     idx_ = index[closest_sample]
-#                     ep = np.load(fn)
-
-#                     with torch.no_grad():
-#                         obs = ep['observation'][idx_]
-
-#                     self.proto_goals[dist_arg[ix]] = obs
-
-                    self.proto_goals_state[dist_arg[ix]] = a[closest_sample]
-    
-                    with self.eval_env_no_goal.physics.reset_context():
+            df = pd.DataFrame({'s':state, 'r':rewards, 'g':goal_states, 'e':eps})
             
-                        self.eval_env_no_goal.physics.set_state(a[closest_sample][0])
+        else:
+
+            if self.global_step%100000==0 and self.pmm:
+                heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
+
+            ########################################################################
+            #how should we measure exploration in non-pmm w/o heatmaps
+
+
+            while self.proto_goals.shape[0] < 10:
+                self.proto_goals = np.append(self.proto_goals, np.array([[0., 0.]]), axis=0)
+                self.proto_goals_state = np.append(self.proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
+                self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
+            protos = self.agent.protos.weight.data.detach().clone()
+
+
+            replay_buffer = make_replay_offline(self.eval_env,
+                                                    self.work_dir / 'buffer2' / 'buffer_copy',
+                                                    500000,
+                                                    0,
+                                                    0,
+                                                    .99,
+                                                    goal=False,
+                                                    relabel=False,
+                                                    model_step = self._global_step,
+                                                    replay_dir2=False,
+                                                    obs_type = 'pixels'
+                                                    )
+
+
+            state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
+            state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
+
+            num_sample=600 
+            idx = np.random.randint(0, state.shape[0], size=num_sample)
+            state=state[idx]
+            state=state.reshape(num_sample,self.train_env.physics.get_state().shape[0])
+            a = state
+
+            encoded = []
+            proto = []
+            actual_proto = []
+            lst_proto = []
+
+            for x in idx:
+                fn = eps[x]
+                idx_ = index[x]
+                ep = np.load(fn)
+                #pixels.append(ep['observation'][idx_])
+
+                with torch.no_grad():
+                    obs = ep['observation'][idx_]
+                    obs = torch.as_tensor(obs.copy(), device=self.device).unsqueeze(0)
+                    z = self.agent.encoder(obs)
+                    encoded.append(z)
+                    z = self.agent.predictor(z)
+                    z = self.agent.projector(z)
+                    z = F.normalize(z, dim=1, p=2)
+                    proto.append(z)
+                    sim = self.agent.protos(z)
+                    idx_ = sim.argmax()
+                    actual_proto.append(protos[idx_][None,:])
+
+            encoded = torch.cat(encoded,axis=0)
+            proto = torch.cat(proto,axis=0)
+            actual_proto = torch.cat(actual_proto,axis=0)
+
+            sample_dist = torch.norm(proto[:,None,:] - proto[None,:, :], dim=2, p=2)
+
+    #         if self.pmm:
+
+    #             df = pd.DataFrame()
+    #             df['x'] = a[:,0].round(2)
+    #             df['y'] = a[:,1].round(2)
+    #             df['r'] = sample_dist[0].clone().detach().cpu().numpy()
+    #             result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']
+    #             result.fillna(0, inplace=True)
+    #             sns.heatmap(result, cmap="Blues_r",fmt='.2f', ax=ax).invert_yaxis()
+    #             ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+    #             ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+    #             ax.set_title('{}, {}'.format(self.global_step, a[0,:2]))  
+
+    #             plt.savefig(f"./{self.global_step}_dist_heatmap.png")
+    #             wandb.save(f"./{self.global_step}_dist_heatmap.png")
+
+            proto_dist = torch.norm(protos[:,None,:] - proto[None,:, :], dim=2, p=2)
+
+            all_dists_proto, _proto = torch.topk(proto_dist, 10, dim=1, largest=False)
+
+            p = _proto.clone().detach().cpu().numpy()
+
+            if self.cfg.proto_goal_intr:
+
+                goal_dist, goal_indices = self.eval_intrinsic(encoded, a)
+                dist_arg = self.proto_goals_dist.argsort(axis=0)
+
+                for ix,x in enumerate(goal_dist.clone().detach().cpu().numpy()):
+
+                    if x > self.proto_goals_dist[dist_arg[ix]]:
+
+                        self.proto_goals_dist[dist_arg[ix]] = x
+                        closest_sample = goal_indices[ix].clone().detach().cpu().numpy()
+
+                        ##################################
+                        #may need to debug this 
+    #                     fn = eps[closest_sample]
+    #                     idx_ = index[closest_sample]
+    #                     ep = np.load(fn)
+
+    #                     with torch.no_grad():
+    #                         obs = ep['observation'][idx_]
+
+    #                     self.proto_goals[dist_arg[ix]] = obs
+
+                        self.proto_goals_state[dist_arg[ix]] = a[closest_sample]
+
+                        with self.eval_env_no_goal.physics.reset_context():
+
+                            self.eval_env_no_goal.physics.set_state(a[closest_sample][0])
+
+                        img = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
+
+                        img = np.transpose(img, (2,0,1))
+                        img = np.tile(img, (self.cfg.frame_stack,1,1))
+                        self.proto_goals[dist_arg[ix]]=img
+
+                print('proto goals', self.proto_goals_state)
+                print('proto dist', self.proto_goals_dist)
+
+            elif self.cfg.proto_goal_random:
+
+                closest_sample = _proto[:, 0].detach().clone().cpu().numpy()
+
+            ################################################
+    #             for ix, x in enumerate(closest_sample):
+
+    #                 fn = eps[x]
+    #                 idx_ = index[x]
+    #                 ep = np.load(fn)
+    #                 #pixels.append(ep['observation'][idx_])
+
+    #                 with torch.no_grad():
+    #                     obs = ep['observation'][idx_]
+
+    #                 self.proto_goals[ix] = obs
+                self.proto_goals_state = a[closest_sample]
+
+                for ix in range(self.proto_goals_state.shape[0]):           
+                    with self.eval_env_no_goal.physics.reset_context():                 
+                        self.eval_env_no_goal.physics.set_state(self.proto_goals_state[ix])
 
                     img = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
-
                     img = np.transpose(img, (2,0,1))
                     img = np.tile(img, (self.cfg.frame_stack,1,1))
-                    self.proto_goals[dist_arg[ix]]=img
+                    self.proto_goals[ix] = img
 
-            print('proto goals', self.proto_goals_state)
-            print('proto dist', self.proto_goals_dist)
-            
-        elif self.cfg.proto_goal_random:
-            
-            closest_sample = _proto[:, 0].detach().clone().cpu().numpy()
-           
-        ################################################
-#             for ix, x in enumerate(closest_sample):
-                
-#                 fn = eps[x]
-#                 idx_ = index[x]
-#                 ep = np.load(fn)
-#                 #pixels.append(ep['observation'][idx_])
+            if self.pmm:
 
-#                 with torch.no_grad():
-#                     obs = ep['observation'][idx_]
-                    
-#                 self.proto_goals[ix] = obs
-            self.proto_goals_state = a[closest_sample]
-            
-            for ix in range(self.proto_goals_state.shape[0]):           
-                with self.eval_env_no_goal.physics.reset_context():                 
-                    self.eval_env_no_goal.physics.set_state(self.proto_goals_state[ix])
-                    
-                img = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
-                img = np.transpose(img, (2,0,1))
-                img = np.tile(img, (self.cfg.frame_stack,1,1))
-                self.proto_goals[ix] = img
-
-        if self.pmm:
-            
-            filenames=[]
-            plt.clf()
-            fig, ax = plt.subplots()
-            dist_np = np.empty((protos.shape[1], _proto.shape[1], 2))
-            for ix in range(protos.shape[0]):
-                txt=''
-                df = pd.DataFrame()
-                count=0
-                for i in range(a.shape[0]+1):
-                    if i!=a.shape[0]:
-                        df.loc[i,'x'] = a[i,0]
-                        df.loc[i,'y'] = a[i,1]
-                        if i in _proto[ix,:]:
-                            df.loc[i, 'c'] = str(ix+1)
-                            dist_np[ix,count,0] = a[i,0]
-                            dist_np[ix,count,1] = a[i,1]
-                            count+=1
-
-                        elif ix==0 and (i not in _proto[ix,:]):
-                            #color all samples blue
-                            df.loc[i,'c'] = str(0)
-
-                palette = {
-                                '0': 'tab:blue',
-                                    '1': 'tab:orange',
-                                    '2': 'black',
-                                    '3':'silver',
-                                    '4':'green',
-                                    '5':'red',
-                                    '6':'purple',
-                                    '7':'brown',
-                                    '8':'pink',
-                                    '9':'gray',
-                                    '10':'olive',
-                                    '11':'cyan',
-                                    '12':'yellow',
-                                    '13':'skyblue',
-                                    '14':'magenta',
-                                    '15':'lightgreen',
-                                    '16':'blue',
-                                    '17':'lightcoral',
-                                    '18':'maroon',
-                                    '19':'saddlebrown',
-                                    '20':'peru',
-                                    '21':'tan',
-                                    '22':'darkkhaki',
-                                    '23':'darkolivegreen',
-                                    '24':'mediumaquamarine',
-                                    '25':'lightseagreen',
-                                    '26':'paleturquoise',
-                                    '27':'cadetblue',
-                                    '28':'steelblue',
-                                    '29':'thistle',
-                                    '30':'slateblue',
-                                    '31':'hotpink',
-                                    '32':'papayawhip'
-                        }
-                ax=sns.scatterplot(x="x", y="y",
-                          hue="c",palette=palette,
-                          data=df,legend=True)
-                sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
-                #ax.set_title("\n".join(wrap(txt,75)))
-
-                file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
-                plt.savefig(file1)
-                wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
-                
-        ########################################################################
-        #implement tsne for non-pmm prototype eval?
-        if self.global_step%100000==0: 
-            for ix in range(self.proto_goals_state.shape[0]):
-                 
-                with self.eval_env.physics.reset_context():
-                    self.eval_env.physics.set_state(self.proto_goals_state[ix])
-                
+                filenames=[]
                 plt.clf()
-                img = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
-                plt.imsave(f"goals_{ix}_{self.global_step}.png", img)
-                wandb.save(f"goals_{ix}_{self.global_step}.png")
+                fig, ax = plt.subplots()
+                dist_np = np.empty((protos.shape[1], _proto.shape[1], 2))
+                for ix in range(protos.shape[0]):
+                    txt=''
+                    df = pd.DataFrame()
+                    count=0
+                    for i in range(a.shape[0]+1):
+                        if i!=a.shape[0]:
+                            df.loc[i,'x'] = a[i,0]
+                            df.loc[i,'y'] = a[i,1]
+                            if i in _proto[ix,:]:
+                                df.loc[i, 'c'] = str(ix+1)
+                                dist_np[ix,count,0] = a[i,0]
+                                dist_np[ix,count,1] = a[i,1]
+                                count+=1
+
+                            elif ix==0 and (i not in _proto[ix,:]):
+                                #color all samples blue
+                                df.loc[i,'c'] = str(0)
+
+                    palette = {
+                                    '0': 'tab:blue',
+                                        '1': 'tab:orange',
+                                        '2': 'black',
+                                        '3':'silver',
+                                        '4':'green',
+                                        '5':'red',
+                                        '6':'purple',
+                                        '7':'brown',
+                                        '8':'pink',
+                                        '9':'gray',
+                                        '10':'olive',
+                                        '11':'cyan',
+                                        '12':'yellow',
+                                        '13':'skyblue',
+                                        '14':'magenta',
+                                        '15':'lightgreen',
+                                        '16':'blue',
+                                        '17':'lightcoral',
+                                        '18':'maroon',
+                                        '19':'saddlebrown',
+                                        '20':'peru',
+                                        '21':'tan',
+                                        '22':'darkkhaki',
+                                        '23':'darkolivegreen',
+                                        '24':'mediumaquamarine',
+                                        '25':'lightseagreen',
+                                        '26':'paleturquoise',
+                                        '27':'cadetblue',
+                                        '28':'steelblue',
+                                        '29':'thistle',
+                                        '30':'slateblue',
+                                        '31':'hotpink',
+                                        '32':'papayawhip'
+                            }
+                    ax=sns.scatterplot(x="x", y="y",
+                              hue="c",palette=palette,
+                              data=df,legend=True)
+                    sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+                    #ax.set_title("\n".join(wrap(txt,75)))
+
+                    file1= self.work_dir / f"10nn_actual_prototypes_{self.global_step}.png"
+                    plt.savefig(file1)
+                    wandb.save(f"10nn_actual_prototypes_{self.global_step}.png")
+
+            ########################################################################
+            #implement tsne for non-pmm prototype eval?
+            if self.global_step%100000==0: 
+                for ix in range(self.proto_goals_state.shape[0]):
+
+                    with self.eval_env.physics.reset_context():
+                        self.eval_env.physics.set_state(self.proto_goals_state[ix])
+
+                    plt.clf()
+                    img = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get(self.cfg.domain, 0))
+                    plt.imsave(f"goals_{ix}_{self.global_step}.png", img)
+                    wandb.save(f"goals_{ix}_{self.global_step}.png")
                 
         #delete goals that have been reached
         if self.current_init.shape[0]>0:
@@ -898,6 +922,7 @@ class Workspace:
             
     def make_env(self, actor1, init_idx, goal_state, pmm):
         
+
         if pmm:
             goal_state = goal_state[:2]
             if init_idx is None:
@@ -1059,7 +1084,7 @@ class Workspace:
                 self.eval_env.physics.set_state(goal_state)
             goal_pix = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
             goal_pix = np.transpose(goal_pix, (2,0,1))
-            goal_pix = np.tile(goal_pix, (3,1,1))
+            goal_pix = np.tile(goal_pix, (self.cfg.frame_stack,1,1))
             self.unreached=True
 
 
@@ -1133,6 +1158,9 @@ class Workspace:
         
         if self.pmm==False:
             time_step_no_goal = None
+            
+        if self.cfg.model_path is not None:
+            self.eval_proto(evaluate=True)
         
         while train_until_step(self.global_step):
 
@@ -1343,7 +1371,7 @@ class Workspace:
 
                         meta = self.agent.update_meta(meta, self._global_step, time_step1) 
                         print('time step', time_step1.observation['observations'])
-                        print('sampled goal', goal_idx)
+                        print('sampled goal', goal_state)
 
                        #unreached_goals : array of states (not pixel), need to set state & render to get pixel
                         if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
@@ -1387,10 +1415,10 @@ class Workspace:
                     #higher dim envs have -1 as cutoff 
                     if time_step1.reward > self.cfg.reward_cutoff:
 
-                            episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
+                        episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
                       
                     
-                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and episode_reward < abs(self.cfg.reward_cutoff*20):
+                    if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm=False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
                         
                         self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
                                                               goal_pix, goal_state, 
@@ -1488,8 +1516,8 @@ class Workspace:
                                                           time_step_no_goal, True, last=True)
                            
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
-                       
-                        self.current_init.append(self.train_env1.physics.get_state())
+                        
+                        self.current_init = np.append(self.current_init, self.train_env1.physics.get_state()[None,:], axis=0)
                         print('current', self.current_init)
                         print('obs', self.train_env1.physics.get_state())
                         meta = self.agent.update_meta(meta, self._global_step, time_step1)
