@@ -31,7 +31,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=2, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -67,6 +67,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.stddev_clip2 = stddev_clip2
     cfg.update_enc_proto = update_enc_proto
     cfg.update_enc_gc = update_enc_gc
+    cfg.update_proto_opt = update_proto_opt
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -296,7 +297,8 @@ class Workspace:
                                 stddev_schedule2=cfg.stddev_schedule2,
                                 stddev_clip2=cfg.stddev_clip2,
                                 update_enc_proto=cfg.update_enc_proto,
-                                update_enc_gc=cfg.update_enc_gc)
+                                update_enc_gc=cfg.update_enc_gc,
+                                update_proto_opt=cfg.update_proto_opt)
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -590,11 +592,14 @@ class Workspace:
         index = np.unique(index[0])
         print('delete goals', self.proto_goals[index])
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
         self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         index=np.where((self.proto_goals==0.).all(axis=1))[0]
         self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
         self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
         print('current goals', self.proto_goals) 
+        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
             
             
             
@@ -903,17 +908,17 @@ class Workspace:
             #switching between gc & proto
             
             else:
+                
                 if self.global_step==self.cfg.switch_gc:
+                    
                     self.actor1=True
                     self.actor=False
                     time_step1 = self.train_env1.reset()
                     self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                                                        self.cfg.action_repeat, seed=None, goal=self.first_goal, 
-                                                        init_state=time_step1.observation['observations'][:2])
-                    
+                                                        self.cfg.action_repeat, seed=None, goal=None, 
+                                                        init_state=time_step1.observation['observations'][:2])     
                     time_step_no_goal = self.train_env_no_goal.reset()
                     time_step_goal = self.train_env_goal.reset()
-                    
 
                     with self.train_env_goal.physics.reset_context():
                         time_step_goal = self.train_env_goal.physics.set_state(np.array([self.first_goal[0], self.first_goal[1], 0, 0]))
@@ -1101,7 +1106,8 @@ class Workspace:
 #                             print('goal score', goal_score)
 #                             print('goal_prob', goal_prob)
 #                         elif self.cfg.proto_goal_random:
-
+                        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
+    
                         s = self.proto_goals.shape[0]
                         num = s+self.unreached_goals.shape[0]
                         idx = np.random.randint(num)
@@ -1120,17 +1126,17 @@ class Workspace:
                         if self.cfg.test1:
 
                             print('gc ALWYAS exploreing')
-
-                            if self.current_init.shape[0] != 0:
-                                if self.global_step%10000==0:
-                                    init_idx=np.random.randint(1,self.current_init.shape[0]+1)
-                                elif self.current_init.shape[0]>2:
+                            if 3>len(self.current_init)>0:
+                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
+                                                   self.cfg.frame_stack,self.cfg.action_repeat,
+                                                   seed=None, goal=goal_state, init_state=self.current_init[-1])
+                            elif len(self.current_init)>=3:
+                                chance = np.random.uniform()
+                                if chance < .7:
                                     init_idx=np.random.randint(1,4)
                                 else:
-                                    init_idx = 1
-
-
-                                
+                                    init_idx = np.random.randint(self.current_init.shape[0])
+                               #ideally not using this this uses state info 
                                 if idx >= s:
                                     min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[-init_idx], (self.unreached_goals.shape[0],1)) - self.unreached_goals))
                                     goal_state = self.unreached_goals[min_dist]
@@ -1138,20 +1144,23 @@ class Workspace:
                                 else:
                                     min_dist = np.argmin(np.linalg.norm(np.tile(self.current_init[-init_idx], (self.proto_goals.shape[0],1)) - self.proto_goals))
                                     goal_state = self.proto_goals[min_dist]
-
-                                self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
-                                                   self.cfg.frame_stack,self.cfg.action_repeat,
-                                                   seed=None, goal=goal_state, init_state=self.current_init[-init_idx])
+ 
+                                self.train_env = dmc.make(self.no_goal_task, self.cfg.obs_type,
+                                                        self.cfg.frame_stack,self.cfg.action_repeat,
+                                                        seed=None, goal=goal_state,
+                                                        init_state=self.current_init[-init_idx]) 
                             
                             else:
-                                
-                                print('no current init yet')
                                 rand_init = np.random.uniform(.25,.29,size=(2,))
                                 rand_init[0] = rand_init[0]*(-1)
+				
+				
 
                                 self.train_env1 = dmc.make(self.cfg.task, self.cfg.obs_type,
                                                        self.cfg.frame_stack,self.cfg.action_repeat,
-                                                       seed=None, goal=goal_state, init_state = rand_init) 
+                                                       seed=None, goal=goal_state, init_state = rand_init)
+ 
+                                print('no current init yet')
 
                         #v2: let gc explor from most recently reached goal, else start from scratch 
                         else:
@@ -1247,7 +1256,8 @@ class Workspace:
 
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
+                        if self.cfg.update_gc_while_proto:
+                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)  
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
                     
@@ -1329,10 +1339,11 @@ class Workspace:
                          
                     
                     if self.global_step > (self.cfg.switch_gc+self.cfg.num_seed_frames):
-
+                        
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
+                        if self.cfg.update_proto_while_gc:
+                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         #self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                 self._global_step += 1
