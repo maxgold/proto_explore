@@ -699,18 +699,19 @@ class Workspace:
                 wandb.save(f"goals_{ix}_{self.global_step}.png")
                 
         #delete goals that have been reached
-        index=np.where(((np.linalg.norm(self.proto_goals[:,None,:] - self.current_init[None,:,:],axis=-1, ord=2))<.05))
-        index = np.unique(index[0])
-        print('delete goals', self.proto_goals[index])
-        self.proto_goals = np.delete(self.proto_goals, index,axis=0)
-        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
-        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
-        index=np.where((self.proto_goals==0.).all(axis=1))[0]
-        self.proto_goals = np.delete(self.proto_goals, index,axis=0)
-        self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
-        self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
-        print('current goals', self.proto_goals) 
-        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
+        if self.current_init.shape[0]>0:
+            index=np.where(((np.linalg.norm(self.proto_goals_state[:,None,:] - self.current_init[None,:,:],axis=-1, ord=2))<.05))
+            index = np.unique(index[0])
+            print('delete goals', self.proto_goals_state[index])
+            self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+            self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
+            self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
+            index=np.where((self.proto_goals==0.).all(axis=1))[0]
+            self.proto_goals = np.delete(self.proto_goals, index,axis=0)
+            self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
+            self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
+            print('current goals', self.proto_goals) 
+            assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
 
 
 
@@ -886,7 +887,7 @@ class Workspace:
             self.eval()
         elif self.pmm:
             self.eval_proto()
-            self.eval_pmm()
+            #self.eval_pmm()
         else:
             self.eval_proto()
             #if self.global_step > 20000 and self.global_step%10000==0:
@@ -1209,7 +1210,7 @@ class Workspace:
                     goal_state = self.proto_goals_state[0]
                     
 
-                    time_step1, time_step_no_goal = make_env(actor1=self.actor1, init_idx=None , goal_state=goal_state, pmm=self.pmm)  
+                    time_step1, time_step_no_goal = self.make_env(actor1=self.actor1, init_idx=None , goal_state=goal_state, pmm=self.pmm)  
                     #non-pmm we just use current state
                     
                     meta = self.agent.update_meta(meta, self._global_step, time_step1)
