@@ -318,9 +318,9 @@ class DDPGEncoder1Agent:
         utils.hard_update_params(other.encoder, self.encoder)
         utils.hard_update_params(other.actor, self.actor)
         utils.hard_update_params(other.actor2, self.actor2)
-        if self.init_critic:
-            utils.hard_update_params(other.critic.trunk, self.critic.trunk)
-            utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
+        #if self.init_critic:
+        utils.hard_update_params(other.critic.trunk, self.critic.trunk)
+        utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)

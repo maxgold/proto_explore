@@ -564,10 +564,12 @@ class ReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         #if hyperparameter: second=True, hybrid_pct=x
+        #print('eps', self._episode_fns)
         if self._storage2 and self.hybrid_pct!=0:
         
             eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
             tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
+            #print('tmp', tmp_fns)
             tmp_fns_=[]
             tmp_fns2 = []
 

@@ -129,13 +129,17 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #    self.projector = Projector(pred_dim, proj_dim).to(self.device)
     def init_from(self, other):
         # copy parameters over
+        print('self before', self.encoder)
         utils.hard_update_params(other.encoder, self.encoder)
+        print('other encoder', other.encoder)
+        print('self', self.encoder)
         utils.hard_update_params(other.actor, self.actor)
+        utils.hard_update_params(other.actor2, self.actor2)
         utils.hard_update_params(other.predictor, self.predictor)
         utils.hard_update_params(other.projector, self.projector)
         utils.hard_update_params(other.protos, self.protos)
-        if self.init_critic:
-            utils.hard_update_params(other.critic, self.critic)
+        utils.hard_update_params(other.critic, self.critic)
+        utils.hard_update_params(other.critic2, self.critic2) 
 
     def init_model_from(self, agent):
         utils.hard_update_params(agent.encoder, self.encoder)
