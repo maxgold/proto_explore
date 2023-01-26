@@ -550,7 +550,7 @@ class Workspace:
 
 
             while self.proto_goals.shape[0] < 10:
-                self.proto_goals = np.append(self.proto_goals, np.array([[0., 0.]]), axis=0)
+                self.proto_goals = np.append(self.proto_goals, np.zeros((1,3*self.cfg.frame_stack,84,84)), axis=0)
                 self.proto_goals_state = np.append(self.proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
                 self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
             protos = self.agent.protos.weight.data.detach().clone()
@@ -786,12 +786,12 @@ class Workspace:
             self.proto_goals = np.delete(self.proto_goals, index,axis=0)
             self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
             self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
-            index=np.where((self.proto_goals==0.).all(axis=1))[0]
+            index=np.where((self.proto_goals_state==0.).all(axis=1))[0]
             self.proto_goals = np.delete(self.proto_goals, index,axis=0)
             self.proto_goals_state = np.delete(self.proto_goals_state, index,axis=0)
             self.proto_goals_dist = np.delete(self.proto_goals_dist, index,axis=0)
             print('current goals', self.proto_goals) 
-            assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0]
+            assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0] == self.proto_goals_dist.shape[0]
 
 
 
@@ -980,7 +980,8 @@ class Workspace:
         
 
         if pmm:
-            goal_state = goal_state[:2]
+            if goal_state is not None:
+                goal_state = goal_state[:2]
             if init_idx is None:
                 
                 init_state = np.random.uniform(.25,.29,size=(2,))
@@ -988,7 +989,7 @@ class Workspace:
             
             else: 
                 
-                init_state = self.current_init[init_idx]
+                init_state = self.current_init[init_idx,:2]
             
         
             if actor1:
@@ -1533,7 +1534,8 @@ class Workspace:
                             if self.unreached==False:
                                 self.proto_goals = np.delete(self.proto_goals, goal_idx,axis=0)
                                 self.proto_goals_state = np.delete(self.proto_goals_state, goal_idx,axis=0)
-                            assert self.proto_goals.shape[0] == self.proto_goals_state.shape[0]
+                                self.proto_goals_dist = np.delete(self.proto_goals_dist, goal_idx,axis=0)
+                            assert self.proto_goals.shape[0] == self.proto_goals_state.shape[0] == self.proto_goals_dist.shape[0]
                         else:
                             print('not implemented yet!!!!')
                         
