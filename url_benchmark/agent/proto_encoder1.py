@@ -46,7 +46,7 @@ class Projector(nn.Module):
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -83,6 +83,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         print('update enc by proto', update_enc_proto)
         print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
+        self.update_proto_opt = update_proto_opt
         print('tau', tau)
         print('it', num_iterations)
 
@@ -151,6 +152,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
         utils.hard_update_params(protos.encoder, self.encoder)
+        
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
         C = F.normalize(C, dim=1, p=2)
@@ -183,20 +185,20 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         dist = all_dists[:, -1:]
         reward = dist
 
-        if step==10000 or step%100000==0:
-            print('set to 0')
-            self.goal_queue = torch.zeros((10, 2), device=self.device)
-            self.goal_queue_dist = torch.zeros((10,), device=self.device)
+        #if step==10000 or step%100000==0:
+        #    print('set to 0')
+        #    self.goal_queue = torch.zeros((10, 2), device=self.device)
+        #    self.goal_queue_dist = torch.zeros((10,), device=self.device)
 
-        dist_arg = self.goal_queue_dist.argsort(axis=0)
+        #dist_arg = self.goal_queue_dist.argsort(axis=0)
 
-        r, _ = torch.topk(reward,10,largest=True, dim=0)
+        #r, _ = torch.topk(reward,10,largest=True, dim=0)
 
-        if eval==False:
-            for ix in range(10):
-                if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
-                    self.goal_queue_dist[dist_arg[ix]] = r[ix]
-                    self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
+        #if eval==False:
+        #    for ix in range(10):
+        #        if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
+        #            self.goal_queue_dist[dist_arg[ix]] = r[ix]
+        #            self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
  
         #saving dist to see distribution for intrinsic reward
         #if step%1000 and step<300000:
@@ -292,7 +294,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         
-        #self.proto_opt.zero_grad(set_to_none=True)
+        if self.update_proto_opt and step % self.update_proto_every==0:
+            self.proto_opt.zero_grad(set_to_none=True)
         #loss.backward()
         #self.proto_opt.step()
 
@@ -305,6 +308,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.pred_opt.step()
         self.proj_opt.step()
         self.encoder_opt.step()
+        if self.update_proto_opt and step % self.update_proto_every==0:
+            self.proto_opt.step()
         return metrics
 
     def update_encoder_func(self, obs, next_obs, step):
@@ -312,8 +317,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         metrics = dict()
         encoder_loss = F.mse_loss(obs, next_obs)
 
-        if self.use_tb or self.use_wandb:
-            metrics['encoder_loss'] = encoder_loss.item()
+        #if self.use_tb or self.use_wandb:
+        #    metrics['encoder_loss'] = encoder_loss.item()
 
         self.encoder_opt.zero_grad(set_to_none=True)
         encoder_loss.backward()

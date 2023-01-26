@@ -338,13 +338,15 @@ class DDPGEncoder1Agent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
-    def act(self, obs, goal, meta, step, eval_mode, tile=1):
+    def act(self, obs, goal, meta, step, eval_mode, tile=1, general=False):
         if self.obs_type=='states':
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
             goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
         else:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
-            goal = np.transpose(goal, (2,0,1))
+            if general==False:
+                goal = np.transpose(goal, (2,0,1))
+            
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
             if tile > 1:
                 goal = torch.tile(goal, (1,tile,1,1))
@@ -500,6 +502,62 @@ class DDPGEncoder1Agent:
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
         return self.encoder(obs)
+    
+    
+    def ot_rewarder(self, obs, goal):
+
+        
+        if self.obs_type=='states':
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
+            goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+        else:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
+            
+        
+        obs = self.encoder(obs)
+        goal = self.encoder(goal)
+        obs = obs.detach()
+        goal = goal.detach()
+
+
+        if self.rewards == 'sinkhorn_cosine':
+            cost_matrix = cosine_distance(
+                obs, goal)  # Get cost matrix for samples using critic network.
+            transport_plan = optimal_transport_plan(
+                obs, goal, cost_matrix, method='sinkhorn',
+                niter=100).float()  # Getting optimal coupling
+            ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+                torch.mm(transport_plan,
+                         cost_matrix.T)).detach().cpu().numpy()
+
+        elif self.rewards == 'sinkhorn_euclidean':
+            cost_matrix = euclidean_distance(
+                obs, goal)  # Get cost matrix for samples using critic network.
+            transport_plan = optimal_transport_plan(
+                obs, goal, cost_matrix, method='sinkhorn',
+                niter=100).float()  # Getting optimal coupling
+            ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
+                torch.mm(transport_plan,
+                         cost_matrix.T)).detach().cpu().numpy()
+
+        elif self.rewards == 'cosine':
+#             goal = torch.cat((goal, goal[-1].unsqueeze(0)))
+            ot_rewards = -(1. - F.cosine_similarity(obs, goal))
+            ot_rewards *= self.sinkhorn_rew_scale
+            ot_rewards = ot_rewards.detach().cpu().numpy()
+
+        elif self.rewards == 'euclidean':
+#             exp = torch.cat((exp, exp[-1].unsqueeze(0)))
+            ot_rewards = -(obs - goal).norm(dim=1)
+            ot_rewards *= self.sinkhorn_rew_scale
+            ot_rewards = ot_rewards.detach().cpu().numpy()
+
+        else:
+            raise NotImplementedError()
+
+        
+        return ot_rewards
 
 #    def update(self, replay_iter, step, goal):
 #        metrics = dict()
