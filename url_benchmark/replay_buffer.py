@@ -1300,21 +1300,23 @@ class OfflineReplayBuffer(IterableDataset):
                     actions.append(episode["action"][idx][None])
                     rewards.append(episode["reward"][idx][None])
                     episode_name.append(str(eps_fn))
+                    
                     if proto_goal:
                         proto.append(episode["observation"][idx - 1][None])
                     
-                    index.append(idx)
+                    index.append(np.array([idx]))
                     
                     if goal_state:
                         goal_states.append((episode["goal_state"][idx][None]))
             
             if goal_state:
+      
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
                         np.concatenate(goal_states, 0),
-                        np.concatenate(episode_name, 0),
-                        np.concatenate(index, 0)
+                        episode_name,
+                        index
                         )
             elif proto:
                 return (np.concatenate(states,0),
