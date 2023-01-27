@@ -349,7 +349,8 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep1, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, replay_dir2= path / 'buffer1',
+                                                    cfg.hybrid_pct, sl=cfg.sl,
+                                                    replay_dir2= path / 'buffer1',
                                                     loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
@@ -369,6 +370,7 @@ class Workspace:
                                                 test=cfg.test) 
             
         elif self.cfg.combine_storage_gc:
+            print('combine')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     True,
                                                     cfg.replay_buffer_gc,
@@ -376,7 +378,8 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, replay_dir2=self.work_dir / 'buffer2',
+                                                    cfg.hybrid_pct, sl=cfg.sl,
+                                                    replay_dir2=self.work_dir / 'buffer2',
                                                     loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
@@ -401,11 +404,13 @@ class Workspace:
                                                     cfg.replay_buffer_num_workers,
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
-                                                    cfg.hybrid_pct, loss=cfg.loss_gc, test=cfg.test,
+                                                    cfg.hybrid_pct, sl=cfg.sl,
+                                                    loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
-                                                    general=True)
+                                                    general=True,
+                                                    )
             
             self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
@@ -612,7 +617,11 @@ class Workspace:
                     obs = torch.as_tensor(obs.copy(), device=self.device).unsqueeze(0)
                 else:
                     obs = torch.as_tensor(obs.copy(), device=self.device)
-                z = self.agent.encoder(obs)
+                if self.cfg.sl==False:
+                    z = self.agent.encoder(obs)
+                else:
+                    
+                    z = self.agent.encoder2(obs)
                 encoded.append(z)
                 z = self.agent.predictor(z)
                 z = self.agent.projector(z)
@@ -786,7 +795,7 @@ class Workspace:
 
         ########################################################################
         #implement tsne for non-pmm prototype eval?
-        if self.global_step%100000==0: 
+        if self.global_step%100000==0 and self.pmm==False: 
             for ix in range(self.proto_goals_state.shape[0]):
 
                 with self.eval_env.physics.reset_context():
