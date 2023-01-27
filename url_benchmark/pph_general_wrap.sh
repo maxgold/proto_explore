@@ -15,7 +15,7 @@ sbatch <<EOT
 #SBATCH --error=/scratch/nm1874/output/%j_%x.err
 #SBATCH --export=ALL
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=160G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=nm1874@nyu.edu
 #SBATCH --nodes=1

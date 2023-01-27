@@ -564,10 +564,12 @@ class ReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         #if hyperparameter: second=True, hybrid_pct=x
+        #print('eps', self._episode_fns)
         if self._storage2 and self.hybrid_pct!=0:
         
             eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
             tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
+            #print('tmp', tmp_fns)
             tmp_fns_=[]
             tmp_fns2 = []
 
@@ -823,6 +825,7 @@ class ReplayBuffer(IterableDataset):
             discount = np.ones_like(episode["discount"][idx])
             offset = 0 
             goal = episode["goal"][idx-1]
+            goal_state = episode["goal_state"][idx-1, :2]
             
             if self.asym:
                 goal_state = episode["goal"][idx-1]
@@ -847,7 +850,7 @@ class ReplayBuffer(IterableDataset):
             
             offset = idx_goal - idx
             goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal]
+            goal_state = episode["state"][idx_goal,:2]
             for i in range(self._nstep):
                 if self.pmm:
                     step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
@@ -896,7 +899,7 @@ class ReplayBuffer(IterableDataset):
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
         if self.sl:
-            return (obs, action, reward, discount, next_obs, goal, offset)
+            return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
         elif self.loss:
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, rand_obs, *meta)
         elif self.asym:
@@ -1300,21 +1303,23 @@ class OfflineReplayBuffer(IterableDataset):
                     actions.append(episode["action"][idx][None])
                     rewards.append(episode["reward"][idx][None])
                     episode_name.append(str(eps_fn))
+                    
                     if proto_goal:
                         proto.append(episode["observation"][idx - 1][None])
                     
-                    index.append(idx)
+                    index.append(np.array([idx]))
                     
                     if goal_state:
                         goal_states.append((episode["goal_state"][idx][None]))
             
             if goal_state:
+      
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
                         np.concatenate(goal_states, 0),
-                        np.concatenate(episode_name, 0),
-                        np.concatenate(index, 0)
+                        episode_name,
+                        index
                         )
             elif proto:
                 return (np.concatenate(states,0),
@@ -1448,8 +1453,8 @@ def make_replay_offline(
 
 def make_replay_loader(
     storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4, general=False):
+    print('h1', hybrid)
     max_size_per_worker = max_size // max(1, num_workers)
-
     iterable = ReplayBuffer(
         storage,
         storage2,

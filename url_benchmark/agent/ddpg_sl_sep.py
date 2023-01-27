@@ -8,8 +8,36 @@ import torch.nn.functional as F
 
 import utils
 
-
 class Encoder(nn.Module):
+    def __init__(self, obs_shape, feature_dim):
+        super().__init__()
+
+        assert len(obs_shape) == 3
+        self.repr_dim = 64*7*7
+        #(84-8+1)/4 -> 19*19*32
+        #(19-4+1)/2 -> 8*8*64
+        #(8-3+1)/1 -> 6*6*64
+        #number of parameters:
+        #(8*8*9+1)*32 = 18464
+        #(4*4*32+1)*64 = 
+        #(3*3*64+1)*64 = 
+        #total: 88224
+        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 8, stride=4),
+                                    nn.ReLU(), nn.Conv2d(32,64,kernel_size=4,stride=2),
+                                    nn.ReLU(), nn.Conv2d(64,64,kernel_size=3, stride=1),
+                                    nn.Flatten(),nn.Linear(3136, 512), nn.ReLU(),
+                                    nn.Linear(512, feature_dim))
+
+        self.fc1 = nn.Linear(feature_dim, 2)
+        self.apply(utils.weight_init)
+
+    def forward(self, obs):
+        obs = obs / 255.0 - 0.5
+        h = self.convnet(obs)
+#         h = h.view(h.shape[0], -1)
+        return h
+
+class Encoder2(nn.Module):
     def __init__(self, obs_shape):
         super().__init__()
 
@@ -39,18 +67,19 @@ class Encoder(nn.Module):
 
 class Actor(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
+        
         super().__init__()
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-        self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-                                    nn.LayerNorm(feature_dim), nn.Tanh())
+#         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
+#                                    nn.LayerNorm(feature_dim), nn.Tanh())
+
         policy_layers = []
         policy_layers += [
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(feature_dim+feature_dim, hidden_dim),
             nn.ReLU(inplace=True)
         ]
+        
         # add additional hidden layer for pixels
         if obs_type == 'pixels':
             policy_layers += [
@@ -63,9 +92,9 @@ class Actor(nn.Module):
 
         self.apply(utils.weight_init)
 
-    def forward(self, obs, goal, std):
-        obs_goal = torch.cat([obs, goal], dim=-1)
-        h = self.trunk(obs_goal)
+    def forward(self, h, std):
+#         obs_goal = torch.cat([obs, goal], dim=-1)
+#         h = self.trunk(obs_goal)
         mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
@@ -113,10 +142,11 @@ class Critic(nn.Module):
         self.obs_type = obs_type
 
         if obs_type == 'pixels':
-            # for pixels actions will be added after trunk
-            self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-                                        nn.LayerNorm(feature_dim), nn.Tanh())
-            trunk_dim = feature_dim + action_dim
+#             # for pixels actions will be added after trunk
+#             self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
+#                                        nn.LayerNorm(feature_dim), nn.Tanh())
+            trunk_dim = feature_dim+feature_dim + action_dim
+
         else:
             # for states actions come in the beginning
             self.trunk = nn.Sequential(
@@ -133,7 +163,7 @@ class Critic(nn.Module):
             if obs_type == 'pixels':
                 q_layers += [
                     nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True),
+                    nn.ReLU(inplace=True)
                 ]
             q_layers += [nn.Linear(hidden_dim, 1)]
             return nn.Sequential(*q_layers)
@@ -143,17 +173,16 @@ class Critic(nn.Module):
 
         self.apply(utils.weight_init)
 
-    def forward(self, obs, goal, action):
-        inpt = torch.cat([obs, goal], dim=-1) if self.obs_type == 'pixels' else torch.cat([obs, goal, action],dim=-1)
+    def forward(self, h, action):
+#         inpt = torch.cat([obs, goal], dim=-1) if self.obs_type == 'pixels' else torch.cat([obs, goal, action],dim=-1)
         
-        h = self.trunk(inpt)
+#         h = self.trunk(inpt)
         h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
 
         q1 = self.Q1(h)
         q2 = self.Q2(h)
 
         return q1, q2
-
 
 
 
@@ -204,7 +233,7 @@ class Critic2(nn.Module):
 
 
 
-class DDPGEncoder1Agent:
+class DDPGSlSepAgent:
     def __init__(self,
                  name,
                  reward_free,
@@ -251,7 +280,7 @@ class DDPGEncoder1Agent:
         self.stddev_clip2 = stddev_clip2
         self.init_critic = init_critic
         self.feature_dim = feature_dim
-        self.feature_dim_gc = 32 
+        self.feature_dim_gc = 16
         self.solved_meta = None
         print('stddev schedule', stddev_schedule)
         print('stddev_clip', stddev_clip)
@@ -260,12 +289,15 @@ class DDPGEncoder1Agent:
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
-            self.encoder = Encoder(obs_shape).to(device)
+            self.encoder = Encoder(obs_shape, self.feature_dim_gc).to(device)
+            self.encoder2 = Encoder2(obs_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
+            self.obs2_dim = self.encoder2.repr_dim + meta_dim
             self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
+            self.encoder2 = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
             self.goal_dim = goal_shape[0]
         
@@ -280,11 +312,11 @@ class DDPGEncoder1Agent:
         
         
         #2nd set of actor critic networks 
-        self.actor2 = Actor2(obs_type, self.obs_dim, self.action_dim,
+        self.actor2 = Actor2(obs_type, self.obs2_dim, self.action_dim,
                            feature_dim, hidden_dim).to(device)
-        self.critic2 = Critic2(obs_type, self.obs_dim, self.action_dim,
+        self.critic2 = Critic2(obs_type, self.obs2_dim, self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic2_target = Critic2(obs_type, self.obs_dim, self.action_dim,
+        self.critic2_target = Critic2(obs_type, self.obs2_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
@@ -294,8 +326,11 @@ class DDPGEncoder1Agent:
         if obs_type == 'pixels':
             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
                                                 lr=lr)
+            self.encoder2_opt = torch.optim.Adam(self.encoder2.parameters(),
+                                                lr=lr)
         else:
             self.encoder_opt = None
+            self.encoder2_opt = None
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
         self.actor2_opt = torch.optim.Adam(self.actor2.parameters(), lr=lr)
@@ -308,6 +343,7 @@ class DDPGEncoder1Agent:
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
+        self.encoder2.train(training)
         self.actor.train(training)
         self.critic.train(training)
         self.actor2.train(training)
@@ -316,14 +352,16 @@ class DDPGEncoder1Agent:
     def init_from(self, other):
         # copy parameters over
         utils.hard_update_params(other.encoder, self.encoder)
+        utils.hard_update_params(other.encoder2, self.encoder2)
         utils.hard_update_params(other.actor, self.actor)
         utils.hard_update_params(other.actor2, self.actor2)
-        #if self.init_critic:
-        utils.hard_update_params(other.critic.trunk, self.critic.trunk)
-        utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
+        if self.init_critic:
+            utils.hard_update_params(other.critic.trunk, self.critic.trunk)
+            utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
 
-    def init_encoder_from(self, encoder):
+    def init_encoder_from(self, encoder, encoder2):
         utils.hard_update_params(encoder, self.encoder)
+        utils.hard_update_params(encoder2, self.encoder2)
 
     def init_gc_from(self,critic, actor):
         utils.hard_update_params(critic, self.critic)
@@ -353,6 +391,7 @@ class DDPGEncoder1Agent:
         
         h = self.encoder(obs)
         g = self.encoder(goal)
+
         inputs = [h]
         inputs2 = g
 
@@ -361,10 +400,11 @@ class DDPGEncoder1Agent:
             inputs.append(value)
         
         inpt = torch.cat(inputs, dim=-1)
+        inpt = torch.cat([inpt, inputs2], dim=-1)
         assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule, step)
 
-        dist = self.actor(inpt, inputs2, stddev)
+        dist = self.actor(inpt, stddev)
         if eval_mode:
             action = dist.mean
         else:
@@ -375,7 +415,7 @@ class DDPGEncoder1Agent:
 
     def act2(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        h = self.encoder(obs)
+        h = self.encoder2(obs)
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -394,15 +434,17 @@ class DDPGEncoder1Agent:
 
     def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
         metrics = dict()
+        inpt = torch.cat([obs, goal], axis=-1)
+        inpt_nxt = torch.cat([next_obs, goal], axis=-1)
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule, step)
-            dist = self.actor(next_obs, goal, stddev)
+            dist = self.actor(inpt_nxt, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
-            target_Q1, target_Q2 = self.critic_target(next_obs, goal, next_action)
+            target_Q1, target_Q2 = self.critic_target(inpt_nxt, next_action)
             target_V = torch.min(target_Q1, target_Q2)
             target_Q = reward + (discount * target_V)
 
-        Q1, Q2 = self.critic(obs, goal, action)
+        Q1, Q2 = self.critic(inpt, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         if self.use_tb or self.use_wandb:
@@ -440,22 +482,23 @@ class DDPGEncoder1Agent:
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic2_loss.item()
         # optimize critic
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
+        if self.encoder2_opt is not None:
+            self.encoder2_opt.zero_grad(set_to_none=True)
         self.critic2_opt.zero_grad(set_to_none=True)
         critic2_loss.backward()
         self.critic2_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
+        if self.encoder2_opt is not None:
+            self.encoder2_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, step):
         metrics = dict()
+        inpt = torch.cat([obs, goal], axis=-1)
         stddev = utils.schedule(self.stddev_schedule, step)
-        dist = self.actor(obs, goal, stddev)
+        dist = self.actor(inpt, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
-        Q1, Q2 = self.critic(obs, goal, action,)
+        Q1, Q2 = self.critic(inpt, action,)
         Q = torch.min(Q1, Q2)
 
         actor_loss = -Q.mean()
@@ -497,67 +540,16 @@ class DDPGEncoder1Agent:
         return metrics
 
 
-
+    
 
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
         return self.encoder(obs)
     
+    def aug_and_encode2(self, obs):
+        obs = self.aug(obs)
+        return self.encoder2(obs)
     
-    def ot_rewarder(self, obs, goal):
-
-        
-        if self.obs_type=='states':
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-            goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        else:
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).int()
-            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).int()
-            
-        
-        obs = self.encoder(obs)
-        goal = self.encoder(goal)
-        obs = obs.detach()
-        goal = goal.detach()
-
-
-        if self.rewards == 'sinkhorn_cosine':
-            cost_matrix = cosine_distance(
-                obs, goal)  # Get cost matrix for samples using critic network.
-            transport_plan = optimal_transport_plan(
-                obs, goal, cost_matrix, method='sinkhorn',
-                niter=100).float()  # Getting optimal coupling
-            ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                torch.mm(transport_plan,
-                         cost_matrix.T)).detach().cpu().numpy()
-
-        elif self.rewards == 'sinkhorn_euclidean':
-            cost_matrix = euclidean_distance(
-                obs, goal)  # Get cost matrix for samples using critic network.
-            transport_plan = optimal_transport_plan(
-                obs, goal, cost_matrix, method='sinkhorn',
-                niter=100).float()  # Getting optimal coupling
-            ot_rewards = -self.sinkhorn_rew_scale * torch.diag(
-                torch.mm(transport_plan,
-                         cost_matrix.T)).detach().cpu().numpy()
-
-        elif self.rewards == 'cosine':
-#             goal = torch.cat((goal, goal[-1].unsqueeze(0)))
-            ot_rewards = -(1. - F.cosine_similarity(obs, goal))
-            ot_rewards *= self.sinkhorn_rew_scale
-            ot_rewards = ot_rewards.detach().cpu().numpy()
-
-        elif self.rewards == 'euclidean':
-#             exp = torch.cat((exp, exp[-1].unsqueeze(0)))
-            ot_rewards = -(obs - goal).norm(dim=1)
-            ot_rewards *= self.sinkhorn_rew_scale
-            ot_rewards = ot_rewards.detach().cpu().numpy()
-
-        else:
-            raise NotImplementedError()
-
-        
-        return ot_rewards
 
 #    def update(self, replay_iter, step, goal):
 #        metrics = dict()
