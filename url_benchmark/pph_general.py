@@ -94,13 +94,13 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         wandb.save(f"./{model_step}_gc_heatmap.png")
 
 
-        heatmap_pct = self.replay_storage1.state_visitation_gc_pct
-
-        plt.clf()
-        fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-        ax.set_title(model_step)
+        #heatmap_pct = self.replay_storage1.state_visitation_gc_pct
+        #
+        #plt.clf()
+        #fig, ax = plt.subplots(figsize=(10,10))
+        #labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        #sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        #ax.set_title(model_step)
 
         reward_matrix = self.replay_storage1.reward_matrix
         plt.clf()
@@ -1087,7 +1087,7 @@ class Workspace:
                     else:
                         sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
                 
-                total_r = np.count_nonzero(self.replay_storage.reward_matrix)
+                total_r = np.count_nonzero(self.replay_storage1.reward_matrix)
                 print('total reward', total_r)
                 r_ptr = self.r_queue_ptr
                 self.r_queue[r_ptr] = total_r
@@ -1385,7 +1385,7 @@ class Workspace:
                     episode_reward = 0
                     
                     self.gc_or_proto()
-                    
+                    self.save_stats() 
                     
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
@@ -1505,8 +1505,10 @@ class Workspace:
                     if time_step1.reward > self.cfg.reward_cutoff:
 
                         episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
-                      
                     
+                    if time_step1.reward >1.:
+                        print('reward nonzero should show up in replay_buffer, r matrix next', time_step1.reward)
+                        print('matrix', self.replay_storage1.reward_matrix)
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm==False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
                         
                         self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
