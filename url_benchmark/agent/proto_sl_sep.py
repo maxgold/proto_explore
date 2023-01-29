@@ -9,7 +9,7 @@ from torch import jit
 import pandas as pd
 import utils
 import matplotlib.pyplot as plt
-from agent.ddpg_encoder1 import DDPGEncoder1Agent
+from agent.ddpg_sl_sep import DDPGSlSepAgent
 from numpy import inf
 
 @jit.script
@@ -43,10 +43,10 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoEncoder1Agent(DDPGEncoder1Agent):
+class ProtoSlSepAgent(DDPGSlSepAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -83,15 +83,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         print('update enc by proto', update_enc_proto)
         print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
-        self.update_proto_opt = update_proto_opt
         print('tau', tau)
         print('it', num_iterations)
 
         # models
         #if self.gc_only==False:
         self.encoder_target = deepcopy(self.encoder)
+        self.encoder2_target = deepcopy(self.encoder2)
 
-        self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
+        self.predictor = nn.Linear(self.obs2_dim, pred_dim).to(self.device)
         self.predictor.apply(utils.weight_init)
         self.predictor_target = deepcopy(self.predictor)
 
@@ -131,6 +131,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         # copy parameters over
         print('self before', self.encoder)
         utils.hard_update_params(other.encoder, self.encoder)
+        utils.hard_update_params(other.encoder2, self.encoder2)
         print('other encoder', other.encoder)
         print('self', self.encoder)
         utils.hard_update_params(other.actor, self.actor)
@@ -139,13 +140,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(other.projector, self.projector)
         utils.hard_update_params(other.protos, self.protos)
         utils.hard_update_params(other.critic, self.critic)
-        utils.hard_update_params(other.critic2, self.critic2) 
+        utils.hard_update_params(other.critic2, self.critic2)
 
     def init_model_from(self, agent):
         utils.hard_update_params(agent.encoder, self.encoder)
+        utils.hard_update_params(agent.encoder2, self.encoder2)
 
-    def init_encoder_from(self, encoder):
+    def init_encoder_from(self, encoder, encoder2):
         utils.hard_update_params(encoder, self.encoder)
+        utils.hard_update_params(agent.encoder2, self.encoder2)
 
     def init_gc_from(self,critic, actor):
         utils.hard_update_params(critic, self.critic1)
@@ -155,7 +158,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(protos.protos, self.protos)
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
-        utils.hard_update_params(protos.encoder, self.encoder)
+        utils.hard_update_params(protos.encoder2, self.encoder2)
         
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
@@ -167,7 +170,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
-                z = self.encoder(obs)
+                z = self.encoder2(obs)
             else:
                 z = obs
             z = self.predictor(z)
@@ -219,7 +222,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         #self.normalize_protos()
 
         # online network
-        s = self.encoder(obs)
+        s = self.encoder2(obs)
         s = self.predictor(s)
         s = self.projector(s)
         #s = F.normalize(s, dim=1, p=2)
@@ -228,7 +231,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
-            t = self.encoder_target(next_obs)
+            t = self.encoder2_target(next_obs)
             t = self.predictor_target(t)
             t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
@@ -298,35 +301,52 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         
-        if self.update_proto_opt and step % self.update_proto_every==0:
-            self.proto_opt.zero_grad(set_to_none=True)
+        #self.proto_opt.zero_grad(set_to_none=True)
         #loss.backward()
         #self.proto_opt.step()
 
         self.pred_opt.zero_grad(set_to_none=True)
         self.proj_opt.zero_grad(set_to_none=True)
-        self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder2_opt.zero_grad(set_to_none=True)
 
         loss.backward()
 
         self.pred_opt.step()
         self.proj_opt.step()
-        self.encoder_opt.step()
-        if self.update_proto_opt and step % self.update_proto_every==0:
-            self.proto_opt.step()
+        self.encoder2_opt.step()
         return metrics
+    
+    def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
 
-    def update_encoder_func(self, obs, next_obs, step):
+        metrics = dict() 
+        obs=self.encoder.fc1(obs)
+        goal=self.encoder.fc1(goal)
+
+        encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
+
+        if self.use_tb or self.use_wandb:
+
+            metrics['encoder_loss'] = encoder_loss.item()
+        # optimize critic
+#         if self.encoder_opt is not None:
+#             self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True)
+        encoder_loss.backward()
+        self.encoder_opt.step()
+        
+        return metrics 
+
+    def update_encoder2_func(self, obs, next_obs, step):
 
         metrics = dict()
-        encoder_loss = F.mse_loss(obs, next_obs)
+        encoder2_loss = F.mse_loss(obs, next_obs)
 
         #if self.use_tb or self.use_wandb:
         #    metrics['encoder_loss'] = encoder_loss.item()
 
-        self.encoder_opt.zero_grad(set_to_none=True)
-        encoder_loss.backward()
-        self.encoder_opt.step()
+        self.encoder2_opt.zero_grad(set_to_none=True)
+        encoder2_loss.backward()
+        self.encoder2_opt.step()
 
         return metrics 
 
@@ -338,15 +358,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            
-            obs, action, reward, discount, next_obs, goal = utils.to_torch(
+            if actor1:
+                obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
             batch, self.device)
-            
-            extr_reward=reward.float()
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+            extr_reward=extr_reward.float()
+            goal_state = goal_state.float()
+            obs_state = obs_state.float()
 
-            	
                 
         elif actor1==False and test:
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
@@ -414,22 +434,22 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 
                 reward = intr_reward
             else:
-                reward = extr_reward
+                reward = reward
                 #if self.use_tb or self.use_wandb:
                     #metrics['extr_reward'] = extr_reward.mean().item()
             
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            obs = self.encoder2(obs)
+            next_obs = self.encoder2(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             
-            if self.update_enc_proto:
-                metrics.update(self.update_encoder_func(obs, next_obs, step)) 
+            if self.update_enc_proto and self.update_encoder:
+                metrics.update(self.update_encoder2_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -443,7 +463,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
             utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.encoder, self.encoder_target,
+            utils.soft_update_params(self.encoder2, self.encoder2_target,
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
@@ -465,8 +485,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
-            if self.update_enc_gc:
-                metrics.update(self.update_encoder_func(obs, next_obs, step))
+            if self.update_enc_gc and self.update_encoder:
+                metrics.update(self.update_encoder_func(obs, obs_state, goal, goal_state, step))
             # update critic
             metrics.update(
                 self.update_critic(obs.detach(), goal.detach(), action, reward, discount,

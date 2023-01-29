@@ -117,6 +117,21 @@ proto_goal_random: False
 loss_gc: False
 update_enc_proto: False
 update_enc_gc: False
+ot_reward: False
+neg_euclid: False
+actionable: False
+reward_cutoff: 0
+neg_euclid_state: True
+nstep1: 3
+nstep2: 3
+update_proto_opt: True
+update_gc_while_proto: False
+update_proto_while_gc: False
+pmm_reward_cutoff: 100
+model_path: False
+cassio: False
+greene: False
+pluto: False
 #experiment
 experiment: exp
 

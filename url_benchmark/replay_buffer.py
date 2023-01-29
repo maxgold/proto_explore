@@ -94,15 +94,18 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, meta,pixels=False, last=False, pmm=True):
+    def add(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
                 value = time_step[spec.name]    
                 self._current_episode['observation'].append(value['pixels'])
-                self._current_episode['state'].append(value['observations'])
-                
+                if state is not None:
+                    self._current_episode['state'].append(state)
+                else:
+                    self._current_episode['state'].append(value['observations'])
+
                 if pmm:
                     tmp_state = value['observations']*100
                     idx_x = int(tmp_state[0])+29
@@ -130,6 +133,7 @@ class ReplayBufferStorage:
                     value2 = self._current_episode['state']
                     episode['observation'] = np.array(value1, spec.dtype)
                     episode['state'] = np.array(value2, 'float32')
+                    
                 else:
                     value = self._current_episode[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
@@ -181,6 +185,7 @@ class ReplayBufferStorage:
             idx_x = int(goal_state[0]*100)+29
             idx_y = int(goal_state[1]*100)+29
             self.goal_state_matrix[idx_x,idx_y]+=1
+            
         elif pixels and asym:
             self._current_episode_goal['goal_state'].append(goal_state)
             idx_x = int(goal_state[0]*100)+29
@@ -218,80 +223,96 @@ class ReplayBufferStorage:
             self._store_episode(episode, actor1=True)
             print('storing episode, w/ goal')
             
-    def add_goal_general(self, time_step, meta, goal, goal_state=False,pixels=False, last=False, asym=False):
-        
+    def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False):
+        #assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
+        if time_step_no_goal is not None:
+            pmm=True
+        else:
+            pmm=False
         for key, value in meta.items():
-            
             self._current_episode_goal[key].append(value)
             
         for spec in self._data_specs:
-            
             if spec.name == 'observation' and pixels:
-                
-                value = time_step[spec.name]
-                self._current_episode_goal['observation'].append(value['pixels'])
-                self._current_episode_goal['state'].append(value['observations'])
-                
-                index = value['observations'].shape[0]//2
-                val = -np.linalg.norm(value['observations'][:index] - goal_state[:index])
-                self._current_episode_goal['reward'].append(val.reshape(1,))
+                if pmm:
+                    value = time_step_no_goal[spec.name]
+                    self._current_episode_goal['observation'].append(value['pixels'])
+                    self._current_episode_goal['state'].append(value['observations'])
+
+
+                    tmp_state = value['observations']*100
+                    idx_x = int(tmp_state[0])+29
+                    idx_y = int(tmp_state[1])+29
+                    self.state_visitation_gc[idx_x,idx_y]+=1
+
+                    tmp_state = tmp_state/3
+                    idx_x = int(tmp_state[0])+9
+                    idx_y = int(tmp_state[1])+9
+                    self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                else:
+                    value = time_step[spec.name]
+                    self._current_episode_goal['observation'].append(value['pixels'])
+                    self._current_episode_goal['state'].append(state)
                 
             else:
                 value = time_step[spec.name]
                 
                 if np.isscalar(value):
-                    
                     value = np.full(spec.shape, value, spec.dtype)
-                    
                 assert spec.shape == value.shape and spec.dtype == value.dtype
+                
                 self._current_episode_goal[spec.name].append(value)
                 
-        if pixels and asym==False:
+                if spec.name == 'reward' and pixels and pmm:
+                    
+                    value = time_step['observation']
+                    tmp_state = value['observations']*100
+                    idx_x = int(tmp_state[0])+29
+                    idx_y = int(tmp_state[1])+29
+                    self.reward_matrix[idx_x,idx_y]+=time_step['reward']
+                
+        if pixels and asym==False and pmm:
             
-            goal = np.transpose(goal, (2,0,1))
+            #goal = np.transpose(goal, (2,0,1))
+            self._current_episode_goal['goal_state'].append(goal_state)
+            idx_x = int(goal_state[0]*100)+29
+            idx_y = int(goal_state[1]*100)+29
+            self.goal_state_matrix[idx_x,idx_y]+=1
+            
+        elif pixels and asym==False:
             self._current_episode_goal['goal_state'].append(goal_state)
             
-        elif pixels and asym:
-            
-            self._current_episode_goal['goal_state'].append(goal_state)
-
         self._current_episode_goal['goal'].append(goal)
 
         if time_step.last() or last:
             
             print('replay last')
             episode = dict()
+            
             for spec in self._data_specs:
                 
                 if spec.name == 'observation' and pixels:
-                    
                     value1 = self._current_episode_goal['observation']
                     value2 = self._current_episode_goal['state']
                     episode['observation'] = np.array(value1, spec.dtype)
                     episode['state'] = np.array(value2, 'float32')
-                    
                 else:
-                    
                     value = self._current_episode_goal[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
 
             for spec in self._meta_specs:
-                
                 value = self._current_episode_goal[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
                 
             value = self._current_episode_goal['goal']
-            
             if pixels and asym==False:
-                
                 episode['goal'] = np.array(value).astype(int)
                 
             else:
-                
                 episode['goal'] = np.array(value, np.float64)
-            
+            if np.any(episode['goal']<0):
+                import IPython as ipy; ipy.embed(colors='neutral')
             if pixels:
-                
                 value = self._current_episode_goal['goal_state']
                 episode['goal_state'] = np.array(value, np.float64)
                 
@@ -462,7 +483,8 @@ class ReplayBuffer(IterableDataset):
         test=False,
         tile=1,
         pmm=True,
-        obs_shape=4):
+        obs_shape=4,
+        general=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -496,6 +518,7 @@ class ReplayBuffer(IterableDataset):
         self.tile = tile
         self.pmm = pmm
         self.index = obs_shape//2
+        self.general = general
         if model_step:
             self.model_step = int(int(model_step)/500)
 
@@ -541,10 +564,12 @@ class ReplayBuffer(IterableDataset):
         except:
             worker_id = 0
         #if hyperparameter: second=True, hybrid_pct=x
+        #print('eps', self._episode_fns)
         if self._storage2 and self.hybrid_pct!=0:
         
             eps_fns1 = sorted(self._storage._replay_dir.glob("*.npz"), reverse=True)
             tmp_fns = sorted(self._replay_dir2.glob("*.npz"))
+            #print('tmp', tmp_fns)
             tmp_fns_=[]
             tmp_fns2 = []
 
@@ -766,8 +791,10 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
         # add +1 for the first dummy transition
+        
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
         meta = []
+        
         for spec in self._storage._meta_specs:
             meta.append(episode[spec.name][idx - 1])
 
@@ -798,11 +825,12 @@ class ReplayBuffer(IterableDataset):
             discount = np.ones_like(episode["discount"][idx])
             offset = 0 
             goal = episode["goal"][idx-1]
+            goal_state = episode["goal_state"][idx-1, :2]
             
             if self.asym:
                 goal_state = episode["goal"][idx-1]
             
-            if self.pixels and self.goal_proto==False and self.asym==False:
+            if self.pixels and self.goal_proto==False and self.asym==False and self.general==False:
                 goal = np.tile(goal,(self.tile,1,1))
             
             for i in range(self._nstep):
@@ -822,7 +850,7 @@ class ReplayBuffer(IterableDataset):
             
             offset = idx_goal - idx
             goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal]
+            goal_state = episode["state"][idx_goal,:2]
             for i in range(self._nstep):
                 if self.pmm:
                     step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
@@ -871,7 +899,7 @@ class ReplayBuffer(IterableDataset):
         reward = np.array(reward).astype(float)
         offset = np.array(offset).astype(float)
         if self.sl:
-            return (obs, action, reward, discount, next_obs, goal, offset)
+            return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
         elif self.loss:
             return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, rand_obs, *meta)
         elif self.asym:
@@ -1275,21 +1303,23 @@ class OfflineReplayBuffer(IterableDataset):
                     actions.append(episode["action"][idx][None])
                     rewards.append(episode["reward"][idx][None])
                     episode_name.append(str(eps_fn))
+                    
                     if proto_goal:
                         proto.append(episode["observation"][idx - 1][None])
                     
-                    index.append(idx)
+                    index.append(np.array([idx]))
                     
                     if goal_state:
                         goal_states.append((episode["goal_state"][idx][None]))
             
             if goal_state:
+      
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
                         np.concatenate(goal_states, 0),
-                        np.concatenate(episode_name, 0),
-                        np.concatenate(index, 0)
+                        episode_name,
+                        index
                         )
             elif proto:
                 return (np.concatenate(states,0),
@@ -1312,7 +1342,7 @@ class OfflineReplayBuffer(IterableDataset):
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
-    random.seed(seed)
+    random.seed(int(seed))
 
 def make_replay_buffer(
     env,
@@ -1421,9 +1451,9 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4):
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4, general=False):
+    print('h1', hybrid)
     max_size_per_worker = max_size // max(1, num_workers)
-
     iterable = ReplayBuffer(
         storage,
         storage2,
@@ -1449,7 +1479,8 @@ def make_replay_loader(
         fetch_every=1000,
         save_snapshot=save_snapshot,
         pmm=pmm,
-        obs_shape=obs_shape
+        obs_shape=obs_shape,
+        general=general
         )
 
     loader = torch.utils.data.DataLoader(

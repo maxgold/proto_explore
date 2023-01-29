@@ -1,6 +1,6 @@
 # @package agent
-_target_: agent.proto_encoder1.ProtoEncoder1Agent
-name: proto_encoder1
+_target_: agent.proto_sl_sep.ProtoSlSepAgent
+name: proto_sl_sep
 reward_free: ${reward_free}
 obs_type: ??? # to be specified later
 obs_shape: ??? # to be specified later
