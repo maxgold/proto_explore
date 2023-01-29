@@ -245,10 +245,10 @@ class ReplayBufferStorage:
                     idx_y = int(tmp_state[1])+29
                     self.state_visitation_gc[idx_x,idx_y]+=1
 
-                    tmp_state = tmp_state/3
-                    idx_x = int(tmp_state[0])+9
-                    idx_y = int(tmp_state[1])+9
-                    self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                    #tmp_state = tmp_state/3
+                    #idx_x = int(tmp_state[0])+9
+                    #idx_y = int(tmp_state[1])+9
+                    #self.state_visitation_gc_pct[idx_x,idx_y]+=1
                 else:
                     value = time_step[spec.name]
                     self._current_episode_goal['observation'].append(value['pixels'])
@@ -270,6 +270,9 @@ class ReplayBufferStorage:
                     idx_x = int(tmp_state[0])+29
                     idx_y = int(tmp_state[1])+29
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
+                    if time_step['reward']>1.:
+                        print('r matrix', time_step['reward'])
+                        print('m',self.reward_matrix[idx_x,idx_y])
                 
         if pixels and asym==False and pmm:
             
