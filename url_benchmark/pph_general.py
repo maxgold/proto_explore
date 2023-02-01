@@ -29,7 +29,11 @@ from dmc_benchmark import PRIMAL_TASKS
 
 torch.backends.cudnn.benchmark = True
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, 
+        update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, 
+        batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, 
+        stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
+        normalize=False):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -66,6 +70,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.update_enc_proto = update_enc_proto
     cfg.update_enc_gc = update_enc_gc
     cfg.update_proto_opt = update_proto_opt
+    cfg.normalize = normalize
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -94,14 +99,15 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         wandb.save(f"./{model_step}_gc_heatmap.png")
 
 
-        heatmap_pct = self.replay_storage1.state_visitation_gc_pct
+        #heatmap_pct = self.replay_storage1.state_visitation_gc_pct
+        #
+        #plt.clf()
+        #fig, ax = plt.subplots(figsize=(10,10))
+        #labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
+        #sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
+        #ax.set_title(model_step)
 
-        plt.clf()
-        fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(heatmap_pct.T/heatmap_pct.sum()*100, 1)
-        sns.heatmap(np.log(1 + heatmap_pct.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
-        ax.set_title(model_step)
-
+        #import IPython as ipy; ipy.embed(colors='neutral')
         reward_matrix = self.replay_storage1.reward_matrix
         plt.clf()
         fig, ax = plt.subplots(figsize=(10,6))
@@ -114,7 +120,7 @@ def heatmaps(self, env, model_step, replay_dir2, goal,model_step_lb=False,gc=Fal
         goal_matrix = self.replay_storage1.goal_state_matrix
         plt.clf()
         fig, ax = plt.subplots(figsize=(10,10))
-        labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
+        #labels = np.round(goal_matrix.T/goal_matrix.sum()*100, 1)
         sns.heatmap(np.log(1 + goal_matrix.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(model_step)
 
@@ -312,7 +318,8 @@ class Workspace:
                                 stddev_clip2=cfg.stddev_clip2,
                                 update_enc_proto=cfg.update_enc_proto,
                                 update_enc_gc=cfg.update_enc_gc,
-                                update_proto_opt=cfg.update_proto_opt)
+                                update_proto_opt=cfg.update_proto_opt,
+                                normalize=cfg.normalize)
             
         # initialize from pretrained
         print('model p', cfg.model_path)
@@ -453,17 +460,17 @@ class Workspace:
         self.global_index=[]
         self.storage1=False
         self.distance_goal_init = {}
-        self.proto_goals_dist = np.zeros((10, 1))
         
         if self.cfg.proto_goal_intr:
-            dim=10
+            self.dim=10
         else:
-            dim=self.agent.protos.weight.data.shape[0]
+            self.dim=self.agent.protos.weight.data.shape[0]
 
-        self.proto_goals = np.zeros((dim, 3*self.cfg.frame_stack, 84, 84))
-        self.proto_goals_state = np.zeros((dim, self.train_env.physics.get_state().shape[0]))
+        self.proto_goals = np.zeros((self.dim, 3*self.cfg.frame_stack, 84, 84))
+        self.proto_goals_state = np.zeros((self.dim, self.train_env.physics.get_state().shape[0]))
+        self.proto_goals_dist = np.zeros((self.dim, 1))
         self.proto_goals_matrix = np.zeros((60,60))
-        self.proto_goals_id = np.zeros((dim, 2))
+        self.proto_goals_id = np.zeros((self.dim, 2))
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
@@ -559,7 +566,7 @@ class Workspace:
 
         else:
 
-            if self.global_step%100000==0 and self.pmm:
+            if self.global_step%10000==0 and self.pmm:
                 heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
 
             ########################################################################
@@ -585,7 +592,7 @@ class Workspace:
             state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
             
 
-        while self.proto_goals.shape[0] < 10:
+        while self.proto_goals.shape[0] < self.dim:
             self.proto_goals = np.append(self.proto_goals, np.zeros((1,3*self.cfg.frame_stack,84,84)), axis=0)
             self.proto_goals_state = np.append(self.proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
             self.proto_goals_dist = np.append(self.proto_goals_dist, np.array([[0.]]), axis=0)
@@ -1027,12 +1034,12 @@ class Workspace:
                                                self.cfg.frame_stack,self.cfg.action_repeat,
                                                seed=None, goal=goal_state, init_state = init_state) 
 
-                time_step = self.train_env1.reset()
+                time_step1 = self.train_env1.reset()
 
 
                 self.train_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
                                                 self.cfg.action_repeat, seed=None, goal=None, 
-                                                init_state=time_step.observation['observations'][:2])
+                                                init_state=time_step1.observation['observations'][:2])
 
                 time_step_no_goal = self.train_env_no_goal.reset()
         
@@ -1041,7 +1048,6 @@ class Workspace:
                                                             self.cfg.action_repeat, seed=None, goal=None, 
                                                             init_state=init_state)
                 time_step = self.train_env.reset()
-                time_step_no_goal = None
                 
         else:
             
@@ -1058,9 +1064,11 @@ class Workspace:
                     
                 act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
                 time_step = self.train_env.step(act_)
-                time_step_no_goal = None
         
-        return time_step, time_step_no_goal
+        if actor1:
+            return time_step1, time_step_no_goal
+        else:
+            return time_step, None
     
     
     def save_stats(self):
@@ -1087,7 +1095,7 @@ class Workspace:
                     else:
                         sets[ix][self.count]=self.v_queue[self.v_queue_ptr-x:self.v_queue_ptr].mean()
                 
-                total_r = np.count_nonzero(self.replay_storage.reward_matrix)
+                total_r = np.count_nonzero(self.replay_storage1.reward_matrix)
                 print('total reward', total_r)
                 r_ptr = self.r_queue_ptr
                 self.r_queue[r_ptr] = total_r
@@ -1320,7 +1328,7 @@ class Workspace:
 
                     self.actor1=True
                     self.actor=False
-                    time_step1 = self.train_env1.reset()
+                    
                     #render first goal
                     
                     goal_pix = self.proto_goals[0]
@@ -1338,7 +1346,7 @@ class Workspace:
 
                     if self.cfg.model_path==False:
                         self.eval_proto()
-                    self.save_stats()
+                self.save_stats()
                     
                 
                 
@@ -1386,7 +1394,6 @@ class Workspace:
                     
                     self.gc_or_proto()
                     
-                    
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step!=0:
                     self.evaluate()
@@ -1432,10 +1439,10 @@ class Workspace:
                         
                         if self.cfg.obs_type == 'pixels' and time_step.last()==False:
                             self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=False, pmm=self.pmm)
-                        
                     else:
                         print('gc policy')
                         assert self.actor1==True
+                        assert self.proto_goals_state.shape[0] == self.proto_goals.shape[0] == self.proto_goals_dist.shape[0]
                         
                         goal_idx, goal_state, goal_pix = self.sample_goal()
 
@@ -1493,10 +1500,13 @@ class Workspace:
 
                     # take env step
                     time_step1 = self.train_env1.step(action1)
+                    
                     if self.pmm:
+
                         time_step_no_goal = self.train_env_no_goal.step(action1)
                                      
                     if self.pmm == False:
+                        print('not pmm, calculating reward')
                         #calculate reward
                         reward = self.calc_reward(time_step1.observation['pixels'], goal_pix)
                         time_step1 = time_step1._replace(reward=reward)
@@ -1505,7 +1515,6 @@ class Workspace:
                     if time_step1.reward > self.cfg.reward_cutoff:
 
                         episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
-                      
                     
                     if self.cfg.obs_type == 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm==False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
                         
@@ -1536,19 +1545,20 @@ class Workspace:
                     
                     if  self.cfg.obs_type=='pixels' and time_step.last()==False:
                         self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
-
                 episode_step += 1
-
 
                 
                 if self.actor1:
                     
-                    if time_step1.reward == 0.:
+                    if time_step1.reward == 0. and self.pmm==False:
                         time_step1 = time_step1._replace(reward=-1)
 
                     if (self.pmm==False and (episode_reward > abs(self.cfg.reward_cutoff*20)) and episode_step>5) or (self.pmm and episode_reward > 100):
                         print('proto_goals', self.proto_goals_state)
                         print('r', episode_reward)
+                        idx_x = int(goal_state[0]*100)+29
+                        idx_y = int(goal_state[1]*100)+29
+                        self.proto_goals_matrix[idx_x,idx_y]+=1 
                         
                         ##############################
                         #add non-pmm later 
@@ -1605,7 +1615,6 @@ class Workspace:
                                                                   goal_pix, goal_state,
                                                           time_step_no_goal, True, last=True)
                            
-                        meta = self.agent.update_meta(meta, self._global_step, time_step1)
                         
                         self.current_init = np.append(self.current_init, self.train_env1.physics.get_state()[None,:], axis=0)
                         print('current', self.current_init)

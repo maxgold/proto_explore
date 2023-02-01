@@ -132,6 +132,7 @@ model_path: False
 cassio: False
 greene: False
 pluto: False
+normalize: False
 #experiment
 experiment: exp
 

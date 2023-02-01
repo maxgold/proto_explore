@@ -229,6 +229,7 @@ class ReplayBufferStorage:
             pmm=True
         else:
             pmm=False
+
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
             
@@ -245,10 +246,10 @@ class ReplayBufferStorage:
                     idx_y = int(tmp_state[1])+29
                     self.state_visitation_gc[idx_x,idx_y]+=1
 
-                    tmp_state = tmp_state/3
-                    idx_x = int(tmp_state[0])+9
-                    idx_y = int(tmp_state[1])+9
-                    self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                    #tmp_state = tmp_state/3
+                    #idx_x = int(tmp_state[0])+9
+                    #idx_y = int(tmp_state[1])+9
+                    #self.state_visitation_gc_pct[idx_x,idx_y]+=1
                 else:
                     value = time_step[spec.name]
                     self._current_episode_goal['observation'].append(value['pixels'])
@@ -264,7 +265,7 @@ class ReplayBufferStorage:
                 self._current_episode_goal[spec.name].append(value)
                 
                 if spec.name == 'reward' and pixels and pmm:
-                    
+                    assert time_step['reward']>=0.
                     value = time_step['observation']
                     tmp_state = value['observations']*100
                     idx_x = int(tmp_state[0])+29
@@ -318,7 +319,7 @@ class ReplayBufferStorage:
                 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal')
+            print('storing episode, w/ goal, general')
             
             
     def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False, pmm=True):
@@ -401,7 +402,7 @@ class ReplayBufferStorage:
 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal')
+            print('storing episode, w/ goal, proto')
          
 
     def add_q(self, time_step, meta, q, task):
