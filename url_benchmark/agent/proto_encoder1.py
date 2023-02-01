@@ -46,7 +46,8 @@ class Projector(nn.Module):
 class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, 
+                 normalize, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -84,6 +85,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
         self.update_proto_opt = update_proto_opt
+        self.normalize = normalize
+        print('normalize', self.normalize)
         print('tau', tau)
         print('it', num_iterations)
 
@@ -171,7 +174,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             else:
                 z = obs
             z = self.predictor(z)
-            #z = F.normalize(z, dim=1, p=2)
+            if self.normalize:
+                z = F.normalize(z, dim=1, p=2)
             scores = self.protos(z).T
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
@@ -222,7 +226,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         s = self.encoder(obs)
         s = self.predictor(s)
         s = self.projector(s)
-        #s = F.normalize(s, dim=1, p=2)
+        if self.normalize:
+            s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
         #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
@@ -230,7 +235,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         with torch.no_grad():
             t = self.encoder_target(next_obs)
             t = self.predictor_target(t)
-            t = F.normalize(t, dim=1, p=2)
+            if self.normalize:
+                t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
             #####################
             #prob = F.softmax(scores_t, dim=1)
