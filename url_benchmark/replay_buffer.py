@@ -229,6 +229,7 @@ class ReplayBufferStorage:
             pmm=True
         else:
             pmm=False
+
         for key, value in meta.items():
             self._current_episode_goal[key].append(value)
             
@@ -264,15 +265,12 @@ class ReplayBufferStorage:
                 self._current_episode_goal[spec.name].append(value)
                 
                 if spec.name == 'reward' and pixels and pmm:
-                    
+                    assert time_step['reward']>=0.
                     value = time_step['observation']
                     tmp_state = value['observations']*100
                     idx_x = int(tmp_state[0])+29
                     idx_y = int(tmp_state[1])+29
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
-                    if time_step['reward']>1.:
-                        print('r matrix', time_step['reward'])
-                        print('m',self.reward_matrix[idx_x,idx_y])
                 
         if pixels and asym==False and pmm:
             
@@ -321,7 +319,7 @@ class ReplayBufferStorage:
                 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal')
+            print('storing episode, w/ goal, general')
             
             
     def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False, pmm=True):
@@ -404,7 +402,7 @@ class ReplayBufferStorage:
 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal')
+            print('storing episode, w/ goal, proto')
          
 
     def add_q(self, time_step, meta, q, task):
