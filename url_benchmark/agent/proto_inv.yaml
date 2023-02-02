@@ -1,0 +1,47 @@
+# @package agent
+_target_: agent.proto_inv.ProtoInvAgent
+name: proto_inv
+reward_free: ${reward_free}
+obs_type: ??? # to be specified later
+obs_shape: ??? # to be specified later
+action_shape: ??? # to be specified later
+goal_shape: ???
+goal: false
+update_every_steps: 2
+device: ${device}
+lr: ???
+critic_target_tau: .01
+critic2_target_tau: .01
+use_tb: ${use_tb}
+use_wandb: ${use_wandb}
+num_expl_steps: ??? # to be specified later
+hidden_dim: ???
+feature_dim: 50
+stddev_schedule: 0.3
+stddev_clip: 0.2
+nstep: 3
+batch_size: ???
+init_critic: true
+pred_dim: 128
+proj_dim: 512
+num_protos: ???
+tau: 0.1
+topk: 3
+queue_size: 2048
+encoder_target_tau: .05
+update_gc: ???
+gc_only: ???
+offline: ???
+load_protos: False
+num_iterations: 3
+lagr: .2
+margin: .1
+update_proto_every: 2
+update_encoder: ${update_encoder}
+stddev_schedule2: ???
+stddev_clip2: ???
+update_enc_proto: False
+update_enc_gc: False
+update_proto_opt: True
+normalize: False
+normalize2: True
