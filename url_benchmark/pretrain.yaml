@@ -133,6 +133,10 @@ cassio: False
 greene: False
 pluto: False
 normalize: False
+normalize2: True
+load_every: 10000
+offline_gc: False
+goal_offset: 1
 #experiment
 experiment: exp
 

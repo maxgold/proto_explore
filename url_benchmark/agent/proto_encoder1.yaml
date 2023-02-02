@@ -44,3 +44,4 @@ update_enc_proto: False
 update_enc_gc: False
 update_proto_opt: True
 normalize: False
+normalize2: True
