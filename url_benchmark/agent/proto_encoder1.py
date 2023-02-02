@@ -47,7 +47,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, 
-                 normalize, **kwargs):
+                 normalize, normalize2, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -86,7 +86,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.update_enc_gc = update_enc_gc
         self.update_proto_opt = update_proto_opt
         self.normalize = normalize
+        self.normalize2 = normalize2
         print('normalize', self.normalize)
+        print('normalize2', self.normalize2)
         print('tau', tau)
         print('it', num_iterations)
 
@@ -166,7 +168,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         self.protos.weight.data.copy_(C)
 
     def compute_intr_reward(self, obs, obs_state, step, eval=False):
-        self.normalize_protos()
+        if self.normalize2:
+
+            self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
