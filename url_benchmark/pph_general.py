@@ -566,7 +566,7 @@ class Workspace:
 
         else:
 
-            if self.global_step%10000==0 and self.pmm:
+            if self.global_step%100000==0 and self.pmm:
                 heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
 
             ########################################################################

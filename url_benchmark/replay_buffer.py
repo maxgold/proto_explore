@@ -260,6 +260,10 @@ class ReplayBufferStorage:
                 
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
+                print('specs', spec.shape)
+                print('vs', value.shape)
+                print('spect', spec.dtype)
+                print('vd', value.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 
                 self._current_episode_goal[spec.name].append(value)
