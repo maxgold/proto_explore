@@ -260,10 +260,6 @@ class ReplayBufferStorage:
                 
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
-                print('specs', spec.shape)
-                print('vs', value.shape)
-                print('spect', spec.dtype)
-                print('vd', value.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 
                 self._current_episode_goal[spec.name].append(value)
@@ -1037,7 +1033,8 @@ class OfflineReplayBuffer(IterableDataset):
         load_once=False,
         inv=False,
         goal_offset=1,
-        pmm=True):
+        pmm=True,
+        model_step=None):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -1072,6 +1069,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.switch=False
         self.inv=inv
         self.goal_offset=goal_offset
+        self.model_step = int(model_step//500)
         print('goal offset', goal_offset)
 
         if obs_type == 'pixels':
@@ -1097,6 +1095,16 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = 0
         
         eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
+
+        tmp_fns_=[]
+        tmp_fns2 = []
+
+        for x in eps_fns:
+            tmp_fns_.append(str(x))
+            tmp_fns2.append(x)
+                
+        if self.model_step is not None:
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
     
         # for eps_fn in tqdm.tqdm(eps_fns):
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
@@ -1448,7 +1456,6 @@ class OfflineReplayBuffer(IterableDataset):
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
-    print('s', seed)
     np.random.seed(seed)
     random.seed(int(seed))
 
@@ -1472,7 +1479,8 @@ def make_replay_buffer(
     load_every=1000,
     inv=False,
     goal_offset=1,
-    pmm=True):
+    pmm=True,
+    model_step=model_step):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1493,7 +1501,8 @@ def make_replay_buffer(
         eval=eval,
         inv=inv,
         goal_offset=goal_offset,
-        pmm=pmm
+        pmm=pmm,
+        model_step=model_step
     )
     iterable._load()
 
@@ -1527,7 +1536,8 @@ def make_replay_offline(
     eval=False,
     load_once=True,
     inv=False,
-    goal_offset=1):
+    goal_offset=1, 
+    model_step=None):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1548,7 +1558,8 @@ def make_replay_offline(
         eval=eval,
         load_once=load_once,
         inv=inv,
-        goal_offset=goal_offset
+        goal_offset=goal_offset,
+        model_step=model_step
     )
     iterable._load()
 	
