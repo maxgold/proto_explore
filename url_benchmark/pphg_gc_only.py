@@ -311,6 +311,7 @@ class Workspace:
             
             assert os.path.isfile(self.agent_path[self.cfg.model_step_index])
             self.pretrained_agent = torch.load(self.agent_path[self.cfg.model_step_index])
+            print('agent path', self.agent_path[self.cfg.model_step_index])
             print('pretrained_agent', vars(self.pretrained_agent))
             self.agent.init_encoder_from(self.pretrained_agent.encoder)
             
