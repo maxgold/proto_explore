@@ -155,7 +155,6 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
-<<<<<<< HEAD:url_benchmark/pretrain.py
     def insert_to_buffer(self, encodings, actions, physics):
         if isinstance(encodings, list):
             encodings = torch.stack(encodings)
@@ -170,9 +169,6 @@ class Workspace:
                 pickle.dump((self.encodings, self.actions, self.physics), f)
 
     def eval(self, states):
-=======
-    def eval(self):
->>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:pretrain.py
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
@@ -198,7 +194,6 @@ class Workspace:
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
-<<<<<<< HEAD:url_benchmark/pretrain.py
             self.play_dataset.append(dataset)
 #        if self.global_step % int(1e5) == 0:
 #            if len(states):
@@ -207,8 +202,6 @@ class Workspace:
 #                fig, ax = plt.subplots()
 #                ax.scatter(proto2d[:,0], proto2d[:,1])
 #                plt.savefig(f"./{self.global_step}_proto2d.png")
-=======
->>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:pretrain.py
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
@@ -233,12 +226,9 @@ class Workspace:
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
-<<<<<<< HEAD:url_benchmark/pretrain.py
         encodings.append(get_encoding(self.pretrained_agent, time_step).squeeze())
         physics.append(torch.tensor(time_step.physics))
-=======
         self.xylist.append(time_step.physics)
->>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:pretrain.py
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -310,13 +300,10 @@ class Workspace:
 
             # take env step
             time_step = self.train_env.step(action)
-<<<<<<< HEAD:url_benchmark/pretrain.py
             states.append(time_step.observation)
             encodings.append(get_encoding(self.pretrained_agent, time_step).squeeze())
             physics.append(torch.tensor(time_step.physics))
-=======
             self.xylist.append(time_step.physics)
->>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:pretrain.py
             episode_reward += time_step.reward
             self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
