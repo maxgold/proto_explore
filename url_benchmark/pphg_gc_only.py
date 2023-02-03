@@ -788,7 +788,7 @@ class Workspace:
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
         print('eval reached', self.eval_reached)
         for idx in range(self.eval_reached.shape[0]):
-            goal_array = ndim_grid(2,7)
+            goal_array = ndim_grid(2,8)
             init = self.eval_reached[idx]
             goal_index = np.where(np.all(goal_array==init,axis=1))[0]
             goal_array = torch.tensor(goal_array)
@@ -861,15 +861,20 @@ class Workspace:
                         self.eval_reached = np.append(self.eval_reached, x[None,:], axis=0)
                         self.eval_reached = np.unique(self.eval_reached, axis=0)
 
-                df.loc[ix, 'x'] = x[0]
-                df.loc[ix, 'y'] = x[1]
+                df.loc[ix, 'x'] = x[0].round(2)
+                df.loc[ix, 'y'] = x[1].round(2)
                 df.loc[ix, 'r'] = total_reward
+
                 print('r', total_reward)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        result.fillna(0, inplace=True)
+        print('result', result)
         plt.clf()
         fig, ax = plt.subplots()
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
         plt.savefig(f"./{self.global_step}_heatmap_goal.png")
         wandb.save(f"./{self.global_step}_heatmap_goal.png")
 
