@@ -1069,7 +1069,10 @@ class OfflineReplayBuffer(IterableDataset):
         self.switch=False
         self.inv=inv
         self.goal_offset=goal_offset
-        self.model_step = int(model_step//500)
+        if model_step is not None:
+            self.model_step = int(model_step//500)
+        else:
+            self.model_step = None
         print('goal offset', goal_offset)
 
         if obs_type == 'pixels':
@@ -1480,7 +1483,7 @@ def make_replay_buffer(
     inv=False,
     goal_offset=1,
     pmm=True,
-    model_step=model_step):
+    model_step=None):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1537,7 +1540,8 @@ def make_replay_offline(
     load_once=True,
     inv=False,
     goal_offset=1, 
-    model_step=None):
+    model_step=None,
+    pmm=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1559,7 +1563,8 @@ def make_replay_offline(
         load_once=load_once,
         inv=inv,
         goal_offset=goal_offset,
-        model_step=model_step
+        model_step=model_step,
+        pmm=pmm
     )
     iterable._load()
 	

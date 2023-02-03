@@ -350,6 +350,12 @@ class ProtoInvAgent(DDPGInvAgent):
         
         #action = action.reshape(-1,2)
         discount = discount.reshape(-1,1)
+        if obs.shape[0]!=1:
+            obs = obs[None,:]
+        if next_obs.shape[0]!=1:
+            next_obs = next_obs[None,:]
+        if actor1 and goal.shape[0]!=1:
+            goal = goal[None,:]
 
         # augment and encode
         with torch.no_grad():
