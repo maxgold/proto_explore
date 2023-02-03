@@ -37,6 +37,7 @@ _DEFAULT_TIME_LIMIT = 20
 SUITE = containers.TaggedTasks()
 
 
+<<<<<<< HEAD:url_benchmark/custom_dmc_tasks/point_mass_maze.py
 TASKS = [
     ("reach_top_left", np.array([-0.15, 0.15, 0.01])),
     ("reach_top_right", np.array([0.15, 0.15, 0.01])),
@@ -56,10 +57,13 @@ TASKS = [
     ("reach_hard2_no_goal", np.array([-0.15, -0.15, 0.01])),
     ("reach_hard2_no_goal_v1", np.array([.2, .2, 0.01])),
     ("reach_hard2_no_goal_v2", np.array([.2, -0.05, 0.01])),
-    ("reach_hard2_no_goal_v3", np.array([-.15, -0.15, 0.01])),
     ("reach_room_no_goal_v1", np.array([.2, .2, 0.01])),
     ("reach_room_no_goal_v2", np.array([.2, -0.05, 0.01])),
 ]
+=======
+TASKS = [("reach_hs", np.array([0.15, -0.15, 0.01])),
+        ("reach_ud_hs", np.array([0.15, -0.15, 0.01])),]
+>>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:custom_dmc_tasks/point_mass.py
 
 
 
@@ -79,11 +83,12 @@ def get_model_and_assets(task):
     """Returns a tuple containing the model XML string and a dict of assets."""
     root_dir = os.path.dirname(os.path.dirname(__file__))
     xml = resources.GetResource(
-        os.path.join(root_dir, "custom_dmc_tasks", f"point_mass_maze_{task}.xml")
+        os.path.join(root_dir, "custom_dmc_tasks", f"point_mass_{task}.xml")
     )
     return xml, common.ASSETS
 
 
+<<<<<<< HEAD:url_benchmark/custom_dmc_tasks/point_mass_maze.py
 @SUITE.add("benchmarking")
 def reach_top_left(
     time_limit=_DEFAULT_TIME_LIMIT, random=None, init_state=None,environment_kwargs=None
@@ -134,6 +139,37 @@ def reach_bottom_right(
     return control.Environment(
         physics, task, time_limit=time_limit, **environment_kwargs
     )
+=======
+@SUITE.add('benchmarking')
+def reach_hs(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'reach_hs'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_hs'))
+    task = MultiTaskPointMassMaze(target_id=0, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def reach_ud_hs(time_limit=_DEFAULT_TIME_LIMIT,
+              random=None,
+              environment_kwargs=None):
+    """Returns the Run task."""
+    global task_name
+    task_name = 'reach_ud_hs'
+    physics = Physics.from_xml_string(*get_model_and_assets('reach_ud_hs'))
+    task = MultiTaskPointMassMaze(target_id=1, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+>>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:custom_dmc_tasks/point_mass.py
 
 @SUITE.add('benchmarking')
 def reach_hs(time_limit=_DEFAULT_TIME_LIMIT,
@@ -338,7 +374,7 @@ def reach_hard2_no_goal_v1(time_limit=_DEFAULT_TIME_LIMIT,
     print('hard2')
     task_name = 'reach_hard2_no_goal_v1'
     physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal_v1'))
-    task = MultiTaskPointMassMaze(target_id=16, random=random, init_state=init_state)
+    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -363,23 +399,6 @@ def reach_hard2_no_goal_v2(time_limit=_DEFAULT_TIME_LIMIT,
                                **environment_kwargs)
 
 @SUITE.add('benchmarking')
-def reach_hard2_no_goal_v3(time_limit=_DEFAULT_TIME_LIMIT,
-              random=None,
-                init_state=None,
-              environment_kwargs=None):
-    """Returns the Run task."""
-    global task_name
-    print('hard2')
-    task_name = 'reach_hard2_no_goal_v3'
-    physics = Physics.from_xml_string(*get_model_and_assets('reach_hard2_no_goal_v3'))
-    task = MultiTaskPointMassMaze(target_id=18, random=random, init_state=init_state)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(physics,
-                               task,
-                               time_limit=time_limit,
-                               **environment_kwargs)
-
-@SUITE.add('benchmarking')
 def reach_room_no_goal_v1(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
                 init_state=None,
@@ -389,7 +408,7 @@ def reach_room_no_goal_v1(time_limit=_DEFAULT_TIME_LIMIT,
     print('room')
     task_name = 'reach_room_no_goal_v1'
     physics = Physics.from_xml_string(*get_model_and_assets('reach_room_no_goal_v1'))
-    task = MultiTaskPointMassMaze(target_id=19, random=random, init_state=init_state)
+    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -406,7 +425,7 @@ def reach_room_no_goal_v2(time_limit=_DEFAULT_TIME_LIMIT,
     print('room')
     task_name = 'reach_room_no_goal_v2'
     physics = Physics.from_xml_string(*get_model_and_assets('reach_room_no_goal_v2'))
-    task = MultiTaskPointMassMaze(target_id=20, random=random, init_state=init_state)
+    task = MultiTaskPointMassMaze(target_id=15, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -438,6 +457,7 @@ def reach_custom_goal(
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
+<<<<<<< HEAD:url_benchmark/custom_dmc_tasks/point_mass_maze.py
     xml = get_model_and_assets("reach_bottom_right")
     #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
@@ -501,6 +521,9 @@ def reach_custom_goal_horizontal(
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
     xml = get_model_and_assets("reach_horizontal")
     #xml = get_model_and_assets("reach_ud_hs")
+=======
+    xml = get_model_and_assets("reach_ud_hs")
+>>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:custom_dmc_tasks/point_mass.py
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
     new_targ_str = make_target_str(goal)
@@ -653,9 +676,14 @@ class MultiTaskPointMassMaze(base.Task):
           physics: An instance of `mujoco.Physics`.
         """
         randomizers.randomize_limited_and_rotational_joints(physics, self.random)
+<<<<<<< HEAD:url_benchmark/custom_dmc_tasks/point_mass_maze.py
         #physics.data.qpos[0] = np.random.uniform(-.25, -.29)
         #physics.data.qpos[1] = np.random.uniform(0.25, .29)
         physics.data.qpos[0], physics.data.qpos[1] = self._init_state
+=======
+        physics.data.qpos[0] = np.random.uniform(-.15, -.29)
+        physics.data.qpos[1] = np.random.uniform(0.15, .29)
+>>>>>>> 2b0eec3ed05507381d2f63f59884014f0a872fc8:custom_dmc_tasks/point_mass.py
         # import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos["target"][:] = self._target
 

@@ -1,97 +1,95 @@
+# The Unsupervised Reinforcement Learning Benchmark (URLB)
 
+URLB provides a set of leading algorithms for unsupervised reinforcement learning where agents first pre-train without access to extrinsic rewards and then are finetuned to downstream tasks.
 
-# ExORL: Exploratory Data for Offline Reinforcement Learning
+This codebase was adapted from [DrQv2](https://github.com/facebookresearch/drqv2). The DDPG agent and training scripts were developed by Denis Yarats. All authors contributed to developing individual baselines for URLB.
 
-This is an original PyTorch implementation of the ExORL framework from
-
-[Don't Change the Algorithm, Change the Data: Exploratory Data for Offline Reinforcement Learning](https://arxiv.org/abs/2201.13425) by
-
-[Denis Yarats*](https://cs.nyu.edu/~dy1042/), [David Brandfonbrener*](https://davidbrandfonbrener.github.io/), [Hao Liu](https://www.haoliu.site/), [Misha Laskin](https://www.mishalaskin.com/), [Pieter Abbeel](https://people.eecs.berkeley.edu/~pabbeel/), [Alessandro Lazaric](http://chercheurs.lille.inria.fr/~lazaric/Webpage/Home/Home.html), and [Lerrel Pinto](https://www.lerrelpinto.com).
-
-*Equal contribution.
-
-## Prerequisites
-
-Install [MuJoCo](http://www.mujoco.org/) if it is not already the case:
-
-* Download MuJoCo binaries [here](https://mujoco.org/download).
-* Unzip the downloaded archive into `~/.mujoco/`.
-* Append the MuJoCo subdirectory bin path into the env variable `LD_LIBRARY_PATH`.
-
-Install the following libraries:
-```sh
-sudo apt update
-sudo apt install libosmesa6-dev libgl1-mesa-glx libglfw3 unzip
-```
-
-Install dependencies:
+## Requirements
+We assume you have access to a GPU that can run CUDA 10.2 and CUDNN 8. Then, the simplest way to install all required dependencies is to create an anaconda environment by running
 ```sh
 conda env create -f conda_env.yml
-conda activate exorl
 ```
-
-## Datasets
-We provide exploratory datasets for 6 DeepMind Control Stuite domains
-| Domain | Dataset name | Available task names |
-|---|---|---|
-| Cartpole | `cartpole` | `cartpole_balance`, `cartpole_balance_sparse`, `cartpole_swingup`, `cartpole_swingup_sparse` |
-| Cheetah | `cheetah` | `cheetah_run`, `cheetah_run_backward` |
-| Jaco Arm | `jaco` | `jaco_reach_top_left`, `jaco_reach_top_right`, `jaco_reach_bottom_left`, `jaco_reach_bottom_right` |
-| Point Mass Maze | `point_mass_maze` | `point_mass_maze_reach_top_left`, `point_mass_maze_reach_top_right`, `point_mass_maze_reach_bottom_left`, `point_mass_maze_reach_bottom_right`  | 
-| Quadruped | `quadruped` | `quadruped_walk`, `quadruped_run` |
-| Walker | `walker` | `walker_stand`, `walker_walk`, `walker_run` |
-
-
-For each domain we collected datasets by running 9 unsupervised RL algorithms from [URLB](https://github.com/rll-research/url_benchmark) for total of `10M` steps. Here is the list of algorithms
-| Unsupervised RL method | Name | Paper |
-|---|---|---|
-| APS | `aps` |  [paper](http://proceedings.mlr.press/v139/liu21b.html)|
-| APT(ICM) | `icm_apt` |  [paper](https://arxiv.org/abs/2103.04551)|
-| DIAYN | `diayn` |[paper](https://arxiv.org/abs/1802.06070)|
-| Disagreement | `disagreement` | [paper](https://arxiv.org/abs/1906.04161) |
-| ICM | `icm` | [paper](https://arxiv.org/abs/1705.05363)|
-| ProtoRL | `proto` | [paper](https://arxiv.org/abs/2102.11271)|
-| Random | `random` |  N/A |
-| RND | `rnd` |  [paper](https://arxiv.org/abs/1810.12894) |
-| SMM | `smm` |  [paper](https://arxiv.org/abs/1906.05274) |
-
-You can download a dataset by running `./download.sh <DOMAIN> <ALGO>`, for example to download ProtoRL dataset for Walker, run
+After the instalation ends you can activate your environment with
 ```sh
-./download.sh walker proto
+conda activate urlb
 ```
-The script will download the dataset from S3 and store it under `datasets/walker/proto/`, where you can find episodes (under `buffer`) and episode videos (under `video`).
 
-## Offline RL training
-We also provide implementation of 5 offline RL algorithms for evaluating the datasets
-| Offline RL method | Name | Paper |
-|---|---|---|
-| Behavior Cloning | `bc` |  [paper](https://proceedings.neurips.cc/paper/1988/file/812b4ba287f5ee0bc9d43bbf5bbe87fb-Paper.pdf)|
-| CQL | `cql` |  [paper](https://arxiv.org/pdf/2006.04779.pdf)|
-| CRR | `crr` |[paper](https://arxiv.org/pdf/2006.15134.pdf)|
-| TD3+BC | `td3_bc` | [paper](https://arxiv.org/pdf/2106.06860.pdf) |
-| TD3 | `td3` | [paper](https://arxiv.org/pdf/1802.09477.pdf)|
+## Implemented Agents
+| Agent | Command | Implementation Author(s) | Paper |
+|---|---|---|---|
+| ICM | `agent=icm` | Denis | [paper](https://arxiv.org/abs/1705.05363)|
+| ProtoRL | `agent=proto` | Denis | [paper](https://arxiv.org/abs/2102.11271)|
+| DIAYN | `agent=diayn` | Misha | [paper](https://arxiv.org/abs/1802.06070)|
+| APT(ICM) | `agent=icm_apt` | Hao, Kimin | [paper](https://arxiv.org/abs/2103.04551)|
+| APT(Ind) | `agent=ind_apt` | Hao, Kimin | [paper](https://arxiv.org/abs/2103.04551)|
+| APS | `agent=aps` | Hao, Kimin | [paper](http://proceedings.mlr.press/v139/liu21b.html)|
+| SMM | `agent=smm` | Albert | [paper](https://arxiv.org/abs/1906.05274) |
+| RND | `agent=rnd` | Kevin | [paper](https://arxiv.org/abs/1810.12894) |
+| Disagreement | `agent=disagreement` | Catherine | [paper](https://arxiv.org/abs/1906.04161) |
 
-After downloading required datasets, you can evaluate it using offline RL methon for a specific task. For example, to evaluate a dataset collected by ProtoRL on Walker for the waling task using TD3+BC you can run
+## Available Domains
+We support the following domains.
+| Domain | Tasks |
+|---|---|
+| `walker` | `stand`, `walk`, `run`, `flip` |
+| `quadruped` | `walk`, `run`, `stand`, `jump` |
+| `jaco` | `reach_top_left`, `reach_top_right`, `reach_bottom_left`, `reach_bottom_right` |
+
+
+## Domain observation mode
+Each domain supports two observation modes: states and pixels.
+| Model | Command |
+|---|---|
+| states | `obs_type=states` |
+| pixels | `obs_type=pixels` |
+
+
+## Instructions
+### Pre-training
+To run pre-training use the `pretrain.py` script
 ```sh
-python train_offline.py agent=td3_bc expl_agent=proto task=walker_walk
+python pretrain.py agent=icm domain=walker
 ```
-Logs are stored in the `output` folder. To launch tensorboard run:
+or, if you want to train a skill-based agent, like DIAYN, run:
 ```sh
-tensorboard --logdir output
+python pretrain.py agent=diayn domain=walker
+```
+This script will produce several agent snapshots after training for `100k`, `500k`, `1M`, and `2M` frames. The snapshots will be stored under the following directory:
+```sh
+./pretrained_models/<obs_type>/<domain>/<agent>/
+```
+For example:
+```sh
+./pretrained_models/states/walker/icm/
 ```
 
-## Citation
-
-If you use this repo in your research, please consider citing the paper as follows:
+### Fine-tuning
+Once you have pre-trained your method, you can use the saved snapshots to initialize the `DDPG` agent and fine-tune it on a downstream task. For example, let's say you have pre-trained `ICM`, you can fine-tune it on `walker_run` by running the following command:
+```sh
+python finetune.py pretrained_agent=icm task=walker_run snapshot_ts=1000000 obs_type=states
 ```
-@article{yarats2022exorl,
-  title={Don't Change the Algorithm, Change the Data: Exploratory Data for Offline Reinforcement Learning},
-  author={Denis Yarats, David Brandfonbrener, Hao Liu, Michael Laskin, Pieter Abbeel, Alessandro Lazaric, Lerrel Pinto},
-  journal={arXiv preprint arXiv:2201.13425},
-  year={2022}
-}
+This will load a snapshot stored in `./pretrained_models/states/walker/icm/snapshot_1000000.pt`, initialize `DDPG` with it (both the actor and critic), and start training on `walker_run` using the extrinsic reward of the task.
+
+For methods that use skills, include the agent, and the `reward_free` tag to false.
+```sh
+python finetune.py pretrained_agent=smm task=walker_run snapshot_ts=1000000 obs_type=states agent=smm reward_free=false
 ```
 
-
-## License
-The majority of ExORL is licensed under the MIT license, however portions of the project are available under separate license terms: DeepMind is licensed under the Apache 2.0 license.
+### Monitoring
+Logs are stored in the `exp_local` folder. To launch tensorboard run:
+```sh
+tensorboard --logdir exp_local
+```
+The console output is also available in a form:
+```
+| train | F: 6000 | S: 3000 | E: 6 | L: 1000 | R: 5.5177 | FPS: 96.7586 | T: 0:00:42
+```
+a training entry decodes as
+```
+F  : total number of environment frames
+S  : total number of agent steps
+E  : total number of episodes
+R  : episode return
+FPS: training throughput (frames per second)
+T  : total training time
+```

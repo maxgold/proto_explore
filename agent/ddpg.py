@@ -14,13 +14,19 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32 * 35 * 35
-
+#        self.repr_dim = 32 * 35 * 35
+#
+#        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
+#                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+#                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+#                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
+#                                     nn.ReLU())
+        self.repr_dim = 32*9*9
         self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=2),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU())
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                     nn.Conv2d(32, 32, 3, stride=1),
+                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2))
+
 
         self.apply(utils.weight_init)
 
@@ -138,8 +144,7 @@ class DDPGAgent:
                  init_critic,
                  use_tb,
                  use_wandb,
-                 meta_dim=0,
-                **kwargs):
+                 meta_dim=0):
         self.reward_free = reward_free
         self.obs_type = obs_type
         self.obs_shape = obs_shape
@@ -190,15 +195,6 @@ class DDPGAgent:
         self.train()
         self.critic_target.train()
 
-    def get_meta_specs(self):
-        return tuple()
-
-    def init_meta(self):
-        return OrderedDict()
-
-    def update_meta(self, meta, global_step, time_step, finetune=False):
-        return meta
-
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
@@ -212,6 +208,15 @@ class DDPGAgent:
         if self.init_critic:
             utils.hard_update_params(other.critic.trunk, self.critic.trunk)
 
+    def get_meta_specs(self):
+        return tuple()
+
+    def init_meta(self):
+        return OrderedDict()
+
+    def update_meta(self, meta, global_step, time_step, finetune=False):
+        return meta
+
     def act(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         h = self.encoder(obs)
@@ -221,7 +226,8 @@ class DDPGAgent:
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
-        stddev = utils.schedule(self.stddev_schedule, step)
+        #stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = .4
         dist = self.actor(inpt, stddev)
         if eval_mode:
             action = dist.mean
