@@ -3,20 +3,11 @@
 
 seed=1
 env=point_mass_maze_reach_top_right
-for task_no_goal in point_mass_maze_reach_room_no_goal
+for offset in 1 3 5 10 20
 do
-    for task in point_mass_maze_reach_custom_goal_room
+    for seed in 1 2 3 4 
     do
-	for fs in 1 3
-	do
-	    for seed in 1 2 3 4 
-            do
-	        for update in True False
-		do
-		    ./pph_general_wrap.sh $task_no_goal $task $fs $seed $update
-            	done
-	    done
-	done
+	./pph_general_wrap.sh $offset $seed
     done
 done
 #for task_no_goal in point_mass_maze_reach_hard_no_goal

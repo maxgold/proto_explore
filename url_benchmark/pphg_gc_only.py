@@ -309,8 +309,8 @@ class Workspace:
             self.path_lst = [int(re.findall('\d+', x)[-1]) for x in self.agent_path]
             print('path lst', self.path_lst)
             
-            assert os.path.isfile(self.agent_path[-1])
-            self.pretrained_agent = torch.load(self.agent_path[-1])
+            assert os.path.isfile(self.agent_path[self.cfg.model_step_index])
+            self.pretrained_agent = torch.load(self.agent_path[self.cfg.model_step_index])
             print('pretrained_agent', vars(self.pretrained_agent))
             self.agent.init_encoder_from(self.pretrained_agent.encoder)
             
@@ -848,8 +848,8 @@ class Workspace:
                     episode += 1
 
                     
-                    if ix%10==0:
-                        self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
+                    #if ix%10==0:
+                    self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
 
                     if self.cfg.eval:
                         save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
