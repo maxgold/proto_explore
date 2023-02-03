@@ -386,7 +386,7 @@ class Workspace:
                                                     False, cfg.nstep, cfg.discount,
                                                     True, cfg.hybrid_gc,cfg.obs_type,
                                                     cfg.hybrid_pct, sl=cfg.sl,
-                                                    replay_dir2=self.work_dir / 'buffer2',
+                                                    replay_dir2=self.work_dir / 'buffer2'/'buffer_copy',
                                                     loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
@@ -566,7 +566,7 @@ class Workspace:
 
         else:
 
-            if self.global_step%10000==0 and self.pmm:
+            if self.global_step%100000==0 and self.pmm:
                 heatmaps(self, self.eval_env, self.global_step, False, True, model_step_lb=False,gc=True,proto=True)
 
             ########################################################################
@@ -588,7 +588,7 @@ class Workspace:
                                                     )
 
 
-            state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
+            state, actions, rewards, eps, index = self.replay_loader1.parse_dataset() 
             state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
             
 

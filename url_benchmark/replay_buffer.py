@@ -603,7 +603,7 @@ class ReplayBuffer(IterableDataset):
             for ix, eps_fn2 in enumerate(eps_fns2):
 
                 #if self.count2 < self.hybrid_pct*10:
-                #print('eps2', eps_fn2)
+                print('eps2', eps_fn2)
                 #if ix!=self.last+1:
                 #    continue
                 #else:
@@ -953,7 +953,67 @@ class ReplayBuffer(IterableDataset):
             return final
         else:
             print('nothing in buffer yet')
+          
             return ''
+        
+    def parse_dataset(self, start_ind=0, end_ind=-1,goal_state=None, proto_goal=False):
+        states = []
+        actions = []
+        rewards = []
+        episode_name = []
+        index = []
+        proto=[]
+        if goal_state:
+            goal_states=[]
+        if len(self._episode_fns)>0:
+            for eps_fn in tqdm.tqdm(self._episode_fns[start_ind:end_ind]):
+                episode = self._episodes[eps_fn]
+                ep_len = next(iter(episode.values())).shape[0] - 1
+                for idx in range(ep_len):
+                    
+                    if self.pixels:
+                        states.append(episode["state"][idx - 1][None])
+                    else:
+                        states.append(episode["observation"][idx - 1][None])
+                    actions.append(episode["action"][idx][None])
+                    rewards.append(episode["reward"][idx][None])
+                    episode_name.append(str(eps_fn))
+                    
+                    if proto_goal:
+                        proto.append(episode["observation"][idx - 1][None])
+                    
+                    index.append(np.array([idx]))
+                    
+                    if goal_state:
+                        goal_states.append((episode["goal_state"][idx][None]))
+            
+            if goal_state:
+      
+                return (np.concatenate(states,0),
+                        np.concatenate(actions, 0),
+                        np.concatenate(rewards, 0),
+                        np.concatenate(goal_states, 0),
+                        episode_name,
+                        index
+                        )
+            elif proto:
+                return (np.concatenate(states,0),
+                        np.concatenate(proto,0),
+                        np.concatenate(actions, 0),
+                        np.concatenate(rewards, 0),
+                        episode_name,
+                        index
+                        )
+            else:
+                print('states', len(states))
+                return (np.concatenate(states,0),
+                        np.concatenate(actions, 0),
+                        np.concatenate(rewards, 0),
+                        episode_name,
+                        index
+                        )
+        else:
+            return ('', '')
 
     def __iter__(self):
         while True:
@@ -1331,6 +1391,7 @@ class OfflineReplayBuffer(IterableDataset):
                         index
                         )
             else:
+                print('states', len(states))
                 return (np.concatenate(states,0),
                         np.concatenate(actions, 0),
                         np.concatenate(rewards, 0),
