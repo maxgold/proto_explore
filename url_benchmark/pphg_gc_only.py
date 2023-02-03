@@ -794,7 +794,7 @@ class Workspace:
             goal_array = torch.tensor(goal_array)
             g_to_g = torch.norm(goal_array[:, None, :] - goal_array[None, :, :], dim=2, p=2)
             all_dists, _ = torch.topk(g_to_g , 8, dim=1, largest=False)
-            goal_array = goal_array[_[goal_index]].cpu().numpy()[0]
+            goal_array = goal_array[_[goal_index]].cpu().numpy()[0][1:]
             print('g', goal_array)
             for ix, x in enumerate(goal_array):
 
@@ -848,7 +848,7 @@ class Workspace:
                     episode += 1
 
                     
-                    if ix%10==0:
+                    if ix%5==0:
                         self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
 
                     if self.cfg.eval:
