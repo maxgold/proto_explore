@@ -130,8 +130,11 @@ def main(cfg):
     datasets_dir = work_dir / cfg.replay_buffer_dir
     import IPython as ipy ;ipy.embed(colors="neutral")
     #replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
+#    replay_dir = Path(
+#        "/home/maxgold/workspace/explore/proto_explore/url_benchmark/exp_local/2022.07.23/101256_proto/buffer2"
+#    )
     replay_dir = Path(
-        "/home/maxgold/workspace/explore/proto_explore/url_benchmark/exp_local/2022.07.23/101256_proto/buffer2"
+        "/home/maxgold/workspace/explore/proto_explore/url_benchmark/exp_local/2022.08.11/202807_proto/buffer2"
     )
     replay_buffer = make_replay_buffer(
         env,
@@ -171,6 +174,12 @@ def main(cfg):
     )
 
     plt.show()
+    heatmap, _, _ = np.histogram2d(states[:, 0], -states[:, 1], bins=50)
+    # inds = ~((np.abs(states[:,0] + .05)<.03) * ((states[:,1] - .05)<.03))
+    plt.clf()
+    fig, ax = plt.subplots()
+    sns.heatmap(np.log(1+heatmap.T), cmap="Blues_r", cbar=False, ax=ax)
+    plt.savefig(f"./heatmap.png")
 
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
 

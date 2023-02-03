@@ -22,6 +22,7 @@ import utils
 from logger import Logger
 from replay_buffer import ReplayBufferStorage, make_replay_loader
 from video import TrainVideoRecorder, VideoRecorder
+import pickle
 
 torch.backends.cudnn.benchmark = True
 
@@ -51,6 +52,14 @@ def visualize_prototypes(agent, states=None):
     dist_mat = torch.cdist(protos, grid_embeddings)
     closest_points = dist_mat.argmin(-1)
     return grid[closest_points, :2].cpu()
+
+def get_encoding(agent, time_step, num_aug=5):
+    obs = torch.tensor(time_step.observation).cuda()[None]
+    auglist = []
+    with torch.no_grad():
+        for _ in range(num_aug):
+            auglist.append(agent.aug_and_encode(obs))
+    return torch.mean(torch.stack(auglist), 0).cpu()
 
 def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
     cfg.obs_type = obs_type
@@ -85,9 +94,9 @@ class Workspace:
         except:
             task = self.cfg.domain
         self.train_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                  cfg.action_repeat, cfg.seed)
+                                  cfg.action_repeat, cfg.seed, time_limit=20)
         self.eval_env = dmc.make(task, cfg.obs_type, cfg.frame_stack,
-                                 cfg.action_repeat, cfg.seed)
+                                 cfg.action_repeat, cfg.seed, time_limit=20)
 
         # create agent
         self.agent = make_agent(cfg.obs_type,
@@ -95,6 +104,17 @@ class Workspace:
                                 self.train_env.action_spec(),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent)
+
+        self.pretrained_agent = make_agent(cfg.obs_type,
+                                self.train_env.observation_spec(),
+                                self.train_env.action_spec(),
+                                cfg.num_seed_frames // cfg.action_repeat,
+                                cfg.agent)
+
+        pretrained_agent = self.load_snapshot_fixed()["agent"]
+        self.pretrained_agent.init_from(pretrained_agent)
+        self.pretrained_agent.encoder.cuda()
+
 
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -129,6 +149,13 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
+        self.play_dataset = []
+        self.buffer_size = 2000
+
+        self.encodings = torch.zeros(self.buffer_size, 500+1, self.agent.encoder.repr_dim)
+        self.actions = torch.zeros(self.buffer_size, 499+1, 2)
+        self.physics = torch.zeros(self.buffer_size, 500+1, 4)
+        self.cid = 0
 
     @property
     def global_step(self):
@@ -148,12 +175,28 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
+    def insert_to_buffer(self, encodings, actions, physics):
+        if isinstance(encodings, list):
+            encodings = torch.stack(encodings)
+            actions = torch.stack(actions)
+            physics = torch.stack(physics)
+        self.encodings[(self.cid%self.buffer_size)] = encodings
+        self.actions[(self.cid%self.buffer_size)] = actions
+        self.physics[(self.cid%self.buffer_size)] = physics
+        self.cid = (self.cid + 1)
+        if (self.cid % 100) == 0:
+            with open("/home/maxgold/workspace/explore/proto_explore/url_benchmark/pretrain_dataset.pkl", "wb") as f:
+                pickle.dump((self.encodings, self.actions, self.physics), f)
+
     def eval(self, states):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         meta = self.agent.init_meta()
         while eval_until_episode(episode):
+            dataset = {"obs": [], "action": [], "physics": []}
             time_step = self.eval_env.reset()
+            dataset["obs"].append(time_step.observation)
+            dataset["physics"].append(time_step.physics)
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent):
@@ -161,13 +204,17 @@ class Workspace:
                                             meta,
                                             self.global_step,
                                             eval_mode=True)
+                dataset["action"].append(action)
                 time_step = self.eval_env.step(action)
+                dataset["obs"].append(time_step.observation)
+                dataset["physics"].append(time_step.physics)
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
                 step += 1
 
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
+            self.play_dataset.append(dataset)
 #        if self.global_step % int(1e5) == 0:
 #            if len(states):
 #                proto2d = visualize_prototypes(self.agent, states)
@@ -181,6 +228,8 @@ class Workspace:
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
+        with open("/home/maxgold/workspace/explore/proto_explore/url_benchmark/play_dataset.pkl", "wb") as f:
+            pickle.dump(self.play_dataset, f)
 
     def train(self):
         # predicates
@@ -190,9 +239,14 @@ class Workspace:
                                       self.cfg.action_repeat)
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
+        encodings = []
+        actions = []
+        physics = []
 
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
+        encodings.append(get_encoding(self.pretrained_agent, time_step).squeeze())
+        physics.append(torch.tensor(time_step.physics))
         meta = self.agent.init_meta()
         self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -218,6 +272,10 @@ class Workspace:
                         log('step', self.global_step)
 
                 # reset env
+                self.insert_to_buffer(encodings, actions, physics)
+                encodings = []
+                actions = []
+                physics = []
                 time_step = self.train_env.reset()
                 meta = self.agent.init_meta()
                 self.replay_storage.add(time_step, meta)
@@ -227,6 +285,8 @@ class Workspace:
                     self.save_snapshot()
                 episode_step = 0
                 episode_reward = 0
+                encodings.append(get_encoding(self.pretrained_agent, time_step).squeeze())
+                physics.append(torch.tensor(time_step.physics))
 
             # try to evaluate
             if eval_every_step(self.global_step):
@@ -241,6 +301,7 @@ class Workspace:
                                         meta,
                                         self.global_step,
                                         eval_mode=False)
+                actions.append(torch.tensor(action))
 
             # try to update the agent
             if not seed_until_step(self.global_step):
@@ -250,6 +311,8 @@ class Workspace:
             # take env step
             time_step = self.train_env.step(action)
             states.append(time_step.observation)
+            encodings.append(get_encoding(self.pretrained_agent, time_step).squeeze())
+            physics.append(torch.tensor(time_step.physics))
             episode_reward += time_step.reward
             self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
@@ -264,6 +327,36 @@ class Workspace:
         payload = {k: self.__dict__[k] for k in keys_to_save}
         with snapshot.open('wb') as f:
             torch.save(payload, f)
+
+    def load_snapshot_fixed(self):
+        snapshot_dir = Path(f"models/pixels/{self.cfg.domain}/proto_proto")
+        snapshot_ts = 2000000
+
+        def try_load(seed):
+            snapshot = (
+                Path("/home/maxgold/workspace/explore/proto_explore/url_benchmark")
+                / snapshot_dir
+                / str(seed)
+                / f"snapshot_{snapshot_ts}.pt"
+            )
+            # import IPython as ipy; ipy.embed(colors='neutral')
+            if not snapshot.exists():
+                return None
+            with snapshot.open("rb") as f:
+                payload = torch.load(f)
+            return payload
+
+        # try to load current seed
+        payload = try_load(2)
+        if payload is not None:
+            return payload
+        # otherwise try random seed
+        while True:
+            seed = np.random.randint(1, 11)
+            payload = try_load(seed)
+            if payload is not None:
+                return payload
+        return None
 
 
 @hydra.main(config_path='.', config_name='pretrain')

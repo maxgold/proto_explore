@@ -321,19 +321,33 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
 def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None, time_limit=20):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
-        env = suite.load(domain,
-                         task,
-                         task_kwargs=dict(random=seed),
-                         environment_kwargs=dict(flat_observation=True,
-                                                goal=goal),
-                         visualize_reward=visualize_reward)
+        try:
+            env = suite.load(domain,
+                             task,
+                             task_kwargs=dict(random=seed, time_limit=time_limit),
+                             environment_kwargs=dict(flat_observation=True,
+                                                    goal=goal),
+                             visualize_reward=visualize_reward)
+        except:
+            env = suite.load(domain,
+                             task,
+                             task_kwargs=dict(random=seed, time_limit=time_limit),
+                             environment_kwargs=dict(flat_observation=True),
+                             visualize_reward=visualize_reward)
     else:
-        env = cdmc.make(domain,
-                        task,
-                        task_kwargs=dict(random=seed, time_limit=time_limit),
-                        environment_kwargs=dict(flat_observation=True,
-                                               goal=goal),
-                        visualize_reward=visualize_reward)
+        try:
+            env = cdmc.make(domain,
+                            task,
+                            task_kwargs=dict(random=seed, time_limit=time_limit),
+                            environment_kwargs=dict(flat_observation=True,
+                                                   goal=goal),
+                            visualize_reward=visualize_reward)
+        except:
+            env = cdmc.make(domain,
+                            task,
+                            task_kwargs=dict(random=seed, time_limit=time_limit),
+                            environment_kwargs=dict(flat_observation=True),
+                            visualize_reward=visualize_reward)
 
     env = ActionDTypeWrapper(env, np.float32)
     env = ActionRepeatWrapper(env, action_repeat)
@@ -347,7 +361,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
     return env
 
 
-def make(name, obs_type="states", frame_stack=1, action_repeat=1, seed=1, goal=None, time_limit=20):
+def make(name, obs_type="states", frame_stack=1, action_repeat=1, seed=1, goal=None, time_limit=10):
     assert obs_type in ["states", "pixels"]
     if name.startswith("point_mass_maze"):
         domain = "point_mass_maze"
@@ -357,7 +371,10 @@ def make(name, obs_type="states", frame_stack=1, action_repeat=1, seed=1, goal=N
     domain = dict(cup="ball_in_cup").get(domain, domain)
 
     make_fn = _make_jaco if domain == "jaco" else _make_dmc
-    env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, time_limit=time_limit)
+    try:
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, time_limit=time_limit)
+    except:
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, time_limit=time_limit)
 
     if obs_type == "pixels":
         env = FrameStackWrapper(env, frame_stack)

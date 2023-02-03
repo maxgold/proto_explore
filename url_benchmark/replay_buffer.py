@@ -87,7 +87,7 @@ class ReplayBufferStorage:
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
         save_episode(episode, self._replay_dir / eps_fn)
-        save_episode(episode, self._replay_dir2 / eps_fn)
+        #save_episode(episode, self._replay_dir2 / eps_fn)
 
 
 class ReplayBuffer(IterableDataset):

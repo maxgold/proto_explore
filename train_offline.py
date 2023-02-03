@@ -40,7 +40,13 @@ def load_agent(path):
 def get_data_seed(seed, num_data_seeds):
     return (seed - 1) % num_data_seeds + 1
 
-GOAL_ARRAY = np.array([[-.15,.15],[-.15,-.15],[.15,-.15],[.15,.15]])
+
+# TODO: implement a combo agent that trains both an actor critic
+# and also does supervised learning. the SL loss function should push the 
+# Q network p on actions that are observed to reach the goal
+
+#GOAL_ARRAY = np.array([[-.15,.15],[-.2,0],[0,.2],[-.04,.04]])
+GOAL_ARRAY = np.array([[-.05,.05],[-.2,-.2],[.2,.2],[.2,-.2]])
 
 def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg):
     step, episode, total_reward = 0, 0, 0
@@ -55,6 +61,8 @@ def eval(global_step, agent, env, logger, num_eval_episodes, video_recorder, cfg
             with torch.no_grad(), utils.eval_mode(agent):
                 if cfg.goal:
                     #goal = np.array((.2, .2))
+                    h = max(int((200-step)/10), 0)
+                    #action = agent.act(time_step.observation, goal, np.array(h)[None], global_step, eval_mode=True)
                     action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
                 else:
                     action = agent.act(time_step.observation, global_step, eval_mode=True)
@@ -80,7 +88,9 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
         with torch.no_grad(), utils.eval_mode(agent):
             if cfg.goal:
                 #goal = np.array((.2, .2))
+                h = max(int((200-step)/10), 0)
                 action = agent.act(time_step.observation, goal, global_step, eval_mode=True)
+                #action = agent.act(time_step.observation, goal, np.array(h)[None], global_step, eval_mode=True)
             else:
                 action = agent.act(time_step.observation, global_step, eval_mode=True)
         time_step = env.step(action)
@@ -89,10 +99,9 @@ def eval_goal(global_step, agent, env, logger, video_recorder, cfg, goal):
         step += 1
 
     episode += 1
-    # TODO: expand goal
     video_recorder.save(f"goal{global_step}:{str(goal)}.mp4")
     with logger.log_and_dump_ctx(global_step, ty="eval") as log:
-        log("goal", goal)
+        #log("goal", goal)
         log("episode_reward", total_reward)
         log("episode_length", step)
         log("step", global_step)
@@ -119,9 +128,9 @@ def eval_random(env):
 # 1. try weighting the loss function based on inverse density
 #   a. can use heatmap or sklearn.knn.density to estimate density preprocess and then
 #       just send through to the actor...should be easy
-# 2. use the trained model to generate a heatmap of goals
-# 3a. Pretrain a goal-rl model and then use this goal-rl model in proto-rl to collect more data
-# 3b. to generate the goals use a knn and the resulting state space should be more spread
+# 2. use the trained model to generate a heatmap of goals [DONE]
+# 3a. Pretrain a goal-rl model and then use this goal-rl model in proto-rl to collect more data [DONE (expert)}
+# 3b. to generate the goals use a knn and the resulting state space should be more spread [DONE}
 
 @hydra.main(config_path=".", config_name="config")
 def main(cfg):
@@ -164,7 +173,9 @@ def main(cfg):
     domain = get_domain(cfg.task)
     datasets_dir = work_dir / cfg.replay_buffer_dir
     replay_dir = datasets_dir.resolve() / domain / cfg.expl_agent / "buffer"
-    print(f"replay dir: {replay_dir}")
+    #print(f"replay dir: {replay_dir}")
+    #replay_dir = Path("/home/maxgold/workspace/explore/proto_explore/url_benchmark/exp_local/2022.08.24/091736_proto/buffer2")
+    import IPython as ipy; ipy.embed(colors='neutral')
 
     replay_loader = make_replay_loader(
         env,

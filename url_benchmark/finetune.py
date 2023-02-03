@@ -13,6 +13,7 @@ import hydra
 import numpy as np
 import torch
 from dm_env import specs
+import re
 
 import dmc
 import utils
@@ -28,6 +29,7 @@ def make_agent(obs_type, obs_spec, action_spec, num_expl_steps, cfg):
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
     cfg.num_expl_steps = num_expl_steps
+    import IPython as ipy; ipy.embed(colors='neutral')
     return hydra.utils.instantiate(cfg)
 
 
@@ -44,12 +46,27 @@ class Workspace:
         self.logger = Logger(self.work_dir, use_tb=cfg.use_tb, use_wandb=cfg.use_wandb)
         # create envs
 
-        self.train_env = dmc.make(
-            cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed
-        )
-        self.eval_env = dmc.make(
-            cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed
-        )
+        if "cheetah" in cfg.task:
+            self.train_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed, time_limit=10
+            )
+            self.eval_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed, time_limit=10
+            )
+        elif "walker" in cfg.task:
+            self.train_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed, time_limit=25
+            )
+            self.eval_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed, time_limit=25
+            )
+        else:
+            self.train_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed
+            )
+            self.eval_env = dmc.make(
+                cfg.task, cfg.obs_type, cfg.frame_stack, cfg.action_repeat, cfg.seed
+            )
 
         # create agent
         self.agent = make_agent(
@@ -145,6 +162,7 @@ class Workspace:
             log("episode_length", step * self.cfg.action_repeat / episode)
             log("episode", self.global_episode)
             log("step", self.global_step)
+        torch.save(self.agent, "model.ckpt")
 
     def train(self):
         # predicates
@@ -192,7 +210,7 @@ class Workspace:
                 episode_reward = 0
 
             # try to evaluate
-            if eval_every_step(self.global_step):
+            if (self.global_step>0) and eval_every_step(self.global_step):
                 self.logger.log(
                     "eval_total_time", self.timer.total_time(), self.global_frame
                 )
@@ -231,19 +249,28 @@ class Workspace:
 
     def load_snapshot(self):
         snapshot_base_dir = Path(self.cfg.snapshot_base_dir)
-        domain, _ = self.cfg.task.split("_", 1)
-        snapshot_dir = (
-            snapshot_base_dir / self.cfg.obs_type / domain / self.cfg.agent.name
-        )
-        snapshot_dir = Path(
-            "/home/maxgold/workspace/explore/proto_explore/url_benchmark/models/states/point_mass_maze_reach_bottom_right/proto_proto"
-        )
+        if "point" in self.cfg.task:
+            if "no_goal" in self.cfg.task:
+                domain = self.cfg.task
+                domain = re.sub("_v[1-9]", "", domain)
+                print(f"LOADING FROM DOMAIN {domain}")
+            else:
+                domain = "point_mass_maze"
+        else:
+            domain, _ = self.cfg.task.split('_', 1)
+
+        snapshot_dir = snapshot_base_dir / self.cfg.obs_type / domain / self.cfg.agent.name
+#        snapshot_dir = Path(
+#            "/home/maxgold/workspace/explore/proto_explore/url_benchmark/models/pixels/point_mass_maze_reach_bottom_right/proto_proto"
+#        )
 
         def try_load(seed):
-            snapshot = snapshot_dir / str(seed) / f"snapshot_{self.cfg.snapshot_ts}.pt"
+            snapshot = Path("/home/maxgold/workspace/explore/proto_explore/url_benchmark") / snapshot_dir / str(
+                seed) / f'snapshot_{self.cfg.snapshot_ts}.pt'
+            #import IPython as ipy; ipy.embed(colors='neutral')
             if not snapshot.exists():
                 return None
-            with snapshot.open("rb") as f:
+            with snapshot.open('rb') as f:
                 payload = torch.load(f)
             return payload
 
@@ -258,6 +285,7 @@ class Workspace:
             if payload is not None:
                 return payload
         return None
+
 
 
 @hydra.main(config_path=".", config_name="finetune")

@@ -25,18 +25,18 @@ class Actor(nn.Module):
         self.policy = nn.Sequential(
             nn.Linear(obs_dim + goal_dim + 0 * horizon_embed_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(hidden_dim, action_dim, bias=False),
         )
 
         self.apply(utils.weight_init)
 
     def forward(self, obs, goal, horizon, std):
-        #horizon_embed = self.horizon_embedding(horizon)
-        #mu = self.policy(torch.concat([obs, goal, horizon_embed],-1))
+        # horizon_embed = self.horizon_embedding(horizon)
+        # mu = self.policy(torch.concat([obs, goal, horizon_embed],-1))
         mu = self.policy(torch.concat([obs, goal], -1))
 
         mu = torch.tanh(mu)
@@ -141,12 +141,22 @@ class GCSLAgent:
 
 class GCSLAgent2:
     def __init__(
-        self, obs_shape, action_shape, goal_shape, device, lr, hidden_dim, num_horizon=20, **kwargs
+        self,
+        obs_shape,
+        action_shape,
+        goal_shape,
+        device,
+        lr,
+        hidden_dim,
+        num_horizon=20,
+        loss="mse",
+        **kwargs
     ):
         self.action_dim = action_shape[0]
         self.hidden_dim = hidden_dim
         self.lr = lr
         self.device = device
+        self.loss = loss
 
         # models
         self.actor = Actor(
@@ -171,7 +181,7 @@ class GCSLAgent2:
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
         horizon = torch.as_tensor(np.zeros(1), device=self.device).unsqueeze(0)
         goal = torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
-        #stddev = utils.schedule(self.stddev_schedule, step)
+        # stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs, goal, horizon, 1)
         if eval_mode:
             action = policy.mean
@@ -184,13 +194,25 @@ class GCSLAgent2:
     def update_actor(self, obs, goal, desired_action, horizon, step):
         metrics = dict()
 
-        #stddev = utils.schedule(self.stddev_schedule, step)
+        # stddev = utils.schedule(self.stddev_schedule, step)
         policy = self.actor(obs, goal, horizon, 1)
         # loss = torch.square(policy.mu - desired_action).mean()
         # log_prob = policy.log_prob(desired_action).sum(-1, keepdim=True)
         # actor_loss = -log_prob.mean()
-        actor_loss = torch.square(desired_action - policy.loc).mean()
-        # actor_loss = -self.cos_loss(desired_action, policy.loc).mean()
+        if self.loss == "mse":
+            actor_loss = torch.square(desired_action - policy.loc).mean()
+            baseline_loss = (
+                torch.square(desired_action - torch.zeros(desired_action.shape).cuda())
+                .mean()
+                .item()
+            )
+        else:
+            actor_loss = -self.cos_loss(desired_action, policy.loc).mean()
+            baseline_loss = (
+                -self.cos_loss(desired_action, torch.zeros(desired_action.shape).cuda())
+                .mean()
+                .item()
+            )
 
         # optimize actor
         self.actor_opt.zero_grad(set_to_none=True)
@@ -198,8 +220,8 @@ class GCSLAgent2:
         self.actor_opt.step()
 
         metrics["actor_loss"] = actor_loss.item()
-        metrics["baseline"] = torch.square(desired_action).mean()
-        #if self.use_tb:
+        metrics["baseline"] = torch.square(desired_action).mean().item()
+        # if self.use_tb:
         #    metrics["actor_loss"] = actor_loss.item()
         #    metrics["actor_ent"] = policy.entropy().sum(dim=-1).mean().item()
 
@@ -212,7 +234,7 @@ class GCSLAgent2:
         obs, action, goal, horizon = utils.to_torch(batch, self.device)
 
         metrics.update(self.update_actor(obs, goal, action, horizon, step))
-        metrics["episode_reward"] = metrics["actor_loss"]
-        metrics["episode_length"] = metrics["baseline"]
+        # metrics["episode_reward"] = metrics["actor_loss"].item()
+        # metrics["episode_length"] = metrics["baseline"].item()
 
         return metrics

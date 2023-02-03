@@ -245,6 +245,7 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _load(self, relabel=True):
         print("Labeling data...")
+        relabel = False
         try:
             worker_id = torch.utils.data.get_worker_info().id
         except:
@@ -322,6 +323,35 @@ class OfflineReplayBuffer(IterableDataset):
 
         return (obs, action, reward, discount, next_obs, cand_goals)
 
+    def _sample_gcsl(self):
+        episode = self._sample_episode()
+        h = random.sample(range(1000),1)[0]
+        idx = np.random.randint(0, episode_len(episode) - h) + 1
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        goal = episode["observation"][idx + h][:2]
+        horizon = np.array(int(h/10))
+        #obses.append(obs[None])
+        #goals.append(goal[None])
+        #actions.append(action[None])
+        #horizons2.append(np.array(h)[None])
+
+#        for h in horizons:
+#            idx = np.random.randint(0, episode_len(episode) - h) + 1
+#            obs = episode["observation"][idx - 1]
+#            action = episode["action"][idx]
+#            goal = episode["observation"][idx + h][:2]
+#            obses.append(obs[None])
+#            goals.append(goal[None])
+#            actions.append(action[None])
+#            horizons2.append(np.array(h)[None])
+#        goals = np.concatenate(goals)
+#        obses = np.concatenate(obses)
+#        actions = np.concatenate(actions)
+#        horizons2 = np.array(horizons2)
+        
+        return (obs, action, goal, horizon)
+
     def _sample_future(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
@@ -336,7 +366,10 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.goal:
-                yield self._sample_goal()
+                #yield self._sample_goal()
+                yield self._sample_gcsl()
+                #yield self._sample_goal(), self._sample_gcsl()
+                #yield np.zeros(10), self._sample_gcsl()
             elif self.vae:
                 yield self._sample_future()
             else:

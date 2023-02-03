@@ -1,0 +1,2 @@
+- env=point_mass_maze
+- num_expl_steps=1000000
