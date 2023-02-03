@@ -143,6 +143,7 @@ class TruncatedNormal(pyd.Normal):
                                dtype=self.loc.dtype,
                                device=self.loc.device)
         eps *= self.scale
+        
         if clip is not None:
             eps = torch.clamp(eps, -clip, clip)
         x = self.loc + eps

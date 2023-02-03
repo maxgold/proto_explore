@@ -31,7 +31,7 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, update_proto=2):
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, stddev_clip=.3, stddev_schedule2=.2, stddev_clip2=.3, update_proto=2):
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -57,6 +57,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.margin = margin
     cfg.stddev_schedule = stddev_schedule
     cfg.stddev_clip = stddev_clip
+    cfg.stddev_schedule2 = stddev_schedule2
+    cfg.stddev_clip2 = stddev_clip2
     if cfg.name=='protox':
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
@@ -239,7 +241,13 @@ class Workspace:
                                 lagr2=cfg.lagr2,
                                 lagr3=cfg.lagr3,
                                 margin=cfg.margin,
-                                update_proto_every=cfg.update_proto_every)
+                                update_proto_every=cfg.update_proto_every,
+                                stddev_schedule=cfg.stddev_schedule,
+                                stddev_clip=cfg.stddev_clip,
+                                stddev_schedule2=cfg.stddev_schedule2,
+                                stddev_clip2=cfg.stddev_clip2
+                                )
+
         else: 
             self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
@@ -260,7 +268,13 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size,
                                 lagr=cfg.lagr,
-                                margin=cfg.margin)
+                                margin=cfg.margin,
+                                stddev_schedule=cfg.stddev_schedule,
+                                stddev_clip=cfg.stddev_clip,
+                                stddev_schedule2=cfg.stddev_schedule2,
+                                stddev_clip2=cfg.stddev_clip2
+                                )
+
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()

@@ -132,7 +132,14 @@ model_path: False
 cassio: False
 greene: False
 pluto: False
+irmak: False
 normalize: False
+normalize2: True
+load_every: 10000
+offline_gc: False
+goal_offset: 1
+gc_only: False
+log_every_steps: 1000
 #experiment
 experiment: exp
 

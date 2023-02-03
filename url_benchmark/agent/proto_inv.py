@@ -9,7 +9,7 @@ from torch import jit
 import pandas as pd
 import utils
 import matplotlib.pyplot as plt
-from agent.ddpg_encoder1 import DDPGEncoder1Agent
+from agent.ddpg_inv import DDPGInvAgent
 from numpy import inf
 
 @jit.script
@@ -43,11 +43,11 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoEncoder1Agent(DDPGEncoder1Agent):
+class ProtoInvAgent(DDPGInvAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
-                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt, 
-                 normalize, normalize2, **kwargs):
+                 num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt,
+                 normalize, normalize2,**kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -84,13 +84,11 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         print('update enc by proto', update_enc_proto)
         print('update enc by gc', update_enc_gc)
         self.update_enc_gc = update_enc_gc
-        self.update_proto_opt = update_proto_opt
-        self.normalize = normalize
-        self.normalize2 = normalize2
-        print('normalize', self.normalize)
-        print('normalize2', self.normalize2)
         print('tau', tau)
         print('it', num_iterations)
+        self.normalize = normalize
+        self.normalize2 = normalize2
+        self.update_proto_opt= update_proto_opt
 
         # models
         #if self.gc_only==False:
@@ -144,7 +142,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(other.projector, self.projector)
         utils.hard_update_params(other.protos, self.protos)
         utils.hard_update_params(other.critic, self.critic)
-        utils.hard_update_params(other.critic2, self.critic2) 
+        utils.hard_update_params(other.critic2, self.critic2)
 
     def init_model_from(self, agent):
         utils.hard_update_params(agent.encoder, self.encoder)
@@ -160,7 +158,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         utils.hard_update_params(protos.protos, self.protos)
         utils.hard_update_params(protos.predictor, self.predictor)
         utils.hard_update_params(protos.projector, self.projector)
-        utils.hard_update_params(protos.encoder, self.encoder)
         
     def normalize_protos(self):
         C = self.protos.weight.data.clone()
@@ -169,7 +166,6 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
     def compute_intr_reward(self, obs, obs_state, step, eval=False):
         if self.normalize2:
-
             self.normalize_protos()
         # find a candidate for each prototype
         with torch.no_grad():
@@ -242,65 +238,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
             if self.normalize:
                 t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
-            #####################
-            #prob = F.softmax(scores_t, dim=1)
-            #candidates = pyd.Categorical(prob).sample()
-            # enqueue candidates
-            #ptr = self.nxt_queue_ptr
-            #self.nxt_queue[ptr:ptr + self.num_protos] = z[candidates]
-            #self.nxt_queue_ptr = (ptr + self.num_protos) % self.nxt_queue.shape[0]
-            
-            # compute distances between the batch and the queue of candidates
-           # z_to_q = torch.norm(z[:, None, :] - self.queue[None, :, :], dim=2, p=2)
-           # all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
-           # dist = all_dists[:, -1:]
-           # reward = dist 
-            ##################
+
             q_t = sinkhorn_knopp(scores_t / self.tau)
-        
-        #following used for plotting analysis of prototype assignments
-        #########################################
-        #if step%1000==0 and step!=0:
-        #    #for each prototype we calculate the maximum/median/minimum  prob. assigned to it 
-        #    self.proto_distr[self.count, torch.argmax(q_t, dim=1).unique(return_counts=True)[0]]=torch.argmax(q_t, dim=1).unique(return_counts=True)[1]
-        #    self.proto_distr_max[self.count] = q_t.amax(dim=0)
-        #    self.proto_distr_med[self.count], _ = q_t.median(dim=0)
-        #    self.proto_distr_min[self.count] = q_t.amin(dim=0)
-        #    
-        #    self.count+=1
-        #
-        #if step%100000==0:
-        #    sets = [self.proto_distr_max, self.proto_distr_med, self.proto_distr_min]
-        #    names = [f"proto_max_step{step}.png", f"proto_med_step{step}.png", f"proto_min_step{step}.png"]
-        #    fig, ax = plt.subplots()
-        #    top5,_ = self.proto_distr.topk(5,dim=1,largest=True)
-        #    df = pd.DataFrame(top5.cpu().numpy())/obs.shape[0]
-        #    df.plot(ax=ax,figsize=(15,5))
-        #    ax.set_xticks(np.arange(0, self.proto_distr.shape[0], 100))
-        #    #ax.set_xscale('log')
-        #    plt.savefig(f"proto_distribution_step{step}.png")
-        #    
-        #
-        #    for i, matrix in enumerate(sets):
-        #        fig, ax = plt.subplots()
-        #
-        #        quant = torch.quantile(matrix, self.q, dim=1)
-        #        print('q', quant.shape)
-        #        df = pd.DataFrame(quant.cpu().numpy().T)
-        #        df.plot(ax=ax,figsize=(15,5))
-        #        ax.set_xticks(np.arange(0, matrix.shape[0], 100))
-        #        plt.savefig(names[i])
-        ###########################################
-
-        # loss
-        #reweight
-
-        #target = q_t.argmax(dim=1)
-        #histogram=torch.bincount(target, minlength=16)
-        #inv_histogram=(1./(histogram+1e-10))**.5
-        #weight = inv_histogram/inv_histogram.sum()
-        #weight = weight[:,None].tile(1,256)
-        #q_t = q_t*weight.T
+ 
         
         loss = -(q_t * log_p_s).sum(dim=1).mean()
         #loss2 = self.criterion(p_s, q_t)
@@ -308,10 +248,9 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
         
+
         if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.zero_grad(set_to_none=True)
-        #loss.backward()
-        #self.proto_opt.step()
 
         self.pred_opt.zero_grad(set_to_none=True)
         self.proj_opt.zero_grad(set_to_none=True)
@@ -325,20 +264,25 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.step()
         return metrics
+    
+    def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
 
-    def update_encoder_func(self, obs, next_obs, step):
+        metrics = dict() 
+        obs=self.encoder.fc1(obs)
+        goal=self.encoder.fc1(goal)
 
-        metrics = dict()
-        encoder_loss = F.mse_loss(obs, next_obs)
+        encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
-        #if self.use_tb or self.use_wandb:
-        #    metrics['encoder_loss'] = encoder_loss.item()
+        if self.use_tb or self.use_wandb:
+
+            metrics['encoder_loss'] = encoder_loss.item()
 
         self.encoder_opt.zero_grad(set_to_none=True)
         encoder_loss.backward()
         self.encoder_opt.step()
-
+        
         return metrics 
+
 
     def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
@@ -348,15 +292,15 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            
-            obs, action, reward, discount, next_obs, goal = utils.to_torch(
+            if actor1:
+                obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
             batch, self.device)
-            
-            extr_reward=reward.float()
             if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
+            extr_reward=extr_reward.float()
+            goal_state = goal_state.float()
+            obs_state = obs_state.float()
 
-            	
                 
         elif actor1==False and test:
             obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
@@ -406,6 +350,12 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
         
         #action = action.reshape(-1,2)
         discount = discount.reshape(-1,1)
+        if obs.shape[0]!=1:
+            obs = obs[None,:]
+        if next_obs.shape[0]!=1:
+            next_obs = next_obs[None,:]
+        if actor1 and goal.shape[0]!=1:
+            goal = goal[None,:]
 
         # augment and encode
         with torch.no_grad():
@@ -424,7 +374,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 
                 reward = intr_reward
             else:
-                reward = extr_reward
+                reward = reward
                 #if self.use_tb or self.use_wandb:
                     #metrics['extr_reward'] = extr_reward.mean().item()
             
@@ -438,7 +388,7 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             
-            if self.update_enc_proto:
+            if self.update_enc_proto and self.update_encoder:
                 metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
@@ -475,18 +425,12 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 next_obs = next_obs.detach()
                 goal=goal.detach()
         
-            if self.update_enc_gc:
-                metrics.update(self.update_encoder_func(obs, next_obs, step))
-            # update critic
-            metrics.update(
-                self.update_critic(obs.detach(), goal.detach(), action, reward, discount,
-                               next_obs.detach(), step))
-            # update actor
-            metrics.update(self.update_actor(obs.detach(), goal.detach(), step))
+            if self.update_enc_gc and self.update_encoder:
+                metrics.update(self.update_encoder_func(obs, obs_state, goal, goal_state, step))
 
-            # update critic target
-            utils.soft_update_params(self.critic, self.critic_target,
-                                 self.critic_target_tau)
+            # update actor
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
+
 
         return metrics
 

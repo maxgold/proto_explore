@@ -33,7 +33,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, 
         batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3, stddev_schedule=.2, 
         stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
-        normalize=False):
+        normalize=False, normalize2=False):
+
 
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -71,6 +72,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.update_enc_gc = update_enc_gc
     cfg.update_proto_opt = update_proto_opt
     cfg.normalize = normalize
+    cfg.normalize2 = normalize2
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
@@ -319,8 +321,14 @@ class Workspace:
                                 update_enc_proto=cfg.update_enc_proto,
                                 update_enc_gc=cfg.update_enc_gc,
                                 update_proto_opt=cfg.update_proto_opt,
-                                normalize=cfg.normalize)
-            
+                                normalize=cfg.normalize,
+                                normalize2=cfg.normalize2)
+
+        if self.cfg.agent.name == 'proto_inv':
+            self.inv=True
+        else:
+            self.inv=False
+        print('agent', self.cfg.agent.name)    
         # initialize from pretrained
         print('model p', cfg.model_path)
         if cfg.model_path:
@@ -362,20 +370,57 @@ class Workspace:
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
-                                                    general=True)
+                                                    general=True,
+                                                    inv=self.inv,
+                                                    goal_offset=self.cfg.goal_offset)
             
             self.replay_loader = make_replay_loader(self.replay_storage,
                                                 True,
                                                 cfg.replay_buffer_size,
                                                 cfg.batch_size,
                                                 cfg.replay_buffer_num_workers,
-                                                False, cfg.nstep, cfg.discount,
+                                                False, cfg.nstep2, cfg.discount,
                                                 goal=False,
                                                 obs_type=cfg.obs_type,
                                                 replay_dir2= path / 'buffer2',
                                                 loss=cfg.loss,
-                                                test=cfg.test) 
+                                                test=cfg.test
+                                                )
             
+        elif self.cfg.offline_gc:
+            print('offline buffer')
+            print('inv', self.inv)
+            self.replay_loader1 = make_replay_buffer(self.eval_env,
+                                                    self.work_dir / 'buffer2' / 'buffer_copy',
+                                                    cfg.replay_buffer_gc,
+                                                    cfg.batch_size_gc,
+                                                    cfg.replay_buffer_num_workers,
+                                                    cfg.discount,
+                                                    offset=100,
+                                                    goal=True,
+                                                    relabel=False,
+                                                    replay_dir2=False,
+                                                    obs_type='state',
+                                                    offline=False,
+                                                    nstep=self.cfg.nstep,
+                                                    eval=False,
+                                                    load_every=self.cfg.load_every,
+                                                    inv=self.inv,
+                                                    goal_offset=self.cfg.goal_offset,
+                                                    pmm=self.pmm)
+            
+            self.replay_loader = make_replay_loader(self.replay_storage,
+                                                False,
+                                                cfg.replay_buffer_size,
+                                                cfg.batch_size,
+                                                cfg.replay_buffer_num_workers,
+                                                False, cfg.nstep, cfg.discount,
+                                                goal=False,
+                                                obs_type=cfg.obs_type,
+                                                loss=cfg.loss,
+                                                test=cfg.test) 
+
+        
         elif self.cfg.combine_storage_gc:
             print('combine')
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
@@ -391,7 +436,9 @@ class Workspace:
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
-                                                    general=True)
+                                                    general=True,
+                                                    inv=self.inv,
+                                                    goal_offset=self.cfg.goal_offset)
             
             self.replay_loader = make_replay_loader(self.replay_storage,
                                                 False,
@@ -417,6 +464,8 @@ class Workspace:
                                                     pmm=self.pmm,
                                                     obs_shape=self.train_env1.physics.state().shape[0],
                                                     general=True,
+                                                    inv=self.inv,
+                                                    goal_offset=self.cfg.goal_offset
                                                     )
             
             self.replay_loader = make_replay_loader(self.replay_storage,
@@ -474,7 +523,8 @@ class Workspace:
         self.actor=True
         self.actor1=False
         self.final_df = pd.DataFrame(columns=['avg', 'med', 'max', 'q7', 'q8', 'q9'])
-        self.reached_goals=np.empty((0,self.train_env.physics.get_state().shape[0]))
+        self.reached_goals=np.zeros((2,60,60))
+        self.origin = None
         self.proto_explore=False
         self.proto_explore_count=0
         self.gc_explore=False
@@ -505,6 +555,7 @@ class Workspace:
         self.current_init = np.empty((0,self.train_env.physics.get_state().shape[0]))
         self.unreached = False
         self.reinitiate = False
+        self.gc_init = False
     
     @property
     def global_step(self):
@@ -544,7 +595,6 @@ class Workspace:
                                                     .99,
                                                     goal=False,
                                                     relabel=False,
-                                                    model_step = 1000000,
                                                     replay_dir2=False,
                                                     obs_type = 'pixels'
                                                     )
@@ -574,15 +624,15 @@ class Workspace:
             
             ############################################################
             #offline loader is not adding in the replay_dir2 right now, change this !!!!!!!!!!!!! 
+            path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.01/231849_proto_inv') 
             replay_buffer = make_replay_offline(self.eval_env,
-                                                    self.work_dir / 'buffer2' / 'buffer_copy',
+                                                    path / 'buffer2' / 'buffer_copy',
                                                     500000,
                                                     0,
                                                     0,
                                                     .99,
                                                     goal=False,
                                                     relabel=False,
-                                                    model_step = self._global_step,
                                                     replay_dir2=False,
                                                     obs_type = 'pixels'
                                                     )
@@ -632,7 +682,8 @@ class Workspace:
                 encoded.append(z)
                 z = self.agent.predictor(z)
                 z = self.agent.projector(z)
-                z = F.normalize(z, dim=1, p=2)
+                if self.cfg.normalize:
+                    z = F.normalize(z, dim=1, p=2)
                 proto.append(z)
                 sim = self.agent.protos(z)
                 idx_ = sim.argmax()
@@ -1049,11 +1100,13 @@ class Workspace:
                                                             init_state=init_state)
                 time_step = self.train_env.reset()
                 
+            self.origin = init_state
         else:
             
             if init_idx is None:
                 
                 time_step = self.train_env.reset()
+                self.origin = self.train_env.physics.get_state()
             
             else: 
                 
@@ -1064,6 +1117,8 @@ class Workspace:
                     
                 act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
                 time_step = self.train_env.step(act_)
+
+                self.origin = self.current_init[init_idx]
         
         if actor1:
             return time_step1, time_step_no_goal
@@ -1164,6 +1219,9 @@ class Workspace:
             self.gc_explore=False
             self.gc_explore_count=0
             self.proto_explore_count=0
+
+        if self.proto_explore_count >= 25 and self.gc_init==False:
+            self.gc_init=True
     
     def sample_goal(self):
         
@@ -1537,7 +1595,7 @@ class Workspace:
 
                         metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        if self.cfg.update_gc_while_proto:
+                        if self.cfg.update_gc_while_proto and self.gc_init:
                             metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         
                     time_step = self.train_env.step(action)
@@ -1558,6 +1616,10 @@ class Workspace:
                         print('r', episode_reward)
                         idx_x = int(goal_state[0]*100)+29
                         idx_y = int(goal_state[1]*100)+29
+                        origin_x = int(self.origin[0]*100)+29
+                        origin_y = int(self.origin[1]*100)+29
+                        self.reached_goals[0,origin_x, idx_x] = 1
+                        self.reached_goals[1,origin_y, idx_y] = 1
                         self.proto_goals_matrix[idx_x,idx_y]+=1 
                         
                         ##############################
@@ -1652,11 +1714,19 @@ class Workspace:
                         #self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                 self._global_step += 1
+
             
             if self._global_step%200000==0 and self._global_step!=0:
                 print('saving agent')
                 path = os.path.join(self.work_dir, 'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name),self._global_step))
                 torch.save(self.agent, path)
+
+                path_goal1 = os.path.join(self.work_dir, 'goal_graphx_{}_{}.csv'.format(str(self.cfg.agent.name),self._global_step))
+                df1 = pd.DataFrame(self.reached_goals[0])
+                df1.to_csv(path_goal1, index=False)
+                path_goal2 = os.path.join(self.work_dir, 'goal_graphy_{}_{}.csv'.format(str(self.cfg.agent.name),self._global_step))
+                df2 = pd.DataFrame(self.reached_goals[1])
+                df2.to_csv(path_goal2, index=False)
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)

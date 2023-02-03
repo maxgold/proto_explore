@@ -474,7 +474,6 @@ class ReplayBuffer(IterableDataset):
         hybrid_pct,
         actor1=False,
         replay_dir2=False,
-        model_step=False,
         goal_proto=False,
         agent=None,
         neg_reward=False,
@@ -485,7 +484,9 @@ class ReplayBuffer(IterableDataset):
         tile=1,
         pmm=True,
         obs_shape=4,
-        general=False):
+        general=False,
+        inv=False,
+        goal_offset=1):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -520,10 +521,8 @@ class ReplayBuffer(IterableDataset):
         self.pmm = pmm
         self.index = obs_shape//2
         self.general = general
-        if model_step:
-            self.model_step = int(int(model_step)/500)
-
-
+        self.inv = inv
+        self.goal_offset = goal_offset
         if obs_type == 'pixels':
             self.pixels = True
         else:
@@ -752,6 +751,48 @@ class ReplayBuffer(IterableDataset):
             return (obs, obs_state, action, reward, discount, next_obs, *meta) 
         
         
+    def _sample_inv(self):
+        
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+            
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+        meta = []
+        
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        obs_state = episode["state"][idx - 1]
+        #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
+        idx_goal = idx + self._nstep + self.goal_offset - 1
+        goal = episode["observation"][idx_goal]
+        goal_state = episode["state"][idx_goal,:2]
+        
+        for i in range(self._nstep):
+            
+                if self.pmm:
+                    step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+                else:
+                    step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index])
+                    
+                reward += discount * step_reward
+                discount *= episode["discount"][idx+i] * self._discount
+                
+                
+        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
+        
+        
     def _sample_asym(self):
         try:
             self._try_fetch()
@@ -782,7 +823,8 @@ class ReplayBuffer(IterableDataset):
         
         #goal = goal[None,:,:]
         return (obs, obs_state, action, reward, discount, next_obs, next_state, goal_state, *meta)
-        
+
+    
     def _sample_goal_hybrid(self):
         #print(self._episode_fns)
         try:
@@ -1017,7 +1059,9 @@ class ReplayBuffer(IterableDataset):
 
     def __iter__(self):
         while True:
-            if self.sl and self.hybrid==False:
+            if self.inv:
+                yield self._sample_inv()
+            elif self.sl and self.hybrid==False:
                 yield self._sample_sl()
             elif self.asym and self.hybrid==False:
                 yield self._sample_asym()
@@ -1038,18 +1082,19 @@ class OfflineReplayBuffer(IterableDataset):
         offset_schedule=None,
         random_goal=False,
         goal=False,
-        vae=False,
-        model_step=False,
-        model_step_lb = False,
         replay_dir2=False,
         obs_type='state',
         hybrid=False,
         hybrid_pct=0,
         offline=False,
         nstep=1,
-        load_every=1000,
+        load_every=10000,
         eval=False,
-        load_once=False):
+        load_once=False,
+        inv=False,
+        goal_offset=1,
+        pmm=True,
+        model_step=None):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -1064,12 +1109,9 @@ class OfflineReplayBuffer(IterableDataset):
         self.offset = offset
         self.offset_schedule = offset_schedule
         self.goal = goal
-        self.vae = vae
         self.goal_array = []
         self._goal_array = False
         self.obs = []
-        self.model_step = int(int(model_step)/500)
-        self.model_step_lb = int(int(model_step_lb)/500)
         self.offline = offline
         
         self.hybrid = hybrid
@@ -1082,27 +1124,54 @@ class OfflineReplayBuffer(IterableDataset):
         self.count=0
         self.iz=1
         self._load_every = load_every
-        print('self._load_every', self._load_every)
         self._samples_since_last_load = load_every
         self.load_once=load_once
         self.switch=False
+        self.inv=inv
+        self.goal_offset=goal_offset
+        if model_step is not None:
+            self.model_step = int(model_step//500)
+        else:
+            self.model_step = None
+        print('goal offset', goal_offset)
 
         if obs_type == 'pixels':
             self.pixels = True      
         else:
             self.pixels = False
         self.eval = eval
+        self.pmm = pmm
 
     def _load(self, relabel=False):
-        print("Labeling data...")
+        if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
+            return
+        
+        self._samples_since_last_load = 0
+        print('loading offline data')
+        
         try:
+            
             worker_id = torch.utils.data.get_worker_info().id
+        
         except:
+            
             worker_id = 0
+        
         eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
+
+        tmp_fns_=[]
+        tmp_fns2 = []
+
+        for x in eps_fns:
+            tmp_fns_.append(str(x))
+            tmp_fns2.append(x)
+                
+        if self.model_step is not None:
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
     
         # for eps_fn in tqdm.tqdm(eps_fns):
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
+            
             if self._size > self._max_size:
                 break
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
@@ -1113,12 +1182,11 @@ class OfflineReplayBuffer(IterableDataset):
             if relabel:
                 episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
-            print(eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
 
     def _sample_episode(self):
-        if not self._loaded:
+        if not self._loaded or len(self._episode_fns)==0:
             self._load()
             self._loaded = True
         eps_fn = random.choice(self._episode_fns)
@@ -1126,6 +1194,40 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _relabel_reward(self, episode):
         return relabel_episode(self._env, episode)
+    
+    def _sample_inv(self):
+        if self._load_every!=0:
+            try:
+                self._load()
+            except:
+                traceback.print_exc()
+
+            self._samples_since_last_load += 1
+        episode = self._sample_episode()
+        
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+
+        obs = episode["observation"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        obs_state = episode["state"][idx - 1]
+        #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
+        idx_goal = idx + self._nstep + self.goal_offset - 1
+        goal = episode["observation"][idx_goal]
+        goal_state = episode["state"][idx_goal,:2]
+        
+        for i in range(self._nstep):
+            if self.pmm:
+                step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
+            else:
+                step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index]) 
+            reward += discount * step_reward
+            discount *= episode["discount"][idx+i] * self._discount           
+                
+        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
     
     def _sample_her(self):
         episode = self._sample_episode()
@@ -1153,6 +1255,16 @@ class OfflineReplayBuffer(IterableDataset):
             
     
     def _sample(self):
+        
+        if self._load_every!=0:
+            try:
+                print('trying to load')
+                self._load()
+            except:
+                traceback.print_exc()
+
+            self._samples_since_last_load += 1
+        
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode)) + 1
@@ -1162,19 +1274,17 @@ class OfflineReplayBuffer(IterableDataset):
         reward = episode["reward"][idx]
         discount = episode["discount"][idx] * self._discount
         reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
-        #        control_reward = rewards.tolerance(
-        #            action, margin=1, value_at_margin=0, sigmoid="quadratic"
-        #        ).mean()
-        #        small_control = (control_reward + 4) / 5
-        #        near_target = rewards.tolerance(
-        #            np.linalg.norm(np.array((.15,.15)) - next_obs[:2]),
-        #            bounds=(0, .015),
-        #            margin=.015,
-        #        )
-        #        reward = near_target * small_control
         return (obs, action, reward, discount, next_obs)
     
     def _sample_goal(self):
+        if self._load_every!=0:
+            try:
+                self._load()
+            except:
+                traceback.print_exc()
+
+            self._samples_since_last_load += 1
+        
         episode = self._sample_episode()
         # add +1 for the first dummy transition
 
@@ -1199,7 +1309,10 @@ class OfflineReplayBuffer(IterableDataset):
         reward = np.array(rewards)
 
         return (obs, action, reward, discount, next_obs, cand_goals)
+
+   
     
+ 
     def _sample_future(self):
         episode = self._sample_episode()
         # add +1 for the first dummy transition
@@ -1281,11 +1394,13 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs, goal, q)
 
     def _sample_goal_hybrid(self):
-        try:
-            self._load()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_load += 1
+        if self._load_every!=0:
+            try:
+                self._load()
+            except:
+                traceback.print_exc()
+
+            self._samples_since_last_load += 1
 
         episode = self._sample_episode()
         idx = np.random.randint(0, episode_len(episode) - self._nstep+1) + 1
@@ -1336,7 +1451,9 @@ class OfflineReplayBuffer(IterableDataset):
                 
     def __iter__(self):
         while True:
-            if (self.offline and self.goal) or (self.hybrid and self.goal):
+            if self.inv and self.goal:
+                yield self._sample_inv()
+            elif (self.offline and self.goal) or (self.hybrid and self.goal):
                 yield self._sample_her()
             else:
                 yield self._sample()
@@ -1415,10 +1532,7 @@ def make_replay_buffer(
     discount,
     offset=100,
     goal=False,
-    vae=False,
     relabel=False,
-    model_step=False,
-    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1426,7 +1540,11 @@ def make_replay_buffer(
     hybrid_pct=0,
     nstep=1,
     eval=False,
-    load_every=1000):
+    load_every=1000,
+    inv=False,
+    goal_offset=1,
+    pmm=True,
+    model_step=None):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1437,17 +1555,18 @@ def make_replay_buffer(
         discount,
         offset,
         goal=goal,
-        vae=vae,
-        model_step=model_step,
-        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
-	offline=offline,
+        offline=offline,
         hybrid=hybrid,
         hybrid_pct=hybrid_pct,
         nstep=nstep,
         load_every=load_every,
-        eval=eval
+        eval=eval,
+        inv=inv,
+        goal_offset=goal_offset,
+        pmm=pmm,
+        model_step=model_step
     )
     iterable._load()
 
@@ -1471,10 +1590,7 @@ def make_replay_offline(
     discount,
     offset=100,
     goal=False,
-    vae=False,
     relabel=False,
-    model_step=False,
-    model_step_lb=False,
     replay_dir2=False,
     obs_type='state',
     offline=False,
@@ -1482,7 +1598,11 @@ def make_replay_offline(
     hybrid_pct=0,
     nstep=1,
     eval=False,
-    load_once=True):
+    load_once=True,
+    inv=False,
+    goal_offset=1, 
+    model_step=None,
+    pmm=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1493,9 +1613,6 @@ def make_replay_offline(
         discount,
         offset,
         goal=goal,
-        vae=vae,
-        model_step=model_step,
-        model_step_lb=model_step_lb,
         replay_dir2=replay_dir2,
         obs_type=obs_type,
         offline=offline,
@@ -1504,7 +1621,11 @@ def make_replay_offline(
         nstep=nstep,
         load_every=0,
         eval=eval,
-        load_once=load_once
+        load_once=load_once,
+        inv=inv,
+        goal_offset=goal_offset,
+        model_step=model_step,
+        pmm=pmm
     )
     iterable._load()
 	
@@ -1513,8 +1634,8 @@ def make_replay_offline(
 
 
 def make_replay_loader(
-    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,model_step=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4, general=False):
-    print('h1', hybrid)
+    storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4, general=False, inv=False,
+goal_offset=1):
     max_size_per_worker = max_size // max(1, num_workers)
     iterable = ReplayBuffer(
         storage,
@@ -1529,7 +1650,6 @@ def make_replay_loader(
         hybrid_pct=hybrid_pct,
         actor1 = actor1,
         replay_dir2=replay_dir2,
-        model_step=model_step,
         goal_proto=goal_proto,
         agent=agent,
         neg_reward=neg_reward,
@@ -1542,8 +1662,9 @@ def make_replay_loader(
         save_snapshot=save_snapshot,
         pmm=pmm,
         obs_shape=obs_shape,
-        general=general
-        )
+        general=general,
+        inv=inv,
+        goal_offset=goal_offset)
 
     loader = torch.utils.data.DataLoader(
         iterable,
