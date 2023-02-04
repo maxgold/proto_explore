@@ -46,7 +46,7 @@ import time
 
 #models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/']
 
-models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.01.27/235007_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.01.27/2023.01.27/234846_proto_encoder1/']
+models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.01.27/234846_proto_encoder1/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
@@ -252,6 +252,15 @@ for m in models:
         df_subset=pd.DataFrame() 
         df_subset['tsne-2d-one'] = tsne_results[:,0]
         df_subset['tsne-2d-two'] = tsne_results[:,1]
+        for ix, x in enumerate(goal_array):
+            if x[0] < .02 and x[1] > -.04:
+                df_subset.loc[ix, 'y'] = 1
+            elif x[0] >= .02 and x[1] > -.04:
+                df_subset.loc[ix, 'y'] = 2
+            elif x[0] >= .02 and x[1] < -.04:
+                df_subset.loc[ix, 'y'] = 3
+            else:
+                df_subset.loc[ix, 'y'] = 4
         
         
             
@@ -259,9 +268,10 @@ for m in models:
         fig, ax = plt.subplots(figsize=(16,10))
         ax = sns.scatterplot(
                 x="tsne-2d-one", y="tsne-2d-two",
-                palette=sns.color_palette("hls", 10),
+                hue='y',
+                palette=sns.color_palette("hls", 4),
                 data=df_subset,
                 legend="full",
-                alpha=0.3
+                alpha=1
                     )
         plt.savefig(f"./tsne_output/tsne_grid_model{model}_{model_step}.png")
