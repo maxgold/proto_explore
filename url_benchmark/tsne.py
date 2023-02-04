@@ -173,7 +173,7 @@ for m in models:
         lst=[]
         goal_array = ndim_grid(2,10)
         for ix,x in enumerate(goal_array):
-            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+            if (x[0]<.02 and -.04<x[1]) or (.08<x[0] and -.04<x[1]) or (.02>x[0] and -.12>x[1]) or (.08<x[0] and -.12>x[1]):
                 lst.append(ix)
 
         
@@ -255,9 +255,9 @@ for m in models:
         for ix, x in enumerate(goal_array):
             if x[0] < .02 and x[1] > -.04:
                 df_subset.loc[ix, 'y'] = 1
-            elif x[0] >= .02 and x[1] > -.04:
+            elif x[0] > .08 and x[1] > -.04:
                 df_subset.loc[ix, 'y'] = 2
-            elif x[0] >= .02 and x[1] < -.04:
+            elif x[0] > .08 and x[1] < -.12:
                 df_subset.loc[ix, 'y'] = 3
             else:
                 df_subset.loc[ix, 'y'] = 4
