@@ -5,209 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 import utils
-
-
-class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim):
-        super().__init__()
-
-        assert len(obs_shape) == 3
-        self.repr_dim = 64*7*7
-        #(84-8+1)/4 -> 19*19*32
-        #(19-4+1)/2 -> 8*8*64
-        #(8-3+1)/1 -> 6*6*64
-        #number of parameters:
-        #(8*8*9+1)*32 = 18464
-        #(4*4*32+1)*64 = 
-        #(3*3*64+1)*64 = 
-        #total: 88224
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 8, stride=4),
-                                    nn.ReLU(), nn.Conv2d(32,64,kernel_size=4,stride=2),
-                                    nn.ReLU(), nn.Conv2d(64,64,kernel_size=3, stride=1),
-                                    nn.Flatten(),nn.Linear(3136, 512), nn.ReLU(),
-                                    nn.Linear(512, feature_dim))
-
-        self.fc1 = nn.Linear(feature_dim, 4)
-        self.apply(utils.weight_init)
-
-    def forward(self, obs):
-
-        obs = obs / 255.0 - 0.5
-        h = self.convnet(obs)
-#         h = h.view(h.shape[0], -1)
-        return h
-
-
-class Actor(nn.Module):
-    def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
-        
-        super().__init__()
-
-        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-#         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-#                                    nn.LayerNorm(feature_dim), nn.Tanh())
-
-        policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim+feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
-        ]
-        
-        # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-        policy_layers += [nn.Linear(hidden_dim, action_dim)]
-
-        self.policy = nn.Sequential(*policy_layers)
-
-        self.apply(utils.weight_init)
-
-    def forward(self, h, std):
-#         obs_goal = torch.cat([obs, goal], dim=-1)
-#         h = self.trunk(obs_goal)
-        mu = self.policy(h)
-        mu = torch.tanh(mu)
-        std = torch.ones_like(mu) * std
-        dist = utils.TruncatedNormal(mu, std)
-        return dist
-
-class Actor2(nn.Module):
-    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
-        super().__init__()
-
-        feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-
-        self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
-                                   nn.LayerNorm(feature_dim), nn.Tanh())
-
-        policy_layers = []
-        policy_layers += [
-            nn.Linear(feature_dim+feature_dim, hidden_dim),
-            nn.ReLU(inplace=True)
-        ]
-        # add additional hidden layer for pixels
-        if obs_type == 'pixels':
-            policy_layers += [
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-        policy_layers += [nn.Linear(hidden_dim, action_dim)]
-
-        self.policy = nn.Sequential(*policy_layers)
-
-        self.apply(utils.weight_init)
-
-    def forward(self, obs, std):
-        h = self.trunk(obs)
-        mu = self.policy(h)
-        mu = torch.tanh(mu)
-        std = torch.ones_like(mu) * std
-        dist = utils.TruncatedNormal(mu, std)
-        return dist
-
-
-class Critic(nn.Module):
-    def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
-        super().__init__()
-
-        self.obs_type = obs_type
-
-        if obs_type == 'pixels':
-#             # for pixels actions will be added after trunk
-#             self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-#                                        nn.LayerNorm(feature_dim), nn.Tanh())
-            trunk_dim = feature_dim+feature_dim + action_dim
-
-        else:
-            # for states actions come in the beginning
-            self.trunk = nn.Sequential(
-                nn.Linear(obs_dim + goal_dim + action_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim), nn.Tanh())
-            trunk_dim = hidden_dim
-
-        def make_q():
-            q_layers = []
-            q_layers += [
-                nn.Linear(trunk_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-            if obs_type == 'pixels':
-                q_layers += [
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
-                ]
-            q_layers += [nn.Linear(hidden_dim, 1)]
-            return nn.Sequential(*q_layers)
-
-        self.Q1 = make_q()
-        self.Q2 = make_q()
-
-        self.apply(utils.weight_init)
-
-    def forward(self, h, action):
-#         inpt = torch.cat([obs, goal], dim=-1) if self.obs_type == 'pixels' else torch.cat([obs, goal, action],dim=-1)
-        
-#         h = self.trunk(inpt)
-        h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
-
-        q1 = self.Q1(h)
-        q2 = self.Q2(h)
-
-        return q1, q2
-
-
-
-
-class Critic2(nn.Module):
-    def __init__(self, obs_type, obs_dim, action_dim, feature_dim, hidden_dim):
-        super().__init__()
-        self.obs_type = obs_type
-        if obs_type == 'pixels':
-            # for pixels actions will be added after trunk
-            self.trunk = nn.Sequential(nn.Linear(obs_dim, feature_dim),
-                                       nn.LayerNorm(feature_dim), nn.Tanh())
-            trunk_dim = feature_dim + action_dim
-        else:
-            # for states actions come in the beginning
-            self.trunk = nn.Sequential(
-                nn.Linear(obs_dim + action_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim), nn.Tanh())
-            trunk_dim = hidden_dim
-
-        def make_q():
-            q_layers = []
-            q_layers += [
-                nn.Linear(trunk_dim, hidden_dim),
-                nn.ReLU(inplace=True)
-            ]
-            if obs_type == 'pixels':
-                q_layers += [
-                    nn.Linear(hidden_dim, hidden_dim),
-                    nn.ReLU(inplace=True)
-                ]
-            q_layers += [nn.Linear(hidden_dim, 1)]
-            return nn.Sequential(*q_layers)
-
-        self.Q1 = make_q()
-        self.Q2 = make_q()
-
-        self.apply(utils.weight_init)
-
-    def forward(self, obs, action):
-        inpt = obs if self.obs_type == 'pixels' else torch.cat([obs, action],
-                                                               dim=-1)
-        h = self.trunk(inpt)
-        h = torch.cat([h, action], dim=-1) if self.obs_type == 'pixels' else h
-
-        q1 = self.Q1(h)
-        q2 = self.Q2(h)
-        return q1, q2
-
+from agent.models import Actor_proto, Critic_proto, Encoder_sl, Actor_sl, Critic_sl
 
 
 class DDPGSLAgent:
@@ -258,7 +57,7 @@ class DDPGSLAgent:
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
-            self.encoder = Encoder(obs_shape, self.feature_dim).to(device)
+            self.encoder = Encoder_sl(obs_shape, self.feature_dim).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
             self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
@@ -267,22 +66,22 @@ class DDPGSLAgent:
             self.obs_dim = obs_shape[0] + meta_dim
             self.goal_dim = goal_shape[0]
         
-        self.actor = Actor(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+        self.actor = Actor_sl(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                            feature_dim, hidden_dim).to(device)
 
-        self.critic = Critic(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+        self.critic = Critic_sl(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic_target = Critic(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
+        self.critic_target = Critic_sl(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
         
         #2nd set of actor critic networks 
-        self.actor2 = Actor2(obs_type, self.obs_dim, self.action_dim,
+        self.actor2 = Actor_proto(obs_type, self.obs_dim, self.action_dim,
                            feature_dim, hidden_dim).to(device)
-        self.critic2 = Critic2(obs_type, self.obs_dim, self.action_dim,
+        self.critic2 = Critic_proto(obs_type, self.obs_dim, self.action_dim,
                              feature_dim, hidden_dim).to(device)
-        self.critic2_target = Critic2(obs_type, self.obs_dim, self.action_dim,
+        self.critic2_target = Critic_proto(obs_type, self.obs_dim, self.action_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
@@ -347,8 +146,8 @@ class DDPGSLAgent:
             goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0)
             goal = torch.tile(goal, (1,tile,1,1))
         
-        h = self.encoder(obs)
-        g = self.encoder(goal)
+        h, _ = self.encoder(obs)
+        g, _ = self.encoder(goal)
         inputs = [h]
         inputs2 = g
         for value in meta.values():
@@ -370,7 +169,7 @@ class DDPGSLAgent:
 
     def act2(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        h = self.encoder(obs)
+        h, _ = self.encoder(obs)
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -444,8 +243,8 @@ class DDPGSLAgent:
 
     def update_encoder(self, obs, obs_state, goal, goal_state, step):
         metrics = dict() 
-        obs=self.encoder.fc1(obs)
-        goal=self.encoder.fc1(goal)
+        _, obs=self.encoder(obs)
+        _, goal=self.encoder(goal)
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
         if self.use_tb or self.use_wandb:
