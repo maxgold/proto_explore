@@ -624,9 +624,9 @@ class Workspace:
             
             ############################################################
             #offline loader is not adding in the replay_dir2 right now, change this !!!!!!!!!!!!! 
-            path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.01/231849_proto_inv') 
+            #path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.01/231849_proto_inv') 
             replay_buffer = make_replay_offline(self.eval_env,
-                                                    path / 'buffer2' / 'buffer_copy',
+                                                    self.work_dir / 'buffer2' / 'buffer_copy',
                                                     500000,
                                                     0,
                                                     0,
@@ -638,7 +638,7 @@ class Workspace:
                                                     )
 
 
-            state, actions, rewards, eps, index = self.replay_loader1.parse_dataset() 
+            state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
             state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
             
 

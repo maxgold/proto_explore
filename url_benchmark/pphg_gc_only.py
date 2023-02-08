@@ -332,12 +332,16 @@ class Workspace:
 
         # create replay buffer
  
-            
+        if self.cfg.expert_buffer:
+            buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy')
+        else:
+            buffer_path = path / 'buffer2' / 'buffer_copy'
+
         if self.cfg.offline_gc:
             print('offline buffer')
             print('inv', self.inv)
             self.replay_loader1 = make_replay_offline(self.eval_env,
-                                                    path / 'buffer2' / 'buffer_copy',
+                                                    buffer_path,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
                                                     cfg.replay_buffer_num_workers,
@@ -831,7 +835,7 @@ class Workspace:
                                                     meta,
                                                     self._global_step,
                                                     eval_mode=True,
-                                                    tile=1,
+                                                    tile=self.cfg.frame_stack,
                                                     general=True)
                             else:
                                 action = self.agent.act(time_step.observation,
@@ -1051,9 +1055,9 @@ class Workspace:
 
             goal_idx = idx-s
             goal_state = self.unreached_goals[goal_idx]
-            with self.eval_env.physics.reset_context():
-                self.eval_env.physics.set_state(goal_state)
-            goal_pix = self.eval_env._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+            with self.eval_env_no_goal.physics.reset_context():
+                self.eval_env_no_goal.physics.set_state(goal_state)
+            goal_pix = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
             goal_pix = np.transpose(goal_pix, (2,0,1))
             goal_pix = np.tile(goal_pix, (self.cfg.frame_stack,1,1))
             self.unreached=True
@@ -1286,7 +1290,7 @@ class Workspace:
                                                 meta,
                                                 self._global_step,
                                                 eval_mode=False,
-                                                tile=1,
+                                                tile=self.cfg.frame_stack,
                                                 general=True)
 
                     #non-pmm
@@ -1296,7 +1300,7 @@ class Workspace:
                                                 meta,
                                                 self._global_step,
                                                 eval_mode=False,
-                                                tile=1,
+                                                tile=self.cfg.frame_stack,
                                                 general=True)
 
 

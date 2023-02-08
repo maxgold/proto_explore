@@ -141,6 +141,7 @@ goal_offset: 1
 gc_only: False
 log_every_steps: 1000
 model_step_index: -1
+expert_buffer: False
 #experiment
 experiment: exp
 

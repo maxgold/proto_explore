@@ -33,6 +33,8 @@ class Encoder(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, obs):
+
+        obs = obs / 255.0 - 0.5
         h = self.convnet(obs)
 #         h = h.view(h.shape[0], -1)
         return h
@@ -334,15 +336,16 @@ class DDPGSLAgent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
-    def act(self, obs, goal, meta, step, eval_mode):
+    def act(self, obs, goal, meta, step, eval_mode, tile=1, general=False):
         if self.obs_type=='states':
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+            goal =torch.as_tensor(goal, device=self.device).unsqueeze(0)
         else:
-            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
-            goal = np.transpose(goal, (2,0,1))
-            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0).float()
-            goal = torch.tile(goal, (1,3,1,1))
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+            if general is False:
+                goal = np.transpose(goal, (2,0,1))
+            goal = torch.as_tensor(goal.copy(), device=self.device).unsqueeze(0)
+            goal = torch.tile(goal, (1,tile,1,1))
         
         h = self.encoder(obs)
         g = self.encoder(goal)
@@ -440,15 +443,9 @@ class DDPGSLAgent:
         return metrics
 
     def update_encoder(self, obs, obs_state, goal, goal_state, step):
-<<<<<<< HEAD
-        metrics = dict()
-        obs = self.encoder.fc1(obs)
-        goal = self.encoder.fc1(goal)
-=======
         metrics = dict() 
         obs=self.encoder.fc1(obs)
         goal=self.encoder.fc1(goal)
->>>>>>> 3cfdf8e74c9297b81b7529c02ca5da98ee6ebe37
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
         if self.use_tb or self.use_wandb:
@@ -469,13 +466,14 @@ class DDPGSLAgent:
         return self.encoder(obs)
 
     def update(self, replay_iter, step, actor1=True):
+        
         metrics = dict()
-        #import ipdb; ipdb.set_trace()
 
         if step % self.update_every_steps != 0:
             return metrics
 
         batch = next(replay_iter)
+        
         if actor1:
             obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
             batch, self.device)
@@ -486,6 +484,7 @@ class DDPGSLAgent:
             obs_state = obs_state.float()
         else:
             return metrics
+
 #         obs = obs.reshape(-1, 4).float()
 #         next_obs = next_obs.reshape(-1, 4).float()
 #         action = action.reshape(-1, 2).float()

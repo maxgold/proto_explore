@@ -244,7 +244,8 @@ class Workspace:
                                                 hybrid=cfg.hybrid_gc,
                                                 hybrid_pct=cfg.hybrid_pct,
                                                 asym=cfg.asym,
-                                                sl=cfg.sl)
+                                                sl=cfg.sl,
+                                                tile=cfg.frame_stack)
         self._replay_iter = None
 
         # create video recorders
