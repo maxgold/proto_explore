@@ -638,7 +638,7 @@ class Workspace:
                                                     )
 
 
-            state, actions, rewards, eps, index = self.replay_loader1.parse_dataset() 
+            state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
             state = state.reshape((state.shape[0], self.train_env.physics.get_state().shape[0]))
             
 
