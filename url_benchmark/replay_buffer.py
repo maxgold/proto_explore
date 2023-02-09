@@ -1146,8 +1146,6 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
         self.pmm = pmm
-        print('replay_dir', self._replay_dir.glob("*.npz"))
-        print('r', Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy/').glob("*.npz")) 
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
             return
@@ -1164,7 +1162,6 @@ class OfflineReplayBuffer(IterableDataset):
             worker_id = 0
          
         eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
-        print('eps', eps_fns)
 
         tmp_fns_=[]
         tmp_fns2 = []

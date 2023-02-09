@@ -294,7 +294,7 @@ class Workspace:
                             normalize=cfg.normalize,
                             normalize2=cfg.normalize2)
 
-        if self.cfg.agent.name == 'proto_inv':
+        if self.cfg.agent.name == 'proto_inv' or self.cfg.agent.name == 'proto_sl_inv':
             self.inv=True
         else:
             self.inv=False
