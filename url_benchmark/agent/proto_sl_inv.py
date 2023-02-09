@@ -9,8 +9,7 @@ from torch import jit
 import pandas as pd
 import utils
 import matplotlib.pyplot as plt
-from agent.ddpg_inv import DDPGInvAgent
-#from agent.ddpg_sl import DDPGSLAgent
+from agent.ddpg_sl_inv import DDPGSLInvAgent
 from numpy import inf
 
 @jit.script
@@ -44,7 +43,7 @@ class Projector(nn.Module):
         return self.trunk(x)
 
 
-class ProtoInvAgent(DDPGInvAgent):
+class ProtoSLInvAgent(DDPGSLInvAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc, offline, gc_only,
                  num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt,
@@ -171,7 +170,7 @@ class ProtoInvAgent(DDPGInvAgent):
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
-                z = self.encoder(obs)
+                z, _ = self.encoder(obs)
             else:
                 z = obs
             z = self.predictor(z)
@@ -224,7 +223,7 @@ class ProtoInvAgent(DDPGInvAgent):
         #self.normalize_protos()
 
         # online network
-        s = self.encoder(obs)
+        s, _ = self.encoder(obs)
         s = self.predictor(s)
         s = self.projector(s)
         if self.normalize:
@@ -269,8 +268,8 @@ class ProtoInvAgent(DDPGInvAgent):
     def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
 
         metrics = dict() 
-        obs=self.encoder.fc1(obs)
-        goal=self.encoder.fc1(goal)
+        obs, _ = self.encoder(obs)
+        goal, _ = self.encoder(goal)
 
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
@@ -382,8 +381,8 @@ class ProtoInvAgent(DDPGInvAgent):
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            obs,_ = self.encoder(obs)
+            next_obs, _ = self.encoder(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
@@ -415,10 +414,10 @@ class ProtoInvAgent(DDPGInvAgent):
                 #metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs = self.encoder(obs)
-            next_obs = self.encoder(next_obs)
+            obs,_ = self.encoder(obs)
+            next_obs, _ = self.encoder(next_obs)
             
-            goal = self.encoder(goal)
+            goal, _ = self.encoder(goal)
 
             if not self.update_encoder:
             

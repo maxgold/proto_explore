@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
+from pathlib import Path
 
 
 def episode_len(episode):
@@ -223,15 +224,16 @@ class ReplayBufferStorage:
             self._store_episode(episode, actor1=True)
             print('storing episode, w/ goal')
             
-    def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False):
+    def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False, expert=False):
         #assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
         if time_step_no_goal is not None:
             pmm=True
         else:
             pmm=False
-
-        for key, value in meta.items():
-            self._current_episode_goal[key].append(value)
+        
+        if expert is False:
+            for key, value in meta.items():
+                self._current_episode_goal[key].append(value)
             
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
@@ -260,6 +262,8 @@ class ReplayBufferStorage:
                 
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
+                print(spec.dtype)
+                print(value.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 
                 self._current_episode_goal[spec.name].append(value)
@@ -300,10 +304,10 @@ class ReplayBufferStorage:
                 else:
                     value = self._current_episode_goal[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
-
-            for spec in self._meta_specs:
-                value = self._current_episode_goal[spec.name]
-                episode[spec.name] = np.array(value, spec.dtype)
+            if expert is False:
+                for spec in self._meta_specs:
+                    value = self._current_episode_goal[spec.name]
+                    episode[spec.name] = np.array(value, spec.dtype)
                 
             value = self._current_episode_goal['goal']
             if pixels and asym==False:
@@ -762,7 +766,8 @@ class ReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+        offset = np.random.randint(self.goal_offset)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
         meta = []
         
         for spec in self._storage._meta_specs:
@@ -775,7 +780,7 @@ class ReplayBuffer(IterableDataset):
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
-        idx_goal = idx + self._nstep + self.goal_offset - 1
+        idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
         goal_state = episode["state"][idx_goal,:2]
         
@@ -1141,7 +1146,6 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
         self.pmm = pmm
-
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
             return
@@ -1156,7 +1160,7 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             
             worker_id = 0
-        
+         
         eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
 
         tmp_fns_=[]
@@ -1206,7 +1210,8 @@ class OfflineReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+        offset = np.random.randint(self.goal_offset)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
 
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
@@ -1215,7 +1220,7 @@ class OfflineReplayBuffer(IterableDataset):
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
-        idx_goal = idx + self._nstep + self.goal_offset - 1
+        idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
         goal_state = episode["state"][idx_goal,:2]
         
