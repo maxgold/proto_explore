@@ -782,6 +782,11 @@ class ReplayBuffer(IterableDataset):
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
         idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
+        if (goal.shape[0]//3)!=self.tile:
+            goal = goal[self.tile*3,:,:]
+        else:
+            goal = np.tile(goal,(self.tile,1,1)) 
+        
         goal_state = episode["state"][idx_goal,:2]
         
         for i in range(self._nstep):
@@ -1099,7 +1104,8 @@ class OfflineReplayBuffer(IterableDataset):
         inv=False,
         goal_offset=1,
         pmm=True,
-        model_step=None):
+        model_step=None,
+        reverse=True):
 
         self._env = env
         self._replay_dir = replay_dir
@@ -1146,6 +1152,7 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
         self.pmm = pmm
+        self.reverse = reverse
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
             return
@@ -1160,9 +1167,10 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             
             worker_id = 0
-         
-        eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
-
+        if self.reverse: 
+            eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
+        else:
+            eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=False)
         tmp_fns_=[]
         tmp_fns2 = []
 
@@ -1419,7 +1427,11 @@ class OfflineReplayBuffer(IterableDataset):
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
             if self.goal_proto==False:
-                goal = np.tile(goal,(self.tile,1,1))
+                if (goal.shape[0]//3)!=self.tile:
+                    goal = goal[self.tile*3,:,:]
+                else:
+                    goal = np.tile(goal,(self.tile,1,1))
+                    
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
@@ -1549,7 +1561,8 @@ def make_replay_buffer(
     inv=False,
     goal_offset=1,
     pmm=True,
-    model_step=None):
+    model_step=None,
+    reverse=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1571,7 +1584,8 @@ def make_replay_buffer(
         inv=inv,
         goal_offset=goal_offset,
         pmm=pmm,
-        model_step=model_step
+        model_step=model_step,
+        reverse=reverse
     )
     iterable._load()
 
@@ -1607,7 +1621,8 @@ def make_replay_offline(
     inv=False,
     goal_offset=1, 
     model_step=None,
-    pmm=True):
+    pmm=True,
+    reverse=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1630,7 +1645,8 @@ def make_replay_offline(
         inv=inv,
         goal_offset=goal_offset,
         model_step=model_step,
-        pmm=pmm
+        pmm=pmm,
+        reverse=reverse
     )
     iterable._load()
 	

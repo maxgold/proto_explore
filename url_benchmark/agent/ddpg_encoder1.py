@@ -114,8 +114,6 @@ class Critic(nn.Module):
 
         if obs_type == 'pixels':
             # for pixels actions will be added after trunk
-            self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
-                                        nn.LayerNorm(feature_dim), nn.Tanh())
             trunk_dim = feature_dim + action_dim
         else:
             # for states actions come in the beginning
@@ -611,3 +609,5 @@ def get_q_value(self, obs,action):
     Q1, Q2 = self.critic2(torch.tensor(obs).cuda(), torch.tensor(action).cuda())
     Q = torch.min(Q1, Q2)
     return Q
+from collections import OrderedDict
+

@@ -36,9 +36,17 @@ import itertools
 import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import io
+from sklearn.manifold import TSNE
 
-def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024, num_protos=512, update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512, batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3):
-
+def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024,
+               num_protos=512,
+               update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128,
+               proj_dim=512,
+               batch_size=1024, update_proto_every=10, lagr=.2, margin=.5, lagr1=.2, lagr2=.2, lagr3=.3,
+               stddev_schedule=.2,
+               stddev_clip=.3, update_proto=2, stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False,
+               update_enc_gc=False, update_proto_opt=True,
+               normalize=False, normalize2=False):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -46,32 +54,37 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.goal_shape = goal_shape
     cfg.lr = lr
     cfg.hidden_dim = hidden_dim
-    cfg.num_protos=num_protos
+    cfg.num_protos = num_protos
     cfg.tau = tau
 
     if cfg.name.startswith('proto'):
-        cfg.update_gc=update_gc
-    cfg.offline=offline
-    cfg.gc_only=gc_only
+        cfg.update_gc = update_gc
+    cfg.offline = offline
+    cfg.gc_only = gc_only
     cfg.batch_size = batch_size
     cfg.tau = tau
     cfg.num_iterations = num_iterations
     cfg.feature_dim = feature_dim
     cfg.pred_dim = pred_dim
     cfg.proj_dim = proj_dim
-    if cfg.name!='protox':
-        cfg.lagr = lagr
+    cfg.lagr = lagr
     cfg.margin = margin
-    if cfg.name=='protox':
-        print('protox')
+    cfg.stddev_schedule = stddev_schedule
+    cfg.stddev_clip = stddev_clip
+    if cfg.name == 'protox':
         cfg.lagr1 = lagr1
         cfg.lagr2 = lagr2
         cfg.lagr3 = lagr3
-    else:
-        cfg.lagr = lagr
 
-    if cfg.name=='protov2':
-        cfg.update_proto_every=update_proto_every
+    cfg.update_proto_every = update_proto_every
+    cfg.stddev_schedule2 = stddev_schedule2
+    cfg.stddev_clip2 = stddev_clip2
+    cfg.update_enc_proto = update_enc_proto
+    cfg.update_enc_gc = update_enc_gc
+    cfg.update_proto_opt = update_proto_opt
+    cfg.normalize = normalize
+    cfg.normalize2 = normalize2
+    print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
 
 def heatmaps(self, model_step):
@@ -116,7 +129,7 @@ class Workspace:
                 cfg.experiment, cfg.agent.name, cfg.domain, cfg.obs_type,
                 str(cfg.seed), str(cfg.tmux_session),work_path 
             ])
-            wandb.init(project="urlb", group=cfg.agent.name, name=exp_name)
+            wandb.init(project="urlb1", group=cfg.agent.name, name=exp_name)
  
         self.logger = Logger(self.work_dir,
                              use_tb=cfg.use_tb,
@@ -128,55 +141,11 @@ class Workspace:
                                  cfg.action_repeat, cfg.seed)
 
         # create agent
-        if self.cfg.agent.name=='protov2':
-            self.agent = make_agent(cfg.obs_type,
+
+        self.agent = make_agent(cfg.obs_type,
                                 self.train_env.observation_spec(),
                                 self.train_env.action_spec(),
-                                (3,84,84),
-                                cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent,
-                                cfg.lr,
-                                cfg.hidden_dim,
-                                cfg.num_protos,
-                                cfg.update_gc,
-                                False,
-                                cfg.offline,
-                                cfg.tau,
-                                cfg.num_iterations,
-                                cfg.feature_dim,
-                                cfg.pred_dim,
-                                cfg.proj_dim,
-                                batch_size=cfg.batch_size,
-                                update_proto_every=cfg.update_proto_every)
-        
-        elif self.cfg.agent.name=='protox':
-            self.agent = make_agent(cfg.obs_type,
-                                self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
-                                (3,84,84),
-                                cfg.num_seed_frames // cfg.action_repeat,
-                                cfg.agent,
-                                cfg.lr,
-                                cfg.hidden_dim,
-                                cfg.num_protos,
-                                cfg.update_gc,
-                                False,
-                                cfg.offline,
-                                cfg.tau,
-                                cfg.num_iterations,
-                                cfg.feature_dim,
-                                cfg.pred_dim,
-                                cfg.proj_dim,
-                                batch_size=cfg.batch_size,
-                                lagr1=cfg.lagr1,
-                                lagr2=cfg.lagr2,
-                                lagr3=cfg.lagr3,
-                                margin=cfg.margin) 
-        else: 
-            self.agent = make_agent(cfg.obs_type,
-                                self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
-                                (3,84,84),
+                                (3 * self.cfg.frame_stack, 84, 84),
                                 cfg.num_seed_frames // cfg.action_repeat,
                                 cfg.agent,
                                 cfg.lr,
@@ -192,7 +161,16 @@ class Workspace:
                                 cfg.proj_dim,
                                 batch_size=cfg.batch_size,
                                 lagr=cfg.lagr,
-                                margin=cfg.margin)
+                                margin=cfg.margin,
+                                stddev_schedule=cfg.stddev_schedule,
+                                stddev_clip=cfg.stddev_clip,
+                                stddev_schedule2=cfg.stddev_schedule2,
+                                stddev_clip2=cfg.stddev_clip2,
+                                update_enc_proto=cfg.update_enc_proto,
+                                update_enc_gc=cfg.update_enc_gc,
+                                update_proto_opt=cfg.update_proto_opt,
+                                normalize=cfg.normalize,
+                                normalize2=cfg.normalize2)
 
         
         # get meta specs
@@ -910,6 +888,150 @@ class Workspace:
             log('episode', self.global_episode)
             log('step', self.global_step)
 
+
+
+    def tsne(self):
+
+        replay_buffer = make_replay_offline(self.eval_env,
+                                            self.work_dir / 'buffer2' / 'buffer_copy',
+                                            500000,
+                                            0,
+                                            0,
+                                            .99,
+                                            goal=False,
+                                            relabel=False,
+                                            model_step = int(self.global_step),
+                                            replay_dir2=False,
+                                            obs_type = 'pixels'
+                                            )
+
+        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
+        state = state.reshape((state.shape[0],4))
+        print(state.shape)
+        num_sample=10000
+        
+        encoded = []
+        state_t = np.empty((num_sample,4)) 
+        idx = np.random.choice(state.shape[0], size=num_sample, replace=False)
+        print('starting to load 50k')
+        for ix,x in enumerate(idx):
+            state_t[ix] = state[x]
+            fn = eps[x]
+            idx_ = index[x]
+            ep = np.load(fn)
+            #pixels.append(ep['observation'][idx_])
+
+            with torch.no_grad():
+                obs = ep['observation'][idx_]
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:0'))
+                z = agent.encoder(obs)
+                encoded.append(z)
+        
+        print('data loaded in',state.shape[0])
+        num_sample=1000
+        idx = np.random.randint(0, state.shape[0], size=num_sample)
+        state=state[idx]
+        state=state.reshape(num_sample,4)
+        a = state 
+
+        def ndim_grid(ndims, space):
+            L = [np.linspace(-.29,.29,space) for i in range(ndims)]
+            return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
+
+        lst=[]
+        goal_array = ndim_grid(2,10)
+        for ix,x in enumerate(goal_array):
+            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                lst.append(ix)
+
+        
+        goal_array=np.delete(goal_array, lst,0)
+        emp = np.zeros((goal_array.shape[0],2))
+        goal_array = np.concatenate((goal_array, emp), axis=1)
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.scatter(goal_array[:,0], goal_array[:,1])
+        plt.savefig(f"./tsne_output/mesh.png")
+        wandb.save(f"./tsne_output/mesh.png")
+        lst=[]
+        goal_array = torch.as_tensor(goal_array, device=torch.device('cuda:0'))
+
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.scatter(a[:,0], a[:,1])
+        plt.savefig(f"./tsne_output/samples.png")
+        wandb.save(f"./tsne_output/samples.png")
+        a = torch.as_tensor(a,device=torch.device('cuda:0'))
+
+        state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
+        all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
+
+        test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
+        action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
+
+
+        ##encoded goals w/ no velocity 
+
+        encoded_no_v=[]
+        goal_array = ndim_grid(2,10)
+        for ix,x in enumerate(goal_array):
+            if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
+                lst.append(ix)
+        goal_array=np.delete(goal_array, lst,0)
+
+        for x in goal_array:
+            with torch.no_grad():
+                with self.eval_env_goal.physics.reset_context():
+                    time_step_init = self.eval_env_goal.physics.set_state(np.array([x[0].item(), x[1].item(),0,0]))
+
+                time_step_init = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                time_step_init = np.transpose(time_step_init, (2,0,1))
+                time_step_init = np.tile(time_step_init, (3,1,1))
+
+                obs = time_step_init
+                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:0')).unsqueeze(0)
+                z = self.agent.encoder(obs)
+                encoded_no_v.append(z)
+
+
+        encoded_no_v = torch.cat(encoded_no_v,axis=0)
+        
+        time_start = self.time.time()
+        tsne = TSNE(n_components=2, verbose=1, perplexity=10, n_iter=300)
+        tsne_results = tsne.fit_transform(encoded_no_v.cpu().numpy())
+        
+        print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
+        df_subset=pd.DataFrame() 
+        df_subset['tsne-2d-one'] = tsne_results[:,0]
+        df_subset['tsne-2d-two'] = tsne_results[:,1]
+        for ix, x in enumerate(goal_array):
+            if x[0] < -.02 and x[1] > .02:
+                df_subset.loc[ix, 'y'] = 1
+            elif x[0] > .02 and x[1] > .02:
+                df_subset.loc[ix, 'y'] = 2
+            elif x[0] > .02 and x[1] < -.02:
+                df_subset.loc[ix, 'y'] = 3
+            elif x[0] < -.02 and x[1] < -.02:
+                df_subset.loc[ix, 'y'] = 4
+        
+        
+            
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(16,10))
+        ax = sns.scatterplot(
+                x="tsne-2d-one", y="tsne-2d-two",
+                hue='y',
+                palette=sns.color_palette("hls", 4),
+                data=df_subset,
+                legend="full",
+                alpha=1
+                    )
+        plt.savefig(f"./tsne_output/tsne_grid_model{model}_{model_step}.png")
+        wandb.save(f"./tsne_output/tsne_grid_model{model}_{model_step}.png")
+
+
+
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
@@ -923,7 +1045,7 @@ class Workspace:
         time_step = self.train_env.reset()
         meta = self.agent.init_meta()
         if self.cfg.obs_type=='pixels':
-            self.replay_storage.add(time_step, meta, True)
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=True)
         else:
             self.replay_storage.add(time_step, meta)
         self.train_video_recorder.init(time_step.observation)
@@ -960,7 +1082,7 @@ class Workspace:
                 meta = self.agent.init_meta()
                 if self.cfg.obs_type=='pixels':
 
-                    self.replay_storage.add(time_step, meta, True)
+                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=True)
                 else: 
                     self.replay_storage.add(time_step, meta)
                 self.train_video_recorder.init(time_step.observation)
@@ -979,7 +1101,7 @@ class Workspace:
                 elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
-                    self.eval_proto()
+                    self.eval_tsne()
             
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             # sample action
@@ -987,35 +1109,35 @@ class Workspace:
                 if self.cfg.goal:
                     if self.cfg.obs_type=='pixels':
                         action = self.agent.act(time_step.observation['pixels'],
-                                            goal,
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True)
+                                                goal,
+                                                meta,
+                                                self.global_step,
+                                                eval_mode=True)
                     else:    
                         action = self.agent.act(time_step.observation,
-                                            goal,
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True)
+                                                goal,
+                                                meta,
+                                                self.global_step,
+                                                eval_mode=True)
                 else:
                     if self.cfg.obs_type=='pixels':
                         if self.cfg.use_predictor:
                             action = self.agent.act2(time_step.observation['pixels'],
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True,
-                                            proto=self.agent)
+                                                    meta,
+                                                    self.global_step,
+                                                    eval_mode=True,
+                                                    proto=self.agent)
                         else:
                             action = self.agent.act2(time_step.observation['pixels'],
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True) 
+                                                    meta,
+                                                    self.global_step,
+                                                    eval_mode=True) 
                     else:    
                         action = self.agent.act2(time_step.observation,
-                                            goal,
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True)
+                                                    goal,
+                                                    meta,
+                                                    self.global_step,
+                                                    eval_mode=True)
             # try to update the agent
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
@@ -1030,7 +1152,7 @@ class Workspace:
             time_step = self.train_env.step(action)
             episode_reward += time_step.reward
             if  self.cfg.obs_type=='pixels':
-                self.replay_storage.add(time_step, meta, True)
+                self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=True)
             else:
                 self.replay_storage.add(time_step, meta)
             self.train_video_recorder.record(time_step.observation)
