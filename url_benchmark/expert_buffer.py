@@ -178,7 +178,6 @@ class Workspace:
 
         #meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        print('action', self.train_env.action_spec())
         data_specs = (self.train_env.observation_spec(),
                       self.train_env.action_spec(),
                       specs.Array((1,), np.float32, 'reward'),
@@ -242,7 +241,6 @@ class Workspace:
             while not time_step.last():
                 action = self.agent.act(time_step.physics, goal_state, None, None)
                 action = np.array(action,dtype="float32") 
-                print('action', action.dtype)
                 time_step = self.train_env1.step(action)
                 time_step_no_goal = self.train_env_no_goal.step(action)
                 self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,

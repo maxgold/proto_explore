@@ -333,7 +333,7 @@ class Workspace:
         # create replay buffer
  
         if self.cfg.expert_buffer:
-            buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy')
+            buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/140212_proto_sl_inv/buffer1/buffer_copy')
         else:
             buffer_path = path / 'buffer2' / 'buffer_copy'
 
