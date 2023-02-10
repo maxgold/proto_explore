@@ -305,15 +305,19 @@ class Workspace:
             path = self.cfg.model_path.split('/')
             path = Path(self.pwd+'/'.join(path[:-1]))
             print('path', str(self.pwd + cfg.model_path) + str('*.pth'))
+            if cfg.sl_encoder:
+                
+                agent_path = natsort.natsorted(glob.glob(str(self.pwd + '/exp_local/2023.02.03/163935_ddpg_sl/') + str('*.pth')))
+                path_lst = [int(re.findall('\d+', x)[-1]) for x in agent_path]
+                assert os.path.isfile(agent_path[self.cfg.model_step_index])
+                pretrained_agent = torch.load(agent_path[self.cfg.model_step_index])
+                self.agent.init_encoder_from(pretrained_agent.encoder)
+                print('init sl encoder', vars(pretrained_agent))    
             self.agent_path = natsort.natsorted(glob.glob(str(self.pwd + cfg.model_path) + str('*.pth')))
+            
             self.path_lst = [int(re.findall('\d+', x)[-1]) for x in self.agent_path]
             print('path lst', self.path_lst)
-            
             assert os.path.isfile(self.agent_path[self.cfg.model_step_index])
-            self.pretrained_agent = torch.load(self.agent_path[self.cfg.model_step_index])
-            print('agent path', self.agent_path[self.cfg.model_step_index])
-            print('pretrained_agent', vars(self.pretrained_agent))
-            self.agent.init_encoder_from(self.pretrained_agent.encoder)
             
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
@@ -327,15 +331,11 @@ class Workspace:
             # create data storage
             self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer1')
-
- 
-
         # create replay buffer
- 
         if self.cfg.expert_buffer:
             buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/140212_proto_sl_inv/buffer1/buffer_copy')
         else:
-            buffer_path = path / 'buffer2' / 'buffer_copy'
+            buffer_path = path / 'buffer' / 'buffer_copy'
 
         if self.cfg.offline_gc:
             print('offline buffer')
@@ -357,8 +357,8 @@ class Workspace:
                                                     inv=self.inv,
                                                     goal_offset=self.cfg.goal_offset,
                                                     pmm=self.pmm,
-                                                    model_step=10000)
-
+                                                    model_step=100000,
+                                                    reverse=cfg.reverse)
         
         elif self.cfg.combine_storage_gc:
             print('combine')
@@ -378,7 +378,6 @@ class Workspace:
                                                     general=True,
                                                     inv=self.inv,
                                                     goal_offset=self.cfg.goal_offset)
- 
 
         self._replay_iter1 = None
 
@@ -390,7 +389,6 @@ class Workspace:
             self.work_dir if cfg.save_train_video else None,
             camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
             use_wandb=self.cfg.use_wandb)
-        
         
         self.timer = utils.Timer()
         self._global_step = 0
@@ -477,7 +475,6 @@ class Workspace:
     def eval_proto(self, evaluate=False):
         
         if evaluate:
-            
             path = self.cfg.model_path.split('/')
             path = Path(self.pwd+'/'.join(path[:-1]))
             replay_buffer = make_replay_offline(self.eval_env,
@@ -490,8 +487,6 @@ class Workspace:
                                                     relabel=False,
                                                     replay_dir2=False,
                                                     obs_type = 'pixels',
-                                                   
-                                                
                                                     )
 
             
@@ -546,7 +541,6 @@ class Workspace:
 
             state, actions, rewards, eps, index = replay_buffer.parse_dataset()
             state = state.reshape((state.shape[0], self.train_env1.physics.get_state().shape[0]))
-            
 
         while self.proto_goals.shape[0] < self.dim:
             self.proto_goals = np.append(self.proto_goals, np.zeros((1,3*self.cfg.frame_stack,84,84)), axis=0)
@@ -1178,7 +1172,8 @@ class Workspace:
                                                         inv=self.inv,
                                                         goal_offset=self.cfg.goal_offset,
                                                         pmm=self.pmm,
-                                                        model_step=self.global_step)
+                                                        model_step=self.global_step,
+                                                        )
 
 
                     episode_step=0

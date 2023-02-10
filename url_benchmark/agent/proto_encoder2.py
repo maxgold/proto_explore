@@ -55,7 +55,6 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
         self.update_gc = update_gc
         self.offline = offline
         self.gc_only = gc_only
-        self.num_iterations = num_iterations
         self.pred_dim=pred_dim
         self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
         self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
@@ -256,7 +255,7 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
                 goal = goal.reshape(-1, 2).float()
                 
         elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
             
             obs_state = obs_state.clone().detach().cpu().numpy()
@@ -295,7 +294,7 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
                     plt.savefig(f"batch_moving_avg_{step}.png")
                     
         elif actor1==False:
-            obs, action, extr_reward, discount, next_obs = utils.to_torch(
+            obs, action, extr_reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -337,8 +336,8 @@ class ProtoEncoder2Agent(DDPGEncoder2Agent):
                 next_obs = next_obs.detach()
             # update critic
             metrics.update(
-                self.update_critic2(obs.detach(), action, reward, discount,
-                               next_obs.detach(), step))
+                self.update_critic2(obs, action, reward, discount,
+                               next_obs, step))
 
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))
