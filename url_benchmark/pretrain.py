@@ -37,7 +37,7 @@ import seaborn as sns; sns.set_theme()
 from pathlib import Path
 import io
 from sklearn.manifold import TSNE
-
+import time
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024,
                num_protos=512,
                update_gc=2, gc_only=False, offline=False, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128,
@@ -139,7 +139,8 @@ class Workspace:
                                   cfg.action_repeat, cfg.seed)
         self.eval_env = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                  cfg.action_repeat, cfg.seed)
-
+        self.eval_env_goal = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                       cfg.action_repeat, seed=None, goal=None)
         # create agent
 
         self.agent = make_agent(cfg.obs_type,
@@ -183,7 +184,7 @@ class Workspace:
 
         # create data storage
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer')
+                                                  self.work_dir / 'buffer2')
 
         # create replay buffer
         self.replay_loader = make_replay_loader(self.replay_storage,
@@ -892,48 +893,6 @@ class Workspace:
 
     def tsne(self):
 
-        replay_buffer = make_replay_offline(self.eval_env,
-                                            self.work_dir / 'buffer2' / 'buffer_copy',
-                                            500000,
-                                            0,
-                                            0,
-                                            .99,
-                                            goal=False,
-                                            relabel=False,
-                                            model_step = int(self.global_step),
-                                            replay_dir2=False,
-                                            obs_type = 'pixels'
-                                            )
-
-        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
-        state = state.reshape((state.shape[0],4))
-        print(state.shape)
-        num_sample=10000
-        
-        encoded = []
-        state_t = np.empty((num_sample,4)) 
-        idx = np.random.choice(state.shape[0], size=num_sample, replace=False)
-        print('starting to load 50k')
-        for ix,x in enumerate(idx):
-            state_t[ix] = state[x]
-            fn = eps[x]
-            idx_ = index[x]
-            ep = np.load(fn)
-            #pixels.append(ep['observation'][idx_])
-
-            with torch.no_grad():
-                obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:0'))
-                z = agent.encoder(obs)
-                encoded.append(z)
-        
-        print('data loaded in',state.shape[0])
-        num_sample=1000
-        idx = np.random.randint(0, state.shape[0], size=num_sample)
-        state=state[idx]
-        state=state.reshape(num_sample,4)
-        a = state 
-
         def ndim_grid(ndims, space):
             L = [np.linspace(-.29,.29,space) for i in range(ndims)]
             return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
@@ -952,24 +911,10 @@ class Workspace:
         plt.clf()
         fig, ax = plt.subplots()
         ax.scatter(goal_array[:,0], goal_array[:,1])
-        plt.savefig(f"./tsne_output/mesh.png")
-        wandb.save(f"./tsne_output/mesh.png")
+        plt.savefig(f"./mesh_{self.global_step}.png")
+        wandb.save(f"./mesh_{self.global_step}.png")
         lst=[]
         goal_array = torch.as_tensor(goal_array, device=torch.device('cuda:0'))
-
-        plt.clf()
-        fig, ax = plt.subplots()
-        ax.scatter(a[:,0], a[:,1])
-        plt.savefig(f"./tsne_output/samples.png")
-        wandb.save(f"./tsne_output/samples.png")
-        a = torch.as_tensor(a,device=torch.device('cuda:0'))
-
-        state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
-        all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
-
-        test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
-        action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
-
 
         ##encoded goals w/ no velocity 
 
@@ -997,7 +942,7 @@ class Workspace:
 
         encoded_no_v = torch.cat(encoded_no_v,axis=0)
         
-        time_start = self.time.time()
+        time_start = time.time()
         tsne = TSNE(n_components=2, verbose=1, perplexity=10, n_iter=300)
         tsne_results = tsne.fit_transform(encoded_no_v.cpu().numpy())
         
@@ -1027,8 +972,8 @@ class Workspace:
                 legend="full",
                 alpha=1
                     )
-        plt.savefig(f"./tsne_output/tsne_grid_model{model}_{model_step}.png")
-        wandb.save(f"./tsne_output/tsne_grid_model{model}_{model_step}.png")
+        plt.savefig(f"./tsne_grid_model_{self.global_step}.png")
+        wandb.save(f"./tsne_grid_model_{self.global_step}.png")
 
 
 
@@ -1101,7 +1046,7 @@ class Workspace:
                 elif self.cfg.agent.name=='protov2':
                     self.eval_protov2()
                 else:
-                    self.eval_tsne()
+                    self.tsne()
             
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             # sample action
