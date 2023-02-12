@@ -333,7 +333,19 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
         # create replay buffer
         if self.cfg.expert_buffer:
+            #first path lots of no action
             buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy')
+            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.10/123706_proto_sl_inv/buffer1/buffer_copy')
+            
+            #early stopping, init state all = -.29, .29, ndim grid (2,10)
+            #2023.02.11/174359_proto_sl_inv/
+
+            #no early stopping, init state all = -.29, .29, ndim (2, 10)
+            #2023.02.11/180801_proto_sl_inv/
+            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/180801_proto_sl_inv/buffer1/buffer_copy')
+
+            #no early stopping, init = -.29, .29, ndim(2,20)
+            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/200427_proto_sl_inv/buffer1/buffer_copy')
         else:
             buffer_path = path / 'buffer' / 'buffer_copy'
 
@@ -357,7 +369,8 @@ class Workspace:
                                                     inv=self.inv,
                                                     goal_offset=self.cfg.goal_offset,
                                                     pmm=self.pmm,
-                                                    model_step=100000,
+                                                    model_step=self.cfg.offline_model_step,
+                                                    model_step_lb=self.cfg.offline_model_step_lb,
                                                     reverse=cfg.reverse)
         
         elif self.cfg.combine_storage_gc:
@@ -486,7 +499,7 @@ class Workspace:
                                                     goal=False,
                                                     relabel=False,
                                                     replay_dir2=False,
-                                                    obs_type = 'pixels',
+                                                    obs_type = self.cfg.obs_type,
                                                     )
 
             
@@ -534,7 +547,7 @@ class Workspace:
                                                     goal=False,
                                                     relabel=False,
                                                     replay_dir2=False,
-                                                    obs_type = 'pixels',
+                                                    obs_type = self.cfg.obs_type,
                                                     model_step = self.global_step
                                                     )
 
@@ -785,86 +798,81 @@ class Workspace:
 
     def eval_pmm(self):
         df = pd.DataFrame(columns=['x','y','r'], dtype=np.float64)
-        print('eval reached', self.eval_reached)
-        for idx in range(self.eval_reached.shape[0]):
-            goal_array = ndim_grid(2,8)
-            init = self.eval_reached[idx]
-            goal_index = np.where(np.all(goal_array==init,axis=1))[0]
-            goal_array = torch.tensor(goal_array)
-            g_to_g = torch.norm(goal_array[:, None, :] - goal_array[None, :, :], dim=2, p=2)
-            all_dists, _ = torch.topk(g_to_g , 8, dim=1, largest=False)
-            goal_array = goal_array[_[goal_index]].cpu().numpy()[0][1:]
-            print('g', goal_array)
-            for ix, x in enumerate(goal_array):
+        goal_array = ndim_grid(2,10)
+        lst = []
+        for ix,x in enumerate(goal_array):
+            if (-.02<x[0]  or  x[1]<.02):
+                lst.append(ix)
+        goal_array=np.delete(goal_array, lst,0) 
+        for ix, x in enumerate(goal_array):
 
-                step, episode, total_reward = 0, 0, 0
-                #goal_pix, goal_state = self.sample_goal_uniform(eval=True)
-                goal_state = x
-                print('goal_state', x)
-                print('init', init)
-                self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
-                        self.cfg.action_repeat, seed=None, goal=goal_state, init_state=init)
-                self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
-                        self.cfg.action_repeat, seed=None, goal=None)
-                eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
-                meta = self.agent.init_meta()
+            step, episode, total_reward = 0, 0, 0
+            #goal_pix, goal_state = self.sample_goal_uniform(eval=True)
+            goal_state = x
+            print('goal_state', x)
+            self.eval_env = dmc.make(self.cfg.task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=goal_state, init_state=np.array([-.29, .29]))
+            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None)
+            eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+            meta = self.agent.init_meta()
 
-                while eval_until_episode(episode):
-                    time_step = self.eval_env.reset()
-                    self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                        self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
-                    time_step_no_goal = self.eval_env_no_goal.reset()
+            while eval_until_episode(episode):
+                time_step = self.eval_env.reset()
+                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                    self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
+                time_step_no_goal = self.eval_env_no_goal.reset()
 
-                    with self.eval_env_goal.physics.reset_context():
-                        time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
-                    time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-                    time_step_goal = np.transpose(time_step_goal, (2,0,1))
-                    self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+                with self.eval_env_goal.physics.reset_context():
+                    time_step_goal = self.eval_env_goal.physics.set_state(np.array([goal_state[0], goal_state[1], 0, 0]))
+                time_step_goal = self.eval_env_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                time_step_goal = np.transpose(time_step_goal, (2,0,1))
+                self.video_recorder.init(self.eval_env, enabled=(episode == 0))
 
-                    while step!=self.cfg.episode_length:
-                        with torch.no_grad(), utils.eval_mode(self.agent):
-                            if self.cfg.goal:
-                                action = self.agent.act(time_step_no_goal.observation['pixels'],
-                                                    time_step_goal,
-                                                    meta,
-                                                    self._global_step,
-                                                    eval_mode=True,
-                                                    tile=self.cfg.frame_stack,
-                                                    general=True)
-                            else:
-                                action = self.agent.act(time_step.observation,
-                                                    meta,
-                                                    self._global_step,
-                                                    eval_mode=True,
-                                                    tile=self.cfg.frame_stack)
-                        time_step = self.eval_env.step(action)
-                        time_step_no_goal = self.eval_env_no_goal.step(action)
-                        #time_step_goal = self.eval_env_goal.step(action)
-                        self.video_recorder.record(self.eval_env)
-                        total_reward += time_step.reward
-                        step += 1
+                while step!=self.cfg.episode_length:
+                    with torch.no_grad(), utils.eval_mode(self.agent):
+                        if self.cfg.goal:
+                            action = self.agent.act(time_step_no_goal.observation['pixels'],
+                                                time_step_goal,
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=True,
+                                                tile=self.cfg.frame_stack,
+                                                general=True)
+                        else:
+                            action = self.agent.act(time_step.observation['observations'],
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=True,
+                                                tile=self.cfg.frame_stack)
+                    time_step = self.eval_env.step(action)
+                    time_step_no_goal = self.eval_env_no_goal.step(action)
+                    #time_step_goal = self.eval_env_goal.step(action)
+                    self.video_recorder.record(self.eval_env)
+                    total_reward += time_step.reward
+                    step += 1
 
-                    episode += 1
+                episode += 1
 
-                    
-                    #if ix%10==0:
-                    self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
+                
+                #if ix%10==0:
+                self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
 
-                    if self.cfg.eval:
-                        save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
+                if self.cfg.eval:
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
 
-                    else:
-                        save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
+                else:
+                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
 
-                    if total_reward > 10*self.cfg.num_eval_episodes:
-                        self.eval_reached = np.append(self.eval_reached, x[None,:], axis=0)
-                        self.eval_reached = np.unique(self.eval_reached, axis=0)
+                if total_reward > 10*self.cfg.num_eval_episodes:
+                    self.eval_reached = np.append(self.eval_reached, x[None,:], axis=0)
+                    self.eval_reached = np.unique(self.eval_reached, axis=0)
 
-                df.loc[ix, 'x'] = x[0].round(2)
-                df.loc[ix, 'y'] = x[1].round(2)
-                df.loc[ix, 'r'] = total_reward
+            df.loc[ix, 'x'] = x[0].round(2)
+            df.loc[ix, 'y'] = x[1].round(2)
+            df.loc[ix, 'r'] = total_reward
 
-                print('r', total_reward)
+            print('r', total_reward)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         result.fillna(0, inplace=True)
@@ -1224,6 +1232,11 @@ class Workspace:
                                                               goal_pix, goal_state, 
                                                               time_step_no_goal, True, last=True)
 
+                        
+                    elif self.actor1:
+                        self.replay_storage.add_goal(time_step, goal_state, meta)
+                        
+
                     self.unreached=False
 
                     # try to save snapshot
@@ -1275,6 +1288,9 @@ class Workspace:
                         self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
                                                               goal_pix, goal_state,
                                                               time_step_no_goal, True)
+                    elif self.actor1 and self.cfg.obs_type != 'pixels' and time_step1.last()==False and episode_step!=self.cfg.episode_length:
+                        self.replay_storage.add_goal(time_step, goal_state, meta)
+
 
                 # sample action
 
@@ -1292,6 +1308,15 @@ class Workspace:
                     elif self.cfg.obs_type == 'pixels':
                         action1 = self.agent.act(time_step1.observation['pixels'].copy(),
                                                 goal_pix,
+                                                meta,
+                                                self._global_step,
+                                                eval_mode=False,
+                                                tile=self.cfg.frame_stack,
+                                                general=True)
+
+                    elif self.cfg.obs_type != 'pixels':
+                        action1 = self.agent.act(time_step1.observation['observations'].copy(),
+                                                goal_state,
                                                 meta,
                                                 self._global_step,
                                                 eval_mode=False,
@@ -1322,6 +1347,10 @@ class Workspace:
                     self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
                                                           goal_pix, goal_state, 
                                                           time_step_no_goal, True)
+
+                elif time_step1.last()==False and episode_step!=self.cfg.episode_length and ((episode_reward < abs(self.cfg.reward_cutoff*20) and self.pmm==False) or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
+
+                    self.replay_storage.add_goal(time_step, goal_state, meta)
 
 
 
@@ -1377,6 +1406,9 @@ class Workspace:
                         self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, 
                                                               goal_pix, goal_state,
                                                       time_step_no_goal, True, last=True)
+                    elif time_step1.last()==False:
+                        print('last2')
+                        self.replay_storage.add_goal(time_step, goal_state, meta, last=True)
 
 
                     self.current_init = np.append(self.current_init, self.train_env1.physics.get_state()[None,:], axis=0)

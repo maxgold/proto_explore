@@ -23,9 +23,9 @@ from video import TrainVideoRecorder, VideoRecorder
 from agent.expert import ExpertAgent
 from pathlib import Path
 import utils
-from replay_buffer import ndim_grid
 import dmc
 torch.backends.cudnn.benchmark = True
+import wandb
 
 def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg, lr=.0001, hidden_dim=1024,
                num_protos=512,
@@ -75,6 +75,10 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.normalize2 = normalize2
     print('shape', obs_spec.shape)
     return hydra.utils.instantiate(cfg)
+
+def ndim_grid(ndims, space):
+    L = [np.linspace(-.29,.29,space) for i in range(ndims)]
+    return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 class Workspace:
     def __init__(self, cfg):
@@ -201,6 +205,7 @@ class Workspace:
         
 
         for x in goal_array:
+            done=False
             goal_state = x
 
             episode_step = 0
@@ -215,7 +220,7 @@ class Workspace:
 
             self.train_env1 = dmc.make(cfg.task, cfg.obs_type,
                                                 cfg.frame_stack,cfg.action_repeat,
-                                                seed=None, goal=goal_state) 
+                                                seed=None, goal=goal_state, init_state=np.array([-.29, .29])) 
 
             time_step = self.train_env1.reset()
             self.train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
@@ -238,11 +243,12 @@ class Workspace:
 
                     episode_step = 0
                     episode_reward = 0
-
+            
             while not time_step.last():
                 action = self.agent.act(time_step.physics, goal_state, None, None)
-                action = np.array(action,dtype="float32") 
-                print('action', action.dtype)
+                action = np.array(action,dtype="float32")
+                #action = np.clip(action, -1,1)
+                print('act', action)
                 time_step = self.train_env1.step(action)
                 time_step_no_goal = self.train_env_no_goal.step(action)
                 self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
@@ -250,9 +256,19 @@ class Workspace:
                                                           time_step_no_goal, True, expert=True)
                 episode_step+=1
                 episode_reward+=time_step.reward
-                if episode_step%100==0:
-                    print('episode', episode_step)
+                norm = np.linalg.norm(action-np.array([0,0]))
+                #if episode_reward > 100:
+                #    print('episode', episode_step)
+                #    print('rewar', episode_reward)
+                #    print('act', action)
+                #    self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
+                #                                                                      goal_pix, goal_state,
+                #                                                                                                                                                                                                                    time_step_no_goal, True, expert=True, last=True)
+                #    done=True
+                #    break
 
+            #if done:
+            #    continue
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
     from expert_buffer import Workspace as W
@@ -270,4 +286,6 @@ if __name__ == '__main__':
 
 
 
+
+import warnings
 
