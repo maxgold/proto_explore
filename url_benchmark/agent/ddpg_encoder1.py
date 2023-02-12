@@ -114,6 +114,8 @@ class Critic(nn.Module):
 
         if obs_type == 'pixels':
             # for pixels actions will be added after trunk
+            self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
+                                        nn.LayerNorm(feature_dim), nn.Tanh())
             trunk_dim = feature_dim + action_dim
         else:
             # for states actions come in the beginning

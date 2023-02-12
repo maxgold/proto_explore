@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from video import TrainVideoRecorder, VideoRecorder
 import io
 from sklearn.manifold import TSNE
+import natsort
 
 
 torch.backends.cudnn.benchmark = True
@@ -45,7 +46,7 @@ from dmc_benchmark import PRIMAL_TASKS
 import time
 
 #models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/']
-models=['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.03/163935_ddpg_sl/']
+models=['/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230853_proto_encoder2/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230849_proto_encoder2/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230900_proto_encoder3/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230856_proto_encoder3/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.01.27/234846_proto_encoder1/']
 #models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
 #models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
@@ -59,8 +60,9 @@ for m in models:
     tmp_agent_name = m.split('/')[-2].split('_')
     print(tmp_agent_name)
     agent_name = tmp_agent_name[-2] + '_' + tmp_agent_name[-1]
-    paths = glob.glob(m+'*00000.pth')
+    paths = natsort.natsorted(glob.glob(m+'*00000.pth'))[-1]
     print(paths)
+    paths=[paths]
     for path in paths:
         model_step = path.split('_')[-1].split('.')[0]
         print('model', m)
@@ -73,49 +75,8 @@ for m in models:
         env = dmc.make('point_mass_maze_reach_no_goal', 'pixels', 3, 2, seed=None, goal=None)
         
         
-        replay_dir = Path(m+'buffer/buffer_copy/')
+        replay_dir = Path(m+'buffer2/buffer_copy/')
         
-        replay_buffer = make_replay_offline(eval_env_goal,
-                                                replay_dir,
-                                                100000,
-                                                0,
-                                                0,
-                                                .99,
-                                                goal=False,
-                                                relabel=False,
-                                                model_step = int(model_step),
-                                                replay_dir2=False,
-                                                obs_type = 'pixels'
-                                                )
-
-        state, actions, rewards, eps, index = replay_buffer.parse_dataset() 
-        state = state.reshape((state.shape[0],4))
-        print(state.shape)
-        num_sample=10000
-         
-        encoded = []
-        state_t = np.empty((num_sample,4)) 
-        idx = np.random.choice(state.shape[0], size=num_sample, replace=False)
-        print('starting to load 50k')
-        for ix,x in enumerate(idx):
-            state_t[ix] = state[x]
-            fn = eps[x]
-            idx_ = index[x]
-            ep = np.load(fn)
-            #pixels.append(ep['observation'][idx_])
-
-            with torch.no_grad():
-                obs = ep['observation'][idx_]
-                obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:0'))
-                z = agent.encoder(obs)
-                encoded.append(z)
-        
-        print('data loaded in',state.shape[0])
-        num_sample=1000
-        idx = np.random.randint(0, state.shape[0], size=num_sample)
-        state=state[idx]
-        state=state.reshape(num_sample,4)
-        a = state 
 
         def ndim_grid(ndims, space):
             L = [np.linspace(-.29,.29,space) for i in range(ndims)]
@@ -139,20 +100,6 @@ for m in models:
         lst=[]
         goal_array = torch.as_tensor(goal_array, device=torch.device('cuda:0'))
 
-        plt.clf()
-        fig, ax = plt.subplots()
-        ax.scatter(a[:,0], a[:,1])
-        plt.savefig(f"./tsne_output/samples.png")
-        a = torch.as_tensor(a,device=torch.device('cuda:0'))
-
-        state_dist = torch.norm(goal_array[:,None,:]  - a[None,:,:], dim=2, p=2)
-        all_dists_state, _state = torch.topk(state_dist, 10, dim=1, largest=False)
-
-        test_states = np.array([[-.15, -.15], [-.15, .15], [.15, -.15], [.15, .15]])
-        action = np.array([[.5, 0], [-.5, 0],[0, .5], [0, -.5]])
- 
-
-        ##encoded goals w/ no velocity 
 
         encoded_no_v=[]
         goal_array = ndim_grid(2,10)
@@ -172,14 +119,17 @@ for m in models:
 
                 obs = time_step_init
                 obs = torch.as_tensor(obs.copy(), device=torch.device('cuda:0')).unsqueeze(0)
+                
                 z = agent.encoder(obs)
+                z = torch.cat([z,z], dim=-1)
+                z = agent.actor.trunk(z) 
                 encoded_no_v.append(z)
 
 
         encoded_no_v = torch.cat(encoded_no_v,axis=0)
         
         time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=10, n_iter=300)
+        tsne = TSNE(n_components=2, verbose=1, perplexity=30, n_iter=1000)
         tsne_results = tsne.fit_transform(encoded_no_v.cpu().numpy())
         
         print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
