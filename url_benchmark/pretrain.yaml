@@ -147,6 +147,7 @@ sl_encoder: False
 reverse: True
 offline_model_step: 100000
 offline_model_step_lb: 0
+buffer_num: 0 
 #experiment
 experiment: exp
 

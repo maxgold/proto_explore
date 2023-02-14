@@ -257,18 +257,18 @@ class Workspace:
                 episode_step+=1
                 episode_reward+=time_step.reward
                 norm = np.linalg.norm(action-np.array([0,0]))
-                #if episode_reward > 100:
-                #    print('episode', episode_step)
-                #    print('rewar', episode_reward)
-                #    print('act', action)
-                #    self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
-                #                                                                      goal_pix, goal_state,
-                #                                                                                                                                                                                                                    time_step_no_goal, True, expert=True, last=True)
-                #    done=True
-                #    break
+                if episode_reward > 100:
+                    print('episode', episode_step)
+                    print('rewar', episode_reward)
+                    print('act', action)
+                    self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
+                                                                                      goal_pix, goal_state,
+                                                                                                                                                                                                                                    time_step_no_goal, True, expert=True, last=True)
+                    done=True
+                    break
 
-            #if done:
-            #    continue
+            if done:
+                continue
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
     from expert_buffer import Workspace as W
