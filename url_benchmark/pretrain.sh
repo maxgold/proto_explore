@@ -17,7 +17,7 @@ for num_protos in 16 32 64
     	    do
                 for seed in 0 1
                     do
-                        ./pretrain_wrap.sh $agent $num_protos $pred_dim $proj_dim $hidden_dim $seed
+                        ./pretrain_wrap2.sh $agent $num_protos $pred_dim $proj_dim $hidden_dim $seed
                     done		    
             done
         done

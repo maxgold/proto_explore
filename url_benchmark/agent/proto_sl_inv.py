@@ -170,7 +170,10 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
-                z, _ = self.encoder(obs)
+                if self.obs_type=='states':
+                    z = self.encoder(obs)
+                else:
+                    z, _ = self.encoder(obs)
             else:
                 z = obs
             z = self.predictor(z)
@@ -223,7 +226,10 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
         #self.normalize_protos()
 
         # online network
-        s, _ = self.encoder(obs)
+        if self.obs_type=='states':
+            s = self.encoder(obs)
+        else:
+            s, _ = self.encoder(obs)
         s = self.predictor(s)
         s = self.projector(s)
         if self.normalize:
@@ -233,7 +239,10 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
-            t = self.encoder_target(next_obs)
+            if self.obs_type=='states':
+                t = self.encoder_target(next_obs)
+            else:
+                t, _ = self.encoder_target(next_obs)
             t = self.predictor_target(t)
             if self.normalize:
                 t = F.normalize(t, dim=1, p=2)
@@ -267,9 +276,14 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
     
     def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
 
-        metrics = dict() 
-        obs, _ = self.encoder(obs)
-        goal, _ = self.encoder(goal)
+        metrics = dict()
+
+        if self.obs_type=='states':
+            obs = self.encoder(obs)
+            goal = self.encoder(goal)
+        else:
+            obs, _ = self.encoder(obs)
+            goal, _ = self.encoder(goal)
 
         encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
@@ -381,8 +395,12 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs,_ = self.encoder(obs)
-            next_obs, _ = self.encoder(next_obs)
+            if self.obs_type=='states':
+                obs = self.encoder(obs)
+                next_obs = self.encoder(next_obs)
+            else:
+                obs,_ = self.encoder(obs)
+                next_obs, _ = self.encoder(next_obs)
 
             if not self.update_encoder:
                 obs = obs.detach()
@@ -414,10 +432,14 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
                 #metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            obs,_ = self.encoder(obs)
-            next_obs, _ = self.encoder(next_obs)
-            
-            goal, _ = self.encoder(goal)
+            if self.obs_type=='states':
+                obs = self.encoder(obs)
+                next_obs = self.encoder(next_obs)
+                goal = self.encoder(goal)
+            else:
+                obs,_ = self.encoder(obs)
+                next_obs, _ = self.encoder(next_obs)
+                goal, _ = self.encoder(goal)
 
             if not self.update_encoder:
             

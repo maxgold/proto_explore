@@ -167,8 +167,12 @@ class DDPGSLInvAgent:
             if tile > 1:
                 goal = torch.tile(goal, (1,tile,1,1))
         
-        h, _ = self.encoder(obs)
-        g, _ = self.encoder(goal)
+        if self.obs_type=='states':
+            h = self.encoder(obs)
+            g = self.encoder(goal)
+        else:
+            h, _ = self.encoder(obs)
+            g, _ = self.encoder(goal)
         inputs = [h]
         inputs2 = g
 
@@ -184,7 +188,10 @@ class DDPGSLInvAgent:
 
     def act2(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        h = self.encoder(obs)
+        if self.obs_type=='states':
+            h = self.encoder(obs)
+        else:
+            h, _ = self.encoder(obs)
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)

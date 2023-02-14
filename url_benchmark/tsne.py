@@ -45,14 +45,8 @@ torch.backends.cudnn.benchmark = True
 from dmc_benchmark import PRIMAL_TASKS
 import time
 
-#models = ['/home/nina/proto_explore/url_benchmark/exp_local/2022.10.21/151650_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231842_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231819_proto_encoder1/', '/home/nina/proto_explore/url_benchmark/exp_local/2022.10.20/231715_proto_encoder1/']
+#models = ['/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.08/192418_ddpg_only/', '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.08/231828_ddpg_only/']
 models=['/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230853_proto_encoder2/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230849_proto_encoder2/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230900_proto_encoder3/', '/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/230856_proto_encoder3/']
-#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.01.27/234846_proto_encoder1/']
-#models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.10.14/210339_proto_encoder1/']
-#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/']
-#models = ['/home/ubuntu/proto_explore/url_benchmark/exp_local/2022.09.09/072830_proto/']
-
-#models = ['/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.14/010502_proto_encoder1/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215650_proto_encoder3/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.12/215751_proto_encoder3/','/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213447_proto_encoder0/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213328_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.10/213411_proto_encoder1/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/231012_proto_encoder2/', '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2022.10.09/203156_proto_encoder0/']
 
 
 for m in models:
@@ -107,7 +101,7 @@ for m in models:
             if (-.2<x[0]<.2 and -.02<x[1]<.02) or (-.02<x[0]<.02 and -.2<x[1]<.2):
                 lst.append(ix)
         goal_array=np.delete(goal_array, lst,0)
-
+        print('goal', goal_array.shape)
         for x in goal_array:
             with torch.no_grad():
                 with eval_env_goal.physics.reset_context():
@@ -125,11 +119,11 @@ for m in models:
                 z = agent.actor.trunk(z) 
                 encoded_no_v.append(z)
 
-
+        print('encoder', encoded_no_v[0].shape)
         encoded_no_v = torch.cat(encoded_no_v,axis=0)
         
         time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=30, n_iter=1000)
+        tsne = TSNE(n_components=2, verbose=1, perplexity=30, n_iter=300)
         tsne_results = tsne.fit_transform(encoded_no_v.cpu().numpy())
         
         print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))

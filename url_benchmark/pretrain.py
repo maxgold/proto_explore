@@ -1047,7 +1047,7 @@ class Workspace:
                     self.eval_protov2()
                 else:
                     #self.tsne()
-                    print('not eval')
+                    print('not evaluating')
             
             meta = self.agent.update_meta(meta, self.global_step, time_step)
             # sample action

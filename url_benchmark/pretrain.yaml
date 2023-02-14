@@ -145,6 +145,8 @@ expert_buffer: False
 only_buffer: False
 sl_encoder: False
 reverse: True
+offline_model_step: 100000
+offline_model_step_lb: 0
 #experiment
 experiment: exp
 
