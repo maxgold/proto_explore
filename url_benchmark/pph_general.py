@@ -217,9 +217,10 @@ class Workspace:
                 print('gc only, only loading in the encoder from pretrained agent')
                 if self.cfg.sl:
                     self.agent.init_encoder_from(pretrained_agent.encoder)
-                else:
+                elif self.cfg.agent.name.startswith('proto'):
                     self.agent.init_encoder_trunk_from(pretrained_agent.encoder, pretrained_agent.critic2, pretrained_agent.actor2)
-
+                elif self.cfg.agent.name.startswith('ddpg'):
+                    self.agent.init_encoder_trunk_gc_from(pretrained_agent.encoder, pretrained_agent.critic, pretrained_agent.actor)
             path = self.cfg.model_path.split('/')
             path = Path(self.pwd + '/'.join(path[:-1]))
 

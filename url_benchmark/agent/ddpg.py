@@ -117,6 +117,11 @@ class DDPGAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
+        self.actor_encoder = Actor_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+                                           feature_dim, hidden_dim).to(device)
+        self.critic_encoder = Critic_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
+                                             feature_dim, hidden_dim).to(device)
+
         # optimizers
 
         if obs_type == 'pixels':
@@ -159,9 +164,14 @@ class DDPGAgent:
 
     def init_encoder_trunk_from(self, encoder, critic2, actor2):
         utils.hard_update_params(encoder, self.encoder)
-        utils.hard_update_params(actor2, self.actor2)
+        utils.hard_update_params(actor2.trunk, self.actor2.trunk)
         utils.hard_update_params(critic2.trunk, self.critic2.trunk)
- 
+
+    def init_encoder_trunk_gc_from(self, encoder, critic, actor):
+        utils.hard_update_params(encoder, self.encoder)
+        utils.hard_update_params(actor.trunk, self.actor_encoder.trunk)
+        utils.hard_update_params(critic.trunk, self.critic_encoder.trunk)
+     
     def get_meta_specs(self):
         return tuple()
 
@@ -192,7 +202,8 @@ class DDPGAgent:
             if self.sl:
                 h, _ = self.encoder(obs)
                 g, _ = self.encoder(goal)
-            else:
+
+            elif self.init_from_proto:
                 #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
                 h = self.encoder(obs)
                 g = self.encoder(goal)
@@ -202,6 +213,16 @@ class DDPGAgent:
                 else:
                     h = self.critic2.trunk(h)
                     g = self.critic2.trunk(g)
+
+            elif self.init_from_ddpg:
+                h = self.encoder(obs)
+                g = self.encoder(goal)
+                if self.use_actor_trunk:
+                    h = self.actor.trunk(h)
+                    g = self.actor.trunk(g)
+                else:
+                    h = self.critic.trunk(h)
+                    g = self.critic.trunk(g) 
 
         inputs = [h]
         inputs2 = g
