@@ -257,10 +257,38 @@ class Workspace:
             replay_dir2_gc = None
             replay_dir2 = None
             
-
         if self.cfg.expert_buffer:
             #first path lots of no action
-            buffer_path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.15/234008_proto/buffer1/buffer_copy')
+            print('buffer', self.cfg.buffer_num)
+            if self.cfg.greene:
+                if self.cfg.buffer_num == 0:
+                    buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy')
+                elif self.cfg.buffer_num == 1:
+                    buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.10/123706_proto_sl_inv/buffer1/buffer_copy')
+            
+                #early stopping, init state all = -.29, .29, ndim grid (2,10)
+                #2023.02.11/174359_proto_sl_inv/
+
+                #no early stopping, init state all = -.29, .29, ndim (2, 10)
+                #2023.02.11/180801_proto_sl_inv/
+                elif self.cfg.buffer_num == 2:
+                    buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/180801_proto_sl_inv/buffer1/buffer_copy')
+
+                #no early stopping, init = -.29, .29, ndim(2,20)
+                elif self.cfg.buffer_num == 3:
+                    buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/200427_proto_sl_inv/buffer1/buffer_copy')
+            
+                #early stopping, init=-.29,.29, ndim(2,20)
+                elif self.cfg.buffer_num == 4:
+                    buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.13/125305_proto_sl_inv/buffer1/buffer_copy')
+ 
+                #first path lots of no action
+            elif self.cfg.cassio:
+                buffer_path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.15/234008_proto/buffer1/buffer_copy')
+            
+            else:
+
+                buffer_path = path / 'buffer' / 'buffer_copy' 
         # TODO
         # figure out why files "disappear" in buffer_copy when used by another loader
         # figure out why we can't add parse data function to data loader
