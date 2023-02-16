@@ -317,6 +317,7 @@ class Workspace:
             
             self.path_lst = [int(re.findall('\d+', x)[-1]) for x in self.agent_path]
             print('path lst', self.path_lst)
+            print('slected', self.agent_path[self.cfg.model_step_index])
             assert os.path.isfile(self.agent_path[self.cfg.model_step_index])
             
         # get meta specs
@@ -333,20 +334,19 @@ class Workspace:
                                                   self.work_dir / 'buffer1')
         # create replay buffer
         if self.cfg.expert_buffer:
-            buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/140212_proto_sl_inv/buffer1/buffer_copy')
             #first path lots of no action
-            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.06/151622_proto_encoder1/buffer1/buffer_copy')
-            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.10/123706_proto_sl_inv/buffer1/buffer_copy')
-            
+            print('buffer', self.cfg.buffer_num)
+            if self.cfg.buffer_num == 0:
+                buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.09/140212_proto_sl_inv/buffer1/buffer_copy')
+            #early stopping, init -.29, .29. grid (2,20)
+            elif self.cfg.buffer_num == 1:
+                buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/090358_proto_sl_inv/buffer1/buffer_copy')
+            #no early stopping, init -.29, .29, gird (2,20)
+            elif self.cfg.buffer_num == 2:
+                buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/094453_proto_sl_inv/buffer1/buffer_copy')
             #early stopping, init state all = -.29, .29, ndim grid (2,10)
             #2023.02.11/174359_proto_sl_inv/
 
-            #no early stopping, init state all = -.29, .29, ndim (2, 10)
-            #2023.02.11/180801_proto_sl_inv/
-            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/180801_proto_sl_inv/buffer1/buffer_copy')
-
-            #no early stopping, init = -.29, .29, ndim(2,20)
-            #buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/200427_proto_sl_inv/buffer1/buffer_copy')
         else:
             buffer_path = path / 'buffer' / 'buffer_copy'
 
@@ -820,8 +820,12 @@ class Workspace:
 
             while eval_until_episode(episode):
                 time_step = self.eval_env.reset()
-                self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
-                    self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
+                if self.cfg.obs_type=='pixels':
+                    self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                        self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation['observations'][:2]) 
+                else:
+                    self.eval_env_no_goal = dmc.make(self.no_goal_task, self.cfg.obs_type, self.cfg.frame_stack,
+                            self.cfg.action_repeat, seed=None, goal=None, init_state=time_step.observation[:2])
                 time_step_no_goal = self.eval_env_no_goal.reset()
 
                 with self.eval_env_goal.physics.reset_context():
@@ -832,7 +836,7 @@ class Workspace:
 
                 while step!=self.cfg.episode_length:
                     with torch.no_grad(), utils.eval_mode(self.agent):
-                        if self.cfg.goal:
+                        if self.cfg.obs_type=='pixels':
                             action = self.agent.act(time_step_no_goal.observation['pixels'],
                                                 time_step_goal,
                                                 meta,
@@ -841,7 +845,8 @@ class Workspace:
                                                 tile=self.cfg.frame_stack,
                                                 general=True)
                         else:
-                            action = self.agent.act(time_step.observation['observations'],
+                            action = self.agent.act(time_step.observation,
+                                                x,
                                                 meta,
                                                 self._global_step,
                                                 eval_mode=True,
@@ -858,12 +863,6 @@ class Workspace:
                 
                 #if ix%10==0:
                 self.video_recorder.save(f'{self.global_frame}_{ix}.mp4')
-
-                if self.cfg.eval:
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(model.split('.')[-2].split('/')[-1]), [[x.cpu().detach().numpy(), total_reward, time_step.observation[:2], step]])
-
-                else:
-                    save(str(self.work_dir)+'/eval_{}.csv'.format(self._global_step), [[goal_state, total_reward, time_step.observation['observations'], step]])
 
                 if total_reward > 10*self.cfg.num_eval_episodes:
                     self.eval_reached = np.append(self.eval_reached, x[None,:], axis=0)

@@ -202,71 +202,74 @@ class Workspace:
         goal_array=np.delete(goal_array, lst,0)
         print(len(goal_array))
         
+        for ix in range(100):
 
-        for x in goal_array:
-            done=False
-            goal_state = x
+            init_state = np.random.uniform(.25,.29,size=(2,))
+            init_state[0] = init_state[0]*(-1)
 
-            episode_step = 0
-            episode_reward = 0
+            for x in goal_array:
+
+                done=False
+                goal_state = x
+                episode_step = 0
+                episode_reward = 0
+
+                with self.eval_env_no_goal.physics.reset_context():
+                    self.eval_env_no_goal.physics.set_state(np.array([goal_state[0], goal_state[1],0,0]))
+
+                goal_pix = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+                goal_pix = np.transpose(goal_pix, (2,0,1))
+                goal_pix = np.tile(goal_pix, (cfg.frame_stack,1,1))
+
+                self.train_env1 = dmc.make(cfg.task, cfg.obs_type,
+                                                    cfg.frame_stack,cfg.action_repeat,
+                                                    seed=None, goal=goal_state, init_state=init_state)
+
+                time_step = self.train_env1.reset()
+                self.train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                cfg.action_repeat, seed=None, goal=None,
+                                                init_state=time_step.observation['observations'][:2])
+
+                time_step_no_goal = self.train_env_no_goal.reset()
+
+                if ((time_step.last() and self.actor1) or (time_step.last() and self.actor)) and (
+                            self.global_step != self.switch_gc or self.cfg.model_path):
+                        print('last')
+                        self._global_episode += 1
 
 
-            with self.eval_env_no_goal.physics.reset_context():
-                self.eval_env_no_goal.physics.set_state(np.array([goal_state[0], goal_state[1],0,0]))
-            goal_pix = self.eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
-            goal_pix = np.transpose(goal_pix, (2,0,1))
-            goal_pix = np.tile(goal_pix, (cfg.frame_stack,1,1))
 
-            self.train_env1 = dmc.make(cfg.task, cfg.obs_type,
-                                                cfg.frame_stack,cfg.action_repeat,
-                                                seed=None, goal=goal_state, init_state=np.array([-.29, .29])) 
+                        self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
+                                                                goal_pix, goal_state,
+                                                                time_step_no_goal, True, last=True, expert=True)
 
-            time_step = self.train_env1.reset()
-            self.train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-                                            cfg.action_repeat, seed=None, goal=None,
-                                            init_state=time_step.observation['observations'][:2])
-
-            time_step_no_goal = self.train_env_no_goal.reset()
-
-            if ((time_step.last() and self.actor1) or (time_step.last() and self.actor)) and (
-                        self.global_step != self.switch_gc or self.cfg.model_path):
-                    print('last')
-                    self._global_episode += 1
-
-
-
+                        episode_step = 0
+                        episode_reward = 0
+                
+                while not time_step.last():
+                    action = self.agent.act(time_step.physics, goal_state, None, None)
+                    action = np.array(action,dtype="float32")
+                    #action = np.clip(action, -1,1)
+                    time_step = self.train_env1.step(action)
+                    time_step_no_goal = self.train_env_no_goal.step(action)
                     self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
-                                                              goal_pix, goal_state,
-                                                              time_step_no_goal, True, last=True, expert=True)
+                                                            goal_pix, goal_state,
+                                                            time_step_no_goal, True, expert=True)
+                    episode_step+=1
+                    episode_reward+=time_step.reward
+                    norm = np.linalg.norm(action-np.array([0,0]))
+                    #if episode_reward > 100:
+                    #    print('episode', episode_step)
+                    #    print('rewar', episode_reward)
+                    #    print('act', action)
+                    #    self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
+                    #                                                                      goal_pix, goal_state,
+                    #                                                                                                                                                                                                                    time_step_no_goal, True, expert=True, last=True)
+                    #    done=True
+                    #    break
 
-
-                    episode_step = 0
-                    episode_reward = 0
-            
-            while not time_step.last():
-                action = self.agent.act(time_step.physics, goal_state, None, None)
-                action = np.array(action,dtype="float32")
-                #action = np.clip(action, -1,1)
-                time_step = self.train_env1.step(action)
-                time_step_no_goal = self.train_env_no_goal.step(action)
-                self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
-                                                          goal_pix, goal_state,
-                                                          time_step_no_goal, True, expert=True)
-                episode_step+=1
-                episode_reward+=time_step.reward
-                norm = np.linalg.norm(action-np.array([0,0]))
-                #if episode_reward > 100:
-                #    print('episode', episode_step)
-                #    print('rewar', episode_reward)
-                #    print('act', action)
-                #    self.replay_storage.add_goal_general(time_step, self.train_env1.physics.get_state(), None,
-                #                                                                      goal_pix, goal_state,
-                #                                                                                                                                                                                                                    time_step_no_goal, True, expert=True, last=True)
-                #    done=True
-                #    break
-
-            #if done:
-            #    continue
+                #if done:
+                #    continue
 @hydra.main(config_path='.', config_name='pretrain')
 def main(cfg):
     from expert_buffer import Workspace as W

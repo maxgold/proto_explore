@@ -131,7 +131,7 @@ class Encoder_sl(nn.Module):
         x6 = self.fc3(x5)
         x6 = F.relu(x6)
 
-        return x5, x6
+        return x6, x5
 
 
 class Actor_gc(nn.Module):
@@ -298,10 +298,12 @@ class Actor_sl(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
         
         super().__init__()
+        self.obs_type=obs_type
 
         feature_dim = feature_dim if obs_type == 'pixels' else hidden_dim
-#         self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
-#                                    nn.LayerNorm(feature_dim), nn.Tanh())
+        if obs_type != 'pixels':
+            self.trunk = nn.Sequential(nn.Linear(obs_dim+goal_dim, feature_dim), 
+                                    nn.LayerNorm(feature_dim), nn.Tanh())
 
         policy_layers = []
         policy_layers += [
@@ -323,7 +325,8 @@ class Actor_sl(nn.Module):
 
     def forward(self, h, std):
 #         obs_goal = torch.cat([obs, goal], dim=-1)
-#         h = self.trunk(obs_goal)
+        if self.obs_type != 'pixels':
+            h = self.trunk(obs_goal)
         mu = self.policy(h)
         mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std

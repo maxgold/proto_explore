@@ -12,16 +12,22 @@ from agent.models import Encoder_sl, Actor_sl, Critic_sl, Actor_proto, Critic_pr
     
 class LinearInverse(nn.Module):
     # NOTE: For now the input will be [robot_rotation, box_rotation, distance_bw]
-    def __init__(self, obs_dim, feature_dim, action_dim, hidden_dim):
+    def __init__(self, obs_type, obs_dim, feature_dim, action_dim, hidden_dim):
         super().__init__()
+        if obs_type=='pixels':
+            input_dim=feature_dim*2
+        else:
+            input_dim = 6
         self.model = nn.Sequential(
-            nn.Linear(feature_dim*2, feature_dim), # input_dim*2: For current and goal obs
+            nn.Linear(input_dim, int(hidden_dim)), # input_dim*2: For current and goal obs
             nn.ReLU(),
-            nn.Linear(feature_dim, int(hidden_dim)),
+            nn.Linear(int(hidden_dim), int(hidden_dim)),
             nn.ReLU(),
             nn.Linear(int(hidden_dim), int(hidden_dim/4)),
             nn.ReLU(),
-            nn.Linear(int(hidden_dim/4), action_dim)
+            nn.Linear(int(hidden_dim/4), int(hidden_dim/8)),
+            nn.ReLU(),
+            nn.Linear(int(hidden_dim/8), action_dim),
         )
 
     def forward(self, obs, goal):
@@ -96,7 +102,7 @@ class DDPGSLInvAgent:
             self.goal_dim = goal_shape[0]
         
         
-        self.actor = LinearInverse(self.obs_dim, feature_dim, self.action_dim, hidden_dim).to(device)
+        self.actor = LinearInverse(obs_type, self.obs_dim, feature_dim, self.action_dim, hidden_dim).to(device)
 
         #2nd set of actor critic networks 
         self.actor2 = Actor_proto(obs_type, self.obs_dim, self.action_dim,

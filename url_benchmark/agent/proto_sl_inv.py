@@ -307,10 +307,13 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
             if actor1:
-                obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
+                obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
             batch, self.device)
             if self.obs_type=='states':
-                goal = goal.reshape(-1, 2).float()
+                obs = obs_state
+                next_obs = next_obs_state
+                goal = goal_state
+                
             extr_reward=extr_reward.float()
             goal_state = goal_state.float()
             obs_state = obs_state.float()
@@ -357,8 +360,11 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
                     plt.savefig(f"batch_moving_avg_{step}.png")
                     
         elif actor1==False:
-            obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
+            obs, obs_state, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
+            if self.obs_type=='states':
+                obs = obs_state
+                next_obs = next_obs_state
         else:
             return metrics
         
@@ -373,6 +379,7 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
 
         # augment and encode
         with torch.no_grad():
+
             obs = self.aug(obs)
             next_obs = self.aug(next_obs)
            
@@ -399,7 +406,7 @@ class ProtoSLInvAgent(DDPGSLInvAgent):
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
             else:
-                obs,_ = self.encoder(obs)
+                obs, _ = self.encoder(obs)
                 next_obs, _ = self.encoder(next_obs)
 
             if not self.update_encoder:

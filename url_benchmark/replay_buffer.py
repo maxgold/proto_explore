@@ -31,6 +31,8 @@ def save_episode(episode, fn):
 def load_episode(fn, eval=False):
     with fn.open("rb") as f:
         episode = np.load(f)
+        print('eps keys', episode.keys())
+        print('eps', episode)
         if eval:
             if 'goal_state' in episode.keys():
                 keys = ['state', 'reward', 'action', 'goal_state']
@@ -715,7 +717,7 @@ class ReplayBuffer(IterableDataset):
             obs_state =  episode["state"][idx - 1]
             return (obs, obs_state, action, reward, discount, next_obs, *meta)
         else:
-            return (obs, action, reward, discount, next_obs, next_obs_state, *meta)
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, *meta)
     
 
     def _sample_sl(self):
@@ -765,6 +767,8 @@ class ReplayBuffer(IterableDataset):
         
         # add +1 for the first dummy transition
         offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
         idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
         meta = []
         
@@ -774,12 +778,14 @@ class ReplayBuffer(IterableDataset):
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
         idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
+        print('goal', goal.shape)
         if (goal.shape[0]//3)!=self.tile:
             goal = goal[self.tile*3,:,:]
         else:
@@ -798,7 +804,7 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
                 
                 
-        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
         
         
     def _sample_asym(self):
@@ -1222,11 +1228,14 @@ class OfflineReplayBuffer(IterableDataset):
         
         # add +1 for the first dummy transition
         offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
         idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
 
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
@@ -1243,7 +1252,7 @@ class OfflineReplayBuffer(IterableDataset):
             reward += discount * step_reward
             discount *= episode["discount"][idx+i] * self._discount           
                 
-        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
     
     def _sample_her(self):
         episode = self._sample_episode()

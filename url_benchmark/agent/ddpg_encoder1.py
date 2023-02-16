@@ -117,6 +117,8 @@ class Critic(nn.Module):
             self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
                                         nn.LayerNorm(feature_dim), nn.Tanh())
             trunk_dim = feature_dim + action_dim
+            self.trunk = nn.Sequential(nn.Linear(obs_dim + goal_dim, feature_dim),
+                                       nn.LayerNorm(feature_dim), nn.Tanh())
         else:
             # for states actions come in the beginning
             self.trunk = nn.Sequential(

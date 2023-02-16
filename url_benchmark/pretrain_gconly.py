@@ -468,7 +468,7 @@ class Workspace:
             if (episode_step== 0 and self.global_step!=0):
                 if self.cfg.curriculum:
                     goal_array = ndim_grid(2,20)
-                    if self.global_step<100000:
+                    if self.global_step<500000:
                         init_state = np.random.uniform(.02,.29,(2,))
                         goal_state = np.array([-init_state[0], init_state[1]])
                     else:
