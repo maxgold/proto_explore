@@ -442,8 +442,8 @@ class ProtoEncoder1Agent(DDPGEncoder1Agent):
                 metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
-                self.update_critic2(obs.detach(), action, reward, discount,
-                               next_obs.detach(), step))
+                self.update_critic2(obs, action, reward, discount,
+                               next_obs, step))
 
             # update actor
             metrics.update(self.update_actor2(obs.detach(), step))

@@ -552,7 +552,7 @@ class MultiTaskPointMassMaze(base.Task):
             print('init', init_state)
             self._init_state = init_state
 
-    def initialize_episode(self, physics):
+    def initialize_episode(self, physics, goal_state=None, init_state=None):
         """Sets the state of the environment at the start of each episode.
 
            If _randomize_gains is True, the relationship between the controls and

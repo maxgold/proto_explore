@@ -72,8 +72,8 @@ class FlattenJacoObservationWrapper(dm_env.Environment):
         obs['observations'] = np.concatenate(features, axis=0)
         return time_step._replace(observation=obs)
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        time_step = self._env.reset(goal_state=goal_state, init_state=init_state)
         return self._transform_observation(time_step)
 
     def step(self, action):
@@ -113,8 +113,8 @@ class ActionRepeatWrapper(dm_env.Environment):
     def action_spec(self):
         return self._env.action_spec()
 
-    def reset(self):
-        return self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        return self._env.reset(goal_state=goal_state, init_state=goal_state)
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -156,8 +156,8 @@ class FrameStackWrapper(dm_env.Environment):
             pixels = pixels[0]
         return pixels.transpose(2, 0, 1).copy()
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        time_step = self._env.reset(goal_state=goal_state, init_state=init_state)
         pixels = self._extract_pixels(time_step)
         for _ in range(self._num_frames):
             self._frames.append(pixels)
@@ -207,8 +207,8 @@ class ActionDTypeWrapper(dm_env.Environment):
     def action_spec(self):
         return self._action_spec
 
-    def reset(self):
-        return self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        return self._env.reset(goal_state=goal_state, init_state=goal_state)
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -226,8 +226,8 @@ class ObservationDTypeWrapper(dm_env.Environment):
         obs = time_step.observation['observations'].astype(self._dtype)
         return time_step._replace(observation=obs)
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        time_step = self._env.reset(goal_state=goal_state, init_state=goal_state)
         return self._transform_observation(time_step)
 
     def step(self, action):
@@ -252,8 +252,8 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
                                          dtype=physics.dtype,
                                          name='physics')
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, goal_state=None, init_state=None):
+        time_step = self._env.reset(goal_state=goal_state, init_state=init_state)
         return self._augment_time_step(time_step)
 
     def step(self, action):

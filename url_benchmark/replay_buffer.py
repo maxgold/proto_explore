@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
+from pathlib import Path
 
 
 def episode_len(episode):
@@ -194,7 +195,7 @@ class ReplayBufferStorage:
         self._current_episode_goal['goal'].append(goal)
 
         if time_step.last() or last:
-            print('replay last')
+            # print('replay last')
             episode = dict()
             for spec in self._data_specs:
                 if spec.name == 'observation' and pixels:
@@ -221,17 +222,18 @@ class ReplayBufferStorage:
                 episode['goal_state'] = np.array(value, np.float64)
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal')
+            # print('storing episode, w/ goal')
             
-    def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False):
+    def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False, expert=False):
         #assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
         if time_step_no_goal is not None:
             pmm=True
         else:
             pmm=False
-
-        for key, value in meta.items():
-            self._current_episode_goal[key].append(value)
+        
+        if expert is False:
+            for key, value in meta.items():
+                self._current_episode_goal[key].append(value)
             
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
@@ -287,7 +289,7 @@ class ReplayBufferStorage:
 
         if time_step.last() or last:
             
-            print('replay last')
+            # print('replay last')
             episode = dict()
             
             for spec in self._data_specs:
@@ -300,10 +302,10 @@ class ReplayBufferStorage:
                 else:
                     value = self._current_episode_goal[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
-
-            for spec in self._meta_specs:
-                value = self._current_episode_goal[spec.name]
-                episode[spec.name] = np.array(value, spec.dtype)
+            if expert is False:
+                for spec in self._meta_specs:
+                    value = self._current_episode_goal[spec.name]
+                    episode[spec.name] = np.array(value, spec.dtype)
                 
             value = self._current_episode_goal['goal']
             if pixels and asym==False:
@@ -319,7 +321,7 @@ class ReplayBufferStorage:
                 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal, general')
+            # print('storing episode, w/ goal, general')
             
             
     def add_proto_goal(self, time_step, z, meta, goal, reward, last=False, goal_state=None, neg_reward=False, pmm=True):
@@ -373,7 +375,7 @@ class ReplayBufferStorage:
             self.goal_state_matrix[idx_x,idx_y]+=1 
 
         if time_step.last() or last:
-            print('replay last')
+            # print('replay last')
             episode = dict()
             for spec in self._data_specs:
                 if spec.name=='observation':
@@ -402,7 +404,7 @@ class ReplayBufferStorage:
 
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            print('storing episode, w/ goal, proto')
+            # print('storing episode, w/ goal, proto')
          
 
     def add_q(self, time_step, meta, q, task):
@@ -452,7 +454,7 @@ class ReplayBufferStorage:
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
-        print('storing', eps_fn)
+        # print('storing', eps_fn)
         save_episode(episode, self._replay_dir / eps_fn)
         save_episode(episode, self._replay_dir2 / eps_fn)
 
@@ -762,7 +764,10 @@ class ReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+        offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
         meta = []
         
         for spec in self._storage._meta_specs:
@@ -771,12 +776,19 @@ class ReplayBuffer(IterableDataset):
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
-        idx_goal = idx + self._nstep + self.goal_offset - 1
+        idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
+
+        if (goal.shape[0]//3)!=self.tile:
+            goal = np.tile(goal,(self.tile,1,1))
+        else:
+            goal = goal[:self.tile*3,:,:]
+        
         goal_state = episode["state"][idx_goal,:2]
         
         for i in range(self._nstep):
@@ -790,7 +802,7 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
                 
                 
-        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
         
         
     def _sample_asym(self):
@@ -1073,7 +1085,6 @@ class ReplayBuffer(IterableDataset):
 
 class OfflineReplayBuffer(IterableDataset):
     def __init__(self,
-        env,
         replay_dir,
         max_size,
         num_workers,
@@ -1094,9 +1105,10 @@ class OfflineReplayBuffer(IterableDataset):
         inv=False,
         goal_offset=1,
         pmm=True,
-        model_step=None):
+        model_step=None,
+        model_step_lb=None,
+        reverse=True):
 
-        self._env = env
         self._replay_dir = replay_dir
         self._replay_dir2 = replay_dir2
         self._size = 0
@@ -1133,6 +1145,10 @@ class OfflineReplayBuffer(IterableDataset):
             self.model_step = int(model_step//500)
         else:
             self.model_step = None
+        if model_step_lb is not None:
+            self.model_step_lb = int(model_step_lb//500)
+        else:
+            self.model_step_lb = 0
         print('goal offset', goal_offset)
 
         if obs_type == 'pixels':
@@ -1141,7 +1157,7 @@ class OfflineReplayBuffer(IterableDataset):
             self.pixels = False
         self.eval = eval
         self.pmm = pmm
-
+        self.reverse = reverse
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
             return
@@ -1156,9 +1172,10 @@ class OfflineReplayBuffer(IterableDataset):
         except:
             
             worker_id = 0
-        
-        eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
-
+        if self.reverse: 
+            eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
+        else:
+            eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=False)
         tmp_fns_=[]
         tmp_fns2 = []
 
@@ -1167,8 +1184,7 @@ class OfflineReplayBuffer(IterableDataset):
             tmp_fns2.append(x)
                 
         if self.model_step is not None:
-            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (int(re.findall('\d+', x)[-2]) < self.model_step)]
-    
+            eps_fns = [tmp_fns2[ix] for ix,x in enumerate(tmp_fns_) if (self.model_step_lb < int(re.findall('\d+', x)[-2]) < self.model_step)]
         # for eps_fn in tqdm.tqdm(eps_fns):
         for eps_fn in tqdm.tqdm(eps_fns, disable=worker_id!=0):
             
@@ -1206,16 +1222,21 @@ class OfflineReplayBuffer(IterableDataset):
         episode = self._sample_episode()
         
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep - self.goal_offset + 1) + 1
+        offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
+
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
 
         obs = episode["observation"][idx - 1]
         action = episode["action"][idx]
         next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
         obs_state = episode["state"][idx - 1]
         #idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))    
-        idx_goal = idx + self._nstep + self.goal_offset - 1
+        idx_goal = idx + self._nstep + offset - 1
         goal = episode["observation"][idx_goal]
         goal_state = episode["state"][idx_goal,:2]
         
@@ -1227,7 +1248,7 @@ class OfflineReplayBuffer(IterableDataset):
             reward += discount * step_reward
             discount *= episode["discount"][idx+i] * self._discount           
                 
-        return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
     
     def _sample_her(self):
         episode = self._sample_episode()
@@ -1414,7 +1435,11 @@ class OfflineReplayBuffer(IterableDataset):
         if 'goal' in episode.keys():
             goal = episode["goal"][idx]
             if self.goal_proto==False:
-                goal = np.tile(goal,(self.tile,1,1))
+                if (goal.shape[0]//3)!=self.tile:
+                    goal = np.tile(goal,(self.tile,1,1))
+                else:
+                    goal = goal[:self.tile*3,:,:]
+                    
             for i in range(self._nstep):
                 step_reward = episode["reward"][idx + i]
                 reward += discount * step_reward
@@ -1524,7 +1549,6 @@ def _worker_init_fn(worker_id):
     random.seed(int(seed))
 
 def make_replay_buffer(
-    env,
     replay_dir,
     max_size,
     batch_size,
@@ -1544,11 +1568,12 @@ def make_replay_buffer(
     inv=False,
     goal_offset=1,
     pmm=True,
-    model_step=None):
+    model_step=None,
+    model_step_lb=None,
+    reverse=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
-        env,
         replay_dir,
         max_size_per_worker,
         num_workers,
@@ -1566,7 +1591,8 @@ def make_replay_buffer(
         inv=inv,
         goal_offset=goal_offset,
         pmm=pmm,
-        model_step=model_step
+        model_step=model_step,
+        reverse=reverse
     )
     iterable._load()
 
@@ -1582,7 +1608,6 @@ def make_replay_buffer(
     return loader
 
 def make_replay_offline(
-    env,
     replay_dir,
     max_size,
     batch_size,
@@ -1602,11 +1627,12 @@ def make_replay_offline(
     inv=False,
     goal_offset=1, 
     model_step=None,
-    pmm=True):
+    model_step_lb=None,
+    pmm=True,
+    reverse=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
-        env,
         replay_dir,
         max_size_per_worker,
         num_workers,
@@ -1625,7 +1651,8 @@ def make_replay_offline(
         inv=inv,
         goal_offset=goal_offset,
         model_step=model_step,
-        pmm=pmm
+        pmm=pmm,
+        reverse=reverse
     )
     iterable._load()
 	
