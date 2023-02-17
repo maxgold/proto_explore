@@ -370,7 +370,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
     for idx in range(eval_reached.shape[0]):
-        goal_array = ndim_grid(2, 20)
+        goal_array = ndim_grid(2, 10)
         #TODO: delete this part when done debugging
         lst=[]
         for ix,x in enumerate(goal_array):
