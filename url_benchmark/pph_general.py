@@ -30,7 +30,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
                batch_size=1024, update_proto_every=10, stddev_schedule=.2, stddev_clip=.3, update_proto=2, 
                stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
                normalize=False, normalize2=False, sl=False, encoder1=False, encoder2=False, encoder3=False, feature_dim_gc=50, inv=False,
-               use_actor_trunk=False, use_critic_trunk=False):
+               use_actor_trunk=False, use_critic_trunk=False, init_from_proto=False, init_from_ddpg=False, pretrained_feature_dim=16):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -68,6 +68,11 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.inv = inv
     cfg.use_actor_trunk = use_actor_trunk
     cfg.use_critic_trunk = use_critic_trunk
+
+    if cfg.name.startswith('ddpg'):
+        cfg.init_from_proto = init_from_proto
+        cfg.init_from_ddpg = init_from_ddpg
+        cfg.pretrained_feature_dim = pretrained_feature_dim
 
     return hydra.utils.instantiate(cfg)
 
@@ -141,7 +146,7 @@ class Workspace:
             self.pwd = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark'
         elif cfg.greene:
             self.pwd = '/vast/nm1874/dm_control_2022/proto_explore/url_benchmark'
-        elif cfg.pluto:
+        elif cfg.pluto or cfg.irmak:
             self.pwd = '/home/nina/proto_explore/url_benchmark'
         else:
             self.pwd = None
@@ -201,7 +206,10 @@ class Workspace:
                                     feature_dim_gc = cfg.feature_dim_gc,
                                     inv = cfg.inv,
                                     use_actor_trunk=cfg.use_actor_trunk,
-                                    use_critic_trunk=cfg.use_critic_trunk,)
+                                    use_critic_trunk=cfg.use_critic_trunk,
+                                    init_from_ddpg=cfg.init_from_ddpg,
+                                    init_from_proto=cfg.init_from_proto,
+                                    pretrained_feature_dim=cfg.pretrained_feature_dim)
 
         
 
@@ -286,9 +294,14 @@ class Workspace:
                 #first path lots of no action
             elif self.cfg.cassio:
                 buffer_path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.15/234008_proto/buffer1/buffer_copy')
-            
-            else:
 
+            elif self.cfg.irmak:
+                if self.cfg.buffer_num == 0:
+                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+                elif self.cfg.buffer_num == 1:
+                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+
+            else:
                 buffer_path = path / 'buffer' / 'buffer_copy' 
         # TODO
         # figure out why files "disappear" in buffer_copy when used by another loader
@@ -525,7 +538,8 @@ class Workspace:
                 # try to evaluate
                 if eval_every_step(self.global_step+1):
                     self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-                    if (self.global_step+1)%100000==0:
+                    #TODO: change back to 100000 when not debugging
+                    if (self.global_step+1)%10000==0:
                         self.evaluate()
 
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)

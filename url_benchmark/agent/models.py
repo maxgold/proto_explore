@@ -383,10 +383,16 @@ class Critic_sl(nn.Module):
 
 class LinearInverse(nn.Module):
     # NOTE: For now the input will be [robot_rotation, box_rotation, distance_bw]
-    def __init__(self, feature_dim, action_dim, hidden_dim):
+    def __init__(self, feature_dim, action_dim, hidden_dim, init_from_ddpg=False):
         super().__init__()
+        self.init_from_ddpg = init_from_ddpg
+        if self.init_from_ddpg is False:
+            input_dim = feature_dim*2
+        else:
+            input_dim = feature_dim
+            
         self.model = nn.Sequential(
-            nn.Linear(feature_dim*2, feature_dim), # input_dim*2: For current and goal obs
+            nn.Linear(input_dim, feature_dim), # input_dim*2: For current and goal obs
             nn.ReLU(),
             nn.Linear(feature_dim, int(hidden_dim)),
             nn.ReLU(),
@@ -396,6 +402,9 @@ class LinearInverse(nn.Module):
         )
 
     def forward(self, obs, goal):
-        x = torch.cat((obs, goal), dim=-1)
+        if self.init_from_ddpg is False:
+            x = torch.cat((obs, goal), dim=-1)
+        else:
+            x = obs
         x = self.model(x)
         return x

@@ -197,21 +197,20 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
 
             init_state = current_init[init_idx,:2]
 
-
         if actor1:
-            train_env1 = dmc.make(cfg.task, cfg.obs_type,
-                                          cfg.frame_stack,cfg.action_repeat,
-                                          seed=None, goal=goal_state, init_state = init_state) 
-            time_step1 = train_env1.reset()
-            # time_step1 = train_env1.reset(goal_state=goal_state, init_state = init_state)
+            # train_env1 = dmc.make(cfg.task, cfg.obs_type,
+            #                               cfg.frame_stack,cfg.action_repeat,
+            #                               seed=None, goal=goal_state, init_state = init_state) 
+            # time_step1 = train_env1.reset()
+            time_step1 = train_env1.reset(goal_state=goal_state, init_state = init_state)
 
 
 
-            train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-                                           cfg.action_repeat, seed=None, goal=None,
-                                           init_state=time_step1.observation['observations'][:2])
-            time_step_no_goal = train_env_no_goal.reset()
-            # time_step_no_goal = train_env_no_goal.reset(goal_state=np.array([25,25]), init_state=time_step1.observation['observations'][:2])
+            # train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+            #                                cfg.action_repeat, seed=None, goal=None,
+            #                                init_state=time_step1.observation['observations'][:2])
+            # time_step_no_goal = train_env_no_goal.reset()
+            time_step_no_goal = train_env_no_goal.reset(goal_state=np.array([25,25]), init_state=time_step1.observation['observations'][:2])
             print('no goal', train_env_no_goal.physics.get_state())
 
         else:
@@ -232,13 +231,13 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
 
         else: 
 
-            time_step = train_env.reset()
+            time_step = train_env.reset(goal_state=np.array([25,25]), init_state=current_init[init_idx])
             ##can't reset now
-            with train_env.physics.reset_context():
-                train_env.physics.set_state(current_init[init_idx])
+            # with train_env.physics.reset_context():
+            #     train_env.physics.set_state(current_init[init_idx])
 
-            act_ = np.zeros(train_env.action_spec().shape, train_env.action_spec().dtype)
-            time_step = train_env.step(act_)
+            # act_ = np.zeros(train_env.action_spec().shape, train_env.action_spec().dtype)
+            # time_step = train_env.step(act_)
 
             origin = current_init[init_idx]
 
@@ -435,23 +434,23 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
             # time_step1, train_env1, time_step_no_goal, train_env_no_goal, origin = make_env(cfg, actor1=actor1, init_idx=init_idx,
             #                                               goal_state=goal_state, pmm=pmm, current_init=current_init, train_env1=train_env1, train_env_no_goal=train_env_no_goal)
 
-            # time_step1 = train_env1.reset(init_state=current_init[init_idx], goal_state=goal_state[:2])
-            time_step1 = train_env1.reset()
-            with train_env1.physics.reset_context():
-                train_env1.physics.set_state(current_init[init_idx])
-                train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
-            act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
-            time_step1 = train_env1.step(act_)
-            # print('ts1', time_step1.observation['observations'])
+            time_step1 = train_env1.reset(init_state=current_init[init_idx], goal_state=goal_state[:2])
+            # time_step1 = train_env1.reset()
+            # with train_env1.physics.reset_context():
+            #     train_env1.physics.set_state(current_init[init_idx])
+            #     train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
+            # act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
+            # time_step1 = train_env1.step(act_)
+            print('ts1', time_step1.observation['observations'])
             
-            # time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
-            time_step_no_goal = train_env_no_goal.reset()
-            with train_env_no_goal.physics.reset_context():
-                train_env_no_goal.physics.set_state(train_env1.physics.get_state())
-                train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
-            act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
-            time_step_no_goal = train_env_no_goal.step(act_)
-            # print('ts no goal', time_step_no_goal.observation['observations'])
+            time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
+            # time_step_no_goal = train_env_no_goal.reset()
+            # with train_env_no_goal.physics.reset_context():
+            #     train_env_no_goal.physics.set_state(train_env1.physics.get_state())
+            #     train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
+            # act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
+            # time_step_no_goal = train_env_no_goal.step(act_)
+            print('ts no goal', time_step_no_goal.observation['observations'])
             
         else:
             if pmm:
@@ -460,27 +459,27 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[3] = 0
                 init_state[0] = init_state[0]*(-1)
 
-            # time_step1 = train_env1.reset(init_state=init_state, goal_state=goal_state[:2])
-            time_step1 = train_env1.reset()
-            with train_env1.physics.reset_context():
-                train_env1.physics.set_state(init_state)
-                train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
-            act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
-            time_step1 = train_env1.step(act_)
-            # print('init', init_state)
+            time_step1 = train_env1.reset(init_state=init_state, goal_state=goal_state[:2])
+            # time_step1 = train_env1.reset()
+            # with train_env1.physics.reset_context():
+            #     train_env1.physics.set_state(init_state)
+            #     train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
+            # act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
+            # time_step1 = train_env1.step(act_)
+            print('init', init_state)
             
-            # time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
-            time_step_no_goal = train_env_no_goal.reset()
-            with train_env_no_goal.physics.reset_context():
-                train_env_no_goal.physics.set_state(train_env1.physics.get_state())
-                train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
-            act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
-            time_step_no_goal = train_env_no_goal.step(act_)
-            # print('ts no goal 2', time_step_no_goal.observation['observations']) 
+            time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
+            # time_step_no_goal = train_env_no_goal.reset()
+            # with train_env_no_goal.physics.reset_context():
+            #     train_env_no_goal.physics.set_state(train_env1.physics.get_state())
+            #     train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
+            # act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
+            # time_step_no_goal = train_env_no_goal.step(act_)
+            print('ts no goal 2', time_step_no_goal.observation['observations']) 
             # # time_step1, train_env1, time_step_no_goal, train_env_no_goal, origin = make_env(cfg, actor1=actor1, init_idx=None,
             # #                                               goal_state=goal_state, pmm=pmm, current_init=current_init, train_env1=train_env1, train_env_no_goal=train_env_no_goal)
         
-        # print('time step', time_step1.observation['observations'])
+        print('time step', time_step1.observation['observations'])
         print('sampled goal', goal_state)
 
         # unreached_goals : array of states (not pixel), need to set state & render to get pixel

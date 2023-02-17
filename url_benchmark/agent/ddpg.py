@@ -41,6 +41,9 @@ class DDPGAgent:
                  inv=False,
                  use_actor_trunk=False,
                  use_critic_trunk=True,
+                 init_from_proto=False,
+                 init_from_ddpg=False,
+                 pretrained_feature_dim=16,
                  **kwargs):
         self.reward_free = reward_free
         self.obs_type = obs_type
@@ -71,6 +74,12 @@ class DDPGAgent:
         self.inv = inv
         self.use_actor_trunk = use_actor_trunk
         self.use_critic_trunk = use_critic_trunk
+        self.init_from_proto = init_from_proto
+        self.init_from_ddpg = init_from_ddpg
+        self.pretrained_feature_dim = pretrained_feature_dim
+        if self.init_from_ddpg or self.init_from_proto:
+            self.feature_dim = self.pretrained_feature_dim
+
         print('stddev schedule', stddev_schedule)
         print('stddev_clip', stddev_clip)
         print('stddev schedule2', stddev_schedule2)
@@ -95,7 +104,10 @@ class DDPGAgent:
             self.goal_dim = goal_shape[0]
         
         if self.inv:
-            self.actor = LinearInverse(feature_dim, self.action_dim, hidden_dim).to(device)
+            if self.init_from_ddpg:
+                self.actor = LinearInverse(self.feature_dim, self.action_dim, hidden_dim, init_from_ddpg=self.init_from_ddpg).to(device)
+            else:
+                self.actor = LinearInverse(self.feature_dim, self.action_dim, hidden_dim).to(device)
             #TODO: change init_encoder to init_model; use actor2.trunk or critic2.trunk to reduce encoder dim
             self.critic = None
             self.critic_target = None
@@ -118,9 +130,9 @@ class DDPGAgent:
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
         self.actor_encoder = Actor_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                                           feature_dim, hidden_dim).to(device)
+                                           self.pretrained_feature_dim, hidden_dim).to(device)
         self.critic_encoder = Critic_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                                             feature_dim, hidden_dim).to(device)
+                                             self.pretrained_feature_dim, hidden_dim).to(device)
 
         # optimizers
 
@@ -202,6 +214,8 @@ class DDPGAgent:
             if self.sl:
                 h, _ = self.encoder(obs)
                 g, _ = self.encoder(goal)
+                inputs = [h]
+                inputs2 = g
 
             elif self.init_from_proto:
                 #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
@@ -214,18 +228,21 @@ class DDPGAgent:
                     h = self.critic2.trunk(h)
                     g = self.critic2.trunk(g)
 
+                inputs = [h]
+                inputs2 = g
+
             elif self.init_from_ddpg:
                 h = self.encoder(obs)
                 g = self.encoder(goal)
                 if self.use_actor_trunk:
-                    h = self.actor.trunk(h)
-                    g = self.actor.trunk(g)
+                    h = torch.cat([h, g], dim=-1)
+                    h = self.actor_encoder.trunk(h)
                 else:
-                    h = self.critic.trunk(h)
-                    g = self.critic.trunk(g) 
-
-        inputs = [h]
-        inputs2 = g
+                    h = torch.cat([h, g], dim=-1)
+                    h = self.critic_encoder.trunk(h)
+                
+                inputs = [h]
+                inputs2 = None
 
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -320,12 +337,26 @@ class DDPGAgent:
         metrics = dict()
 
         if self.inv:
-            if self.use_actor_trunk:
-                obs = self.actor2.trunk(obs)
-                goal = self.actor2.trunk(goal)
-            else:
-                obs = self.critic2.trunk(obs)
-                goal = self.critic2.trunk(goal)
+            if self.init_from_proto:
+                #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
+                if self.use_actor_trunk:
+                    obs = self.actor2.trunk(obs)
+                    goal = self.actor2.trunk(goal)
+                else:
+                    obs = self.critic2.trunk(obs)
+                    goal = self.critic2.trunk(goal)
+
+            elif self.init_from_ddpg:
+
+                if self.use_actor_trunk:
+                    obs = torch.cat([obs, goal], dim=-1)
+                    obs = self.actor_encoder.trunk(obs)
+                else:
+                    obs = torch.cat([obs, goal], dim=-1)
+                    obs = self.critic_encoder.trunk(obs)
+                
+                goal = None
+
             model_action = self.actor(obs, goal)
             actor_loss = F.mse_loss(action, model_action)
         else:

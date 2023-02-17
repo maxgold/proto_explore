@@ -114,6 +114,10 @@ use_critic_trunk: False
 expert_buffer: False
 offline_model_step: 0
 offline_model_step_lb: 0
+init_from_proto: False
+init_from_ddpg: False
+pretrained_feature_dim: 16
+buffer_num: 0
 #experiment
 experiment: exp
 

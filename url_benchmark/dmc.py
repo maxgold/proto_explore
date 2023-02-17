@@ -114,7 +114,7 @@ class ActionRepeatWrapper(dm_env.Environment):
         return self._env.action_spec()
 
     def reset(self, goal_state=None, init_state=None):
-        return self._env.reset(goal_state=goal_state, init_state=goal_state)
+        return self._env.reset(goal_state=goal_state, init_state=init_state)
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -208,7 +208,7 @@ class ActionDTypeWrapper(dm_env.Environment):
         return self._action_spec
 
     def reset(self, goal_state=None, init_state=None):
-        return self._env.reset(goal_state=goal_state, init_state=goal_state)
+        return self._env.reset(goal_state=goal_state, init_state=init_state)
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -227,7 +227,7 @@ class ObservationDTypeWrapper(dm_env.Environment):
         return time_step._replace(observation=obs)
 
     def reset(self, goal_state=None, init_state=None):
-        time_step = self._env.reset(goal_state=goal_state, init_state=goal_state)
+        time_step = self._env.reset(goal_state=goal_state, init_state=init_state)
         return self._transform_observation(time_step)
 
     def step(self, action):
