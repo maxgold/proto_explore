@@ -801,7 +801,7 @@ class ReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
                 
-                
+        
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
         
         

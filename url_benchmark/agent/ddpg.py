@@ -106,6 +106,8 @@ class DDPGAgent:
         if self.inv:
             if self.init_from_ddpg:
                 self.actor = LinearInverse(self.feature_dim, self.action_dim, hidden_dim, init_from_ddpg=self.init_from_ddpg).to(device)
+            elif self.obs_type == 'states':
+                self.actor = LinearInverse(6, self.action_dim, hidden_dim, obs_type=self.obs_type).to(device)
             else:
                 self.actor = LinearInverse(self.feature_dim, self.action_dim, hidden_dim).to(device)
             #TODO: change init_encoder to init_model; use actor2.trunk or critic2.trunk to reduce encoder dim
@@ -210,6 +212,8 @@ class DDPGAgent:
         if self.obs_type=='states':
             h = self.encoder(obs)
             g = self.encoder(goal)
+            inputs = [h]
+            inputs2 = g
         else:
             if self.sl:
                 h, _ = self.encoder(obs)
@@ -430,6 +434,11 @@ class DDPGAgent:
             next_obs = next_obs[None,:]
         if actor1 and goal.shape[0]!=1:
             goal = goal[None,:]
+
+        if self.obs_type == 'states':
+            obs = obs_state
+            next_obs = next_obs_state
+            goal = goal_state
  
         obs = self.aug_and_encode(obs)
         with torch.no_grad():

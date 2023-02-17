@@ -370,13 +370,16 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
     for idx in range(eval_reached.shape[0]):
-        goal_array = ndim_grid(2, 8)
+        goal_array = ndim_grid(2, 20)
+        #TODO: delete this part when done debugging
+        lst=[]
+        for ix,x in enumerate(goal_array):
+            if (-.02<x[0]  or  x[1]<.02):
+                lst.append(ix)
+        goal_array=np.delete(goal_array, lst,0)
+
         init = eval_reached[idx]
-        goal_index = np.where(np.all(goal_array == init, axis=1))[0]
-        goal_array = torch.tensor(goal_array)
-        g_to_g = torch.norm(goal_array[:, None, :] - goal_array[None, :, :], dim=2, p=2)
-        all_dists, _ = torch.topk(g_to_g , 8, dim=1, largest=False)
-        goal_array = goal_array[_[goal_index]].cpu().numpy()[0][1:]
+        print('goal array', goal_array)
 
         for ix, x in enumerate(goal_array):
 
@@ -392,18 +395,20 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
             while eval_until_episode(episode):
                 time_step = eval_env.reset()
-                eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-                                                 cfg.action_repeat, seed=None, goal=None,
-                                                 init_state=time_step.observation['observations'][:2])
-                time_step_no_goal = eval_env_no_goal.reset()
 
-                with eval_env_goal.physics.reset_context():
-                    time_step_goal = eval_env_goal.physics.set_state(
-                        np.array([goal_state[0], goal_state[1], 0, 0]))
-                time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
-                                                                        camera_id=dict(quadruped=2).get(
-                                                                            'point_mass_maze', 0))
-                time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
+                if cfg.obs_type == 'pixels':
+                    eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                    cfg.action_repeat, seed=None, goal=None,
+                                                    init_state=time_step.observation['observations'][:2])
+                    time_step_no_goal = eval_env_no_goal.reset()
+
+                    with eval_env_goal.physics.reset_context():
+                        time_step_goal = eval_env_goal.physics.set_state(
+                            np.array([goal_state[0], goal_state[1], 0, 0]))
+                    time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
+                                                                            camera_id=dict(quadruped=2).get(
+                                                                                'point_mass_maze', 0))
+                    time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
                 video_recorder.init(eval_env, enabled=(episode == 0))
 
                 while step != cfg.episode_length:
@@ -418,13 +423,16 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                                                     general=True)
                         else:
                             action = agent.act(time_step.observation,
+                                                    x, 
                                                     meta,
                                                     global_step,
                                                     eval_mode=True,
-                                                    tile=cfg.frame_stack)
+                                                    tile=1)
+
                     time_step = eval_env.step(action)
-                    time_step_no_goal = eval_env_no_goal.step(action)
-                    # time_step_goal = _env.eval_env_goal.step(action)
+                    if cfg.obs_type == 'pixels':
+                        time_step_no_goal = eval_env_no_goal.step(action)
+
                     video_recorder.record(eval_env)
                     total_reward += time_step.reward
                     step += 1
@@ -432,7 +440,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                 episode += 1
 
                 # if ix % 10 == 0:
-                video_recorder.save(f'{global_frame}_{ix}.mp4')
+                #     video_recorder.save(f'{global_frame}_{ix}.mp4')
 
                 # save(str(work_dir) + '/eval_{}.csv'.format(global_step),
                 #      [[goal_state, total_reward, time_step.observation['observations'], step]])

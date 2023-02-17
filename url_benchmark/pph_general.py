@@ -225,9 +225,9 @@ class Workspace:
                 print('gc only, only loading in the encoder from pretrained agent')
                 if self.cfg.sl:
                     self.agent.init_encoder_from(pretrained_agent.encoder)
-                elif self.cfg.agent.name.startswith('proto'):
+                elif self.cfg.init_from_proto:
                     self.agent.init_encoder_trunk_from(pretrained_agent.encoder, pretrained_agent.critic2, pretrained_agent.actor2)
-                elif self.cfg.agent.name.startswith('ddpg'):
+                elif self.cfg.init_from_ddpg:
                     self.agent.init_encoder_trunk_gc_from(pretrained_agent.encoder, pretrained_agent.critic, pretrained_agent.actor)
             path = self.cfg.model_path.split('/')
             path = Path(self.pwd + '/'.join(path[:-1]))
@@ -514,7 +514,8 @@ class Workspace:
         time_step = self.train_env.reset()
         meta = self.agent.init_meta()
 
-        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+        if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False:
+            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
         metrics = None
 
@@ -731,18 +732,29 @@ class Workspace:
                         # pmm's doesn't have goal in it since this is pretraining phase
                         if self.cfg.obs_type == 'pixels' and self.pmm:
                             obs = time_step_no_goal.observation['pixels'].copy()
-                        else:
+                        elif self.cfg.obs_type == 'pixels' and self.pmm is False:
                             obs = time_step1.observation['pixels'].copy()
+                        elif self.cfg.obs_type == 'states':
+                            obs = time_step1.observation.copy()
 
                         with torch.no_grad(), utils.eval_mode(self.agent):
                             #no need to change tile to cfg.frame_stack here, proto_goals are already stacked in eval_proto
-                            action1 = self.agent.act(obs,
-                                                    goal_pix,
-                                                    meta,
-                                                    self._global_step,
-                                                    eval_mode=False,
-                                                    tile=1,
-                                                    general=True)
+                            if self.cfg.obs_type == 'pixels':
+                                action1 = self.agent.act(obs,
+                                                        goal_pix,
+                                                        meta,
+                                                        self._global_step,
+                                                        eval_mode=False,
+                                                        tile=self.cfg.frame_stack,
+                                                        general=True)
+                            else:
+                                action1 = self.agent.act(obs,
+                                                        goal_state[:2],
+                                                        meta,
+                                                        self._global_step,
+                                                        eval_mode=False,
+                                                        tile=1,
+                                                        general=True)
 
                         #if episode_step==1:
                         #    print('physics2', self.train_env1.physics.named.model.geom_pos)
