@@ -1476,7 +1476,7 @@ class OfflineReplayBuffer(IterableDataset):
                 
     def __iter__(self):
         while True:
-            if self.inv and self.goal:
+            if self.inv:
                 yield self._sample_inv()
             elif (self.offline and self.goal) or (self.hybrid and self.goal):
                 yield self._sample_her()
