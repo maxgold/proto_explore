@@ -372,11 +372,11 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     for idx in range(eval_reached.shape[0]):
         goal_array = ndim_grid(2, 10)
         #TODO: delete this part when done debugging
-        lst=[]
-        for ix,x in enumerate(goal_array):
-            if (-.02<x[0]  or  x[1]<.02):
-                lst.append(ix)
-        goal_array=np.delete(goal_array, lst,0)
+        #lst=[]
+        #for ix,x in enumerate(goal_array):
+        #    if (-.02<x[0]  or  x[1]<.02):
+        #        lst.append(ix)
+        #goal_array=np.delete(goal_array, lst,0)
 
         init = eval_reached[idx]
         print('goal array', goal_array)
