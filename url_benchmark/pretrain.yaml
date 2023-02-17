@@ -118,6 +118,7 @@ init_from_proto: False
 init_from_ddpg: False
 pretrained_feature_dim: 16
 buffer_num: 0
+reverse: True
 #experiment
 experiment: exp
 

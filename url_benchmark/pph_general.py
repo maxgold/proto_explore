@@ -301,8 +301,12 @@ class Workspace:
                 elif self.cfg.buffer_num == 1:
                     buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
 
+        else:
+            if self.cfg.init_from_proto:
+                buffer_path = path / 'buffer2' / 'buffer_copy'
             else:
-                buffer_path = path / 'buffer' / 'buffer_copy' 
+                buffer_path = path / 'buffer1' / 'buffer_copy'
+            print('none expert buffer', buffer_path)
         # TODO
         # figure out why files "disappear" in buffer_copy when used by another loader
         # figure out why we can't add parse data function to data loader
@@ -326,7 +330,8 @@ class Workspace:
                                                     goal_offset=self.cfg.goal_offset,
                                                     pmm=self.pmm,
                                                     model_step=self.cfg.offline_model_step,
-                                                    model_step_lb=self.cfg.offline_model_step_lb)
+                                                    model_step_lb=self.cfg.offline_model_step_lb,
+                                                    reverse=self.cfg.reverse)
         else:
             self.replay_loader1 = make_replay_loader(self.replay_storage1,
                                                     self.combine_storage_gc,
