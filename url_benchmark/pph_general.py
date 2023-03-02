@@ -494,7 +494,7 @@ class Workspace:
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
-            self.eval_reached= np.array([[-.29,.29]])
+            self.eval_reached= np.array([[-.25,.25]])
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
         
         else:
