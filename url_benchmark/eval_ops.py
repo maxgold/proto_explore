@@ -366,104 +366,149 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     return current_init, proto_goals, proto_goals_state, proto_goals_dist
 
 
-def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir):
+def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, rand_init):
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
-    for idx in range(eval_reached.shape[0]):
-        goal_array = ndim_grid(2, 10)
-        #TODO: delete this part when done debugging
-        #lst=[]
-        #for ix,x in enumerate(goal_array):
-        #    if (-.02<x[0]  or  x[1]<.02):
-        #        lst.append(ix)
-        #goal_array=np.delete(goal_array, lst,0)
+    for i, init in enumerate(rand_init):
+        for idx in range(eval_reached.shape[0]):
+            goal_array = ndim_grid(2, 20)
+            print('init', init.shape)
+            print('goal array', goal_array.shape)
+            dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
+            goal_dist, _ = torch.topk(dist, 40, dim=-1, largest=False)
+            goal_array = goal_array[_]
+            
+            #TODO: delete this part when done debugging
+            # lst=[]
+            # for ix,x in enumerate(goal_array):
+            #    if (-.02<x[0]  or  x[1]<.02):
+            #        lst.append(ix)
+            # goal_array=np.delete(goal_array, lst,0)
 
-        init = eval_reached[idx]
-        print('goal array', goal_array)
+            # init = eval_reached[idx]
+            print('goal array', goal_array)
 
-        for ix, x in enumerate(goal_array):
+            for ix, x in enumerate(goal_array):
 
-            step, episode, total_reward = 0, 0, 0
-            goal_state = x
-            print('goal state', goal_state)
-            eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                     cfg.action_repeat, seed=None, goal=goal_state, init_state=init)
-            eval_env_goal = dmc.make(cfg.task_no_goal, 'states', cfg.frame_stack,
-                                          cfg.action_repeat, seed=None, goal=None)
-            eval_until_episode = utils.Until(cfg.num_eval_episodes)
-            meta = agent.init_meta()
+                step, episode, total_reward = 0, 0, 0
+                min_dist = 1
+                max_action = 0
 
-            while eval_until_episode(episode):
-                time_step = eval_env.reset()
+                goal_state = x
+                print('goal state', goal_state)
+                eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=goal_state, init_state=init)
+                eval_env_goal = dmc.make(cfg.task_no_goal, 'states', cfg.frame_stack,
+                                            cfg.action_repeat, seed=None, goal=None)
+                eval_until_episode = utils.Until(cfg.num_eval_episodes)
+                meta = agent.init_meta()
 
-                if cfg.obs_type == 'pixels':
-                    eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-                                                    cfg.action_repeat, seed=None, goal=None,
-                                                    init_state=time_step.observation['observations'][:2])
-                    time_step_no_goal = eval_env_no_goal.reset()
+                while eval_until_episode(episode):
+                    
+                    time_step = eval_env.reset()
 
-                    with eval_env_goal.physics.reset_context():
-                        time_step_goal = eval_env_goal.physics.set_state(
-                            np.array([goal_state[0], goal_state[1], 0, 0]))
-                    time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
-                                                                            camera_id=dict(quadruped=2).get(
-                                                                                'point_mass_maze', 0))
-                    time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
-                video_recorder.init(eval_env, enabled=(episode == 0))
-
-                while step != cfg.episode_length:
-                    with torch.no_grad(), utils.eval_mode(agent):
-                        if cfg.obs_type == 'pixels':
-                            action = agent.act(time_step_no_goal.observation['pixels'],
-                                                    time_step_goal,
-                                                    meta,
-                                                    global_step,
-                                                    eval_mode=True,
-                                                    tile=cfg.frame_stack,
-                                                    general=True)
-                        else:
-                            action = agent.act(time_step.observation,
-                                                    x, 
-                                                    meta,
-                                                    global_step,
-                                                    eval_mode=True,
-                                                    tile=1)
-
-                    time_step = eval_env.step(action)
                     if cfg.obs_type == 'pixels':
-                        time_step_no_goal = eval_env_no_goal.step(action)
+                        eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                        cfg.action_repeat, seed=None, goal=None,
+                                                        init_state=time_step.observation['observations'][:2])
+                        time_step_no_goal = eval_env_no_goal.reset()
 
-                    video_recorder.record(eval_env)
-                    total_reward += time_step.reward
-                    step += 1
+                        with eval_env_goal.physics.reset_context():
+                            time_step_goal = eval_env_goal.physics.set_state(
+                                np.array([goal_state[0], goal_state[1], 0, 0]))
+                        time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
+                                                                                camera_id=dict(quadruped=2).get(
+                                                                                    'point_mass_maze', 0))
+                        time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
+                    video_recorder.init(eval_env, enabled=(episode == 0))
+                    
+                    while step != cfg.episode_length:
+                        with torch.no_grad(), utils.eval_mode(agent):
+                            if cfg.obs_type == 'pixels':
+                                action = agent.act(time_step_no_goal.observation['pixels'],
+                                                        time_step_goal,
+                                                        meta,
+                                                        global_step,
+                                                        eval_mode=True,
+                                                        tile=cfg.frame_stack,
+                                                        general=True)
+                            else:
+                                action = agent.act(time_step.observation,
+                                                        x, 
+                                                        meta,
+                                                        global_step,
+                                                        eval_mode=True,
+                                                        tile=1)
 
-                episode += 1
+                        time_step = eval_env.step(action)
+                        max_action = np.maximum(abs(action).sum(), max_action)
+                        # print('abs', abs(action).sum())
+                        # print('max', max_action)
+                        if cfg.obs_type == 'pixels':
+                            time_step_no_goal = eval_env_no_goal.step(action)
 
-                # if ix % 10 == 0:
-                #     video_recorder.save(f'{global_frame}_{ix}.mp4')
+                        video_recorder.record(eval_env)
+                        total_reward += time_step.reward
+                        step += 1
+                        dist = np.linalg.norm(time_step.observation['observations'][:2] - goal_state)
+                        min_dist = np.minimum(dist, min_dist)
+                    episode += 1
 
-                # save(str(work_dir) + '/eval_{}.csv'.format(global_step),
-                #      [[goal_state, total_reward, time_step.observation['observations'], step]])
+                    if ix % 10 == 0:
+                        video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                # if total_reward > 10 * cfg.num_eval_episodes:
-                #     eval_reached = np.append(eval_reached, x, axis=0)
-                #     eval_reached = np.unique(eval_reached, axis=0)
+                    # save(str(work_dir) + '/eval_{}.csv'.format(global_step),
+                    #      [[goal_state, total_reward, time_step.observation['observations'], step]])
 
-            df.loc[ix, 'x'] = x[0].round(2)
-            df.loc[ix, 'y'] = x[1].round(2)
-            df.loc[ix, 'r'] = total_reward
-            print('r', total_reward)
+                    # if total_reward > 10 * cfg.num_eval_episodes:
+                    #     eval_reached = np.append(eval_reached, x, axis=0)
+                    #     eval_reached = np.unique(eval_reached, axis=0)
 
-    result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
-    result.fillna(0, inplace=True)
-    print('result', result)
-    plt.clf()
-    fig, ax = plt.subplots()
-    sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-    ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-    ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-    plt.savefig(f"./{global_step}_heatmap_goal.png")
-    wandb.save(f"./{global_step}_heatmap_goal.png")
+                df.loc[ix, 'x'] = x[0].round(2)
+                df.loc[ix, 'y'] = x[1].round(2)
+                df.loc[ix, 'r'] = total_reward
+                df.loc[ix, 'a'] = max_action
+                df.loc[ix, 'd'] = min_dist
+                print('r', total_reward)
+
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        result.fillna(0, inplace=True)
+        print('result', result)
+        plt.clf()
+        fig, ax = plt.subplots()
+        plt.title(str(init))
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
+        wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
+
+        #action
+
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
+        result.fillna(0, inplace=True)
+        print('result', result)
+        plt.clf()
+        fig, ax = plt.subplots()
+        plt.title(str(init))
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
+        wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
+
+        #min dist to goal
+        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
+        result.fillna(0, inplace=True)
+        print('result', result)
+        plt.clf()
+        fig, ax = plt.subplots()
+        plt.title(str(init))
+        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
+        wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
 
 
 
