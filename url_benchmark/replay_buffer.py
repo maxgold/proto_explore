@@ -800,8 +800,6 @@ class ReplayBuffer(IterableDataset):
                     
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
-                
-        
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
         
         
@@ -1246,8 +1244,7 @@ class OfflineReplayBuffer(IterableDataset):
             else:
                 step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index]) 
             reward += discount * step_reward
-            discount *= episode["discount"][idx+i] * self._discount           
-                
+            discount *= episode["discount"][idx+i] * self._discount         
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
     
     def _sample_her(self):
@@ -1655,8 +1652,16 @@ def make_replay_offline(
         reverse=reverse
     )
     iterable._load()
-	
-    return iterable
+
+    loader = torch.utils.data.DataLoader(
+            iterable,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True,
+            worker_init_fn=_worker_init_fn,
+            )
+
+    return loader
 
 
 
@@ -1709,3 +1714,9 @@ def ndim_grid(ndims, space):
     L = [np.linspace(-.25,.25,space) for i in range(ndims)]
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
+def collate_tensor_fn(batch, *, collate_fn_map):
+    return torch.stack(batch, 0)
+
+def custom_collate(batch):
+    collate_map = {torch.Tensor: collate_tensor_fn}
+    return torch.utils.data._utils.collate.collate(batch, collate_fn_map=collate_map)
