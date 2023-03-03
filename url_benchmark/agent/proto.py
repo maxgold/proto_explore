@@ -48,7 +48,7 @@ class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc,
                  num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt,
-                 normalize, normalize2,**kwargs):
+                 normalize, normalize2, sl, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -88,6 +88,7 @@ class ProtoAgent(DDPGAgent):
         self.normalize = normalize
         self.normalize2 = normalize2
         self.update_proto_opt= update_proto_opt
+        self.sl = sl
 
         # models
         #if self.gc_only==False:
@@ -169,7 +170,7 @@ class ProtoAgent(DDPGAgent):
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
-                if self.obs_type=='states':
+                if self.obs_type=='states' or self.sl is False:
                     z = self.encoder(obs)
                 else:
                     z, _ = self.encoder(obs)
@@ -225,7 +226,7 @@ class ProtoAgent(DDPGAgent):
         #self.normalize_protos()
 
         # online network
-        if self.obs_type=='states':
+        if self.obs_type=='states' or self.sl is False:
             s = self.encoder(obs)
         else:
             s, _ = self.encoder(obs)
@@ -238,7 +239,7 @@ class ProtoAgent(DDPGAgent):
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
-            if self.obs_type=='states':
+            if self.obs_type=='states' or self.sl is False:
                 t = self.encoder_target(next_obs)
             else:
                 t, _ = self.encoder_target(next_obs)
@@ -277,7 +278,7 @@ class ProtoAgent(DDPGAgent):
 
         metrics = dict()
 
-        if self.obs_type=='states':
+        if self.obs_type=='states' or self.sl is False:
             obs = self.encoder(obs)
             goal = self.encoder(goal)
         else:
@@ -308,7 +309,7 @@ class ProtoAgent(DDPGAgent):
             if actor1:
                 obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
             batch, self.device)
-            if self.obs_type=='states':
+            if self.obs_type=='states' or self.sl is False:
                 goal = goal.reshape(-1, 2).float()
             extr_reward=extr_reward.float()
             goal_state = goal_state.float()
@@ -361,14 +362,16 @@ class ProtoAgent(DDPGAgent):
         else:
             return metrics
         
-        #action = action.reshape(-1,2)
+
         discount = discount.reshape(-1,1)
-        if obs.shape[0]!=1:
-            obs = obs[None,:]
-        if next_obs.shape[0]!=1:
-            next_obs = next_obs[None,:]
-        if actor1 and goal.shape[0]!=1:
-            goal = goal[None,:]
+        #TODO: fix this 
+        # if obs.shape[0]!=1:
+        #     print('obs', obs.shape)
+        #     obs = obs[None,:]
+        # if next_obs.shape[0]!=1:
+        #     next_obs = next_obs[None,:]
+        # if actor1 and goal.shape[0]!=1:
+        #     goal = goal[None,:]
 
         # augment and encode
         with torch.no_grad():
@@ -394,7 +397,7 @@ class ProtoAgent(DDPGAgent):
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            if self.obs_type=='states':
+            if self.obs_type=='states' or self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
             else:
@@ -431,7 +434,7 @@ class ProtoAgent(DDPGAgent):
                 #metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            if self.obs_type=='states':
+            if self.obs_type=='states' or self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
                 goal = self.encoder(goal)
