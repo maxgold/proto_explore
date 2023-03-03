@@ -260,10 +260,11 @@ class DDPGAgent:
 
     def act2(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        if self.obs_type=='states':
+        if self.obs_type=='states' or self.sl is False:
             h = self.encoder(obs)
-        else:
+        elif self.sl:
             h, _ = self.encoder(obs)
+            
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
