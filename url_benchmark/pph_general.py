@@ -441,6 +441,10 @@ class Workspace:
         self.reinitiate = False
         self.gc_init = False
 
+        #self.rand_init = np.random.uniform(0, .29, size=(5, 2))
+        #self.rand_init[:,0] = -1 * self.rand_init[:,0] 
+        self.rand_init = np.array([[-.25, .25], [-.10, .25], [0.0, .25], [-.25, .10], [-.10, .10], [0.0, .10]])
+
         self.switch_gc = self.cfg.switch_gc
         if self.cfg.gc_only:
             self.switch_gc = 0
@@ -491,11 +495,11 @@ class Workspace:
 
         elif self.cfg.gc_only and self.cfg.offline_gc is False:
             self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
-            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
+            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir, self.rand_init)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
-            self.eval_reached= np.array([[-.25,.25]])
-            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
+            self.eval_reached= np.array([[-.29,.29]])
+            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir, self.rand_init)
         
         else:
             #TODO 
