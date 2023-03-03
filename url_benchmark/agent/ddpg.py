@@ -427,7 +427,8 @@ class DDPGAgent:
         #TODO: change this part to be compatible with the new replay buffer
         obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
             batch, self.device)
-        
+        print('obs', obs.shape) 
+        print('step', step)
         # augment and encode
         if obs.shape[0]!=1:
             obs = obs[None,:]
