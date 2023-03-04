@@ -1652,14 +1652,13 @@ def make_replay_offline(
         reverse=reverse
     )
     iterable._load()
-
     loader = torch.utils.data.DataLoader(
             iterable,
             batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=True,
-            worker_init_fn=_worker_init_fn,
-            )
+            worker_init_fn=_worker_init_fn)
+
 
     return loader
 
