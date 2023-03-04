@@ -296,10 +296,11 @@ class Workspace:
                 buffer_path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.15/234008_proto/buffer1/buffer_copy')
 
             elif self.cfg.irmak:
-                if self.cfg.buffer_num == 0:
-                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
-                elif self.cfg.buffer_num == 1:
-                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+                buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.03.03/140228_proto/buffer1/buffer_copy')
+                #if self.cfg.buffer_num == 0:
+                #    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+                #elif self.cfg.buffer_num == 1:
+                #    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
 
         elif self.cfg.offline_gc:
             if self.cfg.init_from_proto:
@@ -444,6 +445,7 @@ class Workspace:
         #self.rand_init = np.random.uniform(0, .29, size=(5, 2))
         #self.rand_init[:,0] = -1 * self.rand_init[:,0]
         self.rand_init = np.array([[-.25, .25], [-.10, .25], [-.25, .10], [-.10, .10]])
+        #self.rand_init = np.array([[-.29, .29]])
         self.switch_gc = self.cfg.switch_gc
         if self.cfg.gc_only:
             self.switch_gc = 0
