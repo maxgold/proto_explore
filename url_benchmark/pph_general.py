@@ -266,7 +266,7 @@ class Workspace:
             replay_dir2_gc = None
             replay_dir2 = None
             
-        if self.cfg.expert_buffer:
+        if self.cfg.expert_buffer and self.cfg.offline_gc:
             #first path lots of no action
             print('buffer', self.cfg.buffer_num)
             if self.cfg.greene:
@@ -301,7 +301,7 @@ class Workspace:
                 elif self.cfg.buffer_num == 1:
                     buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
 
-        else:
+        elif self.cfg.offline_gc:
             if self.cfg.init_from_proto:
                 buffer_path = path / 'buffer2' / 'buffer_copy'
             else:
@@ -442,9 +442,8 @@ class Workspace:
         self.gc_init = False
 
         #self.rand_init = np.random.uniform(0, .29, size=(5, 2))
-        #self.rand_init[:,0] = -1 * self.rand_init[:,0] 
-        self.rand_init = np.array([[-.25, .25], [-.10, .25], [0.0, .25], [-.25, .10], [-.10, .10], [0.0, .10]])
-
+        #self.rand_init[:,0] = -1 * self.rand_init[:,0]
+        self.rand_init = np.array([[-.25, .25], [-.10, .25], [-.25, .10], [-.10, .10]])
         self.switch_gc = self.cfg.switch_gc
         if self.cfg.gc_only:
             self.switch_gc = 0
@@ -502,11 +501,8 @@ class Workspace:
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir, self.rand_init)
         
         else:
-            #TODO 
-            #get rid of moving avg 
+            #TODO: get rid of moving avg 
             self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
-
-
 
 
     def train(self):
@@ -562,9 +558,6 @@ class Workspace:
                         log("total_time", total_time)
                         log("step", self.global_step)
 
-#                 if global_step%100000==0:
-#                     path = os.path.join(work_dir, 'optimizer_goal_{}_{}.pth'.format(global_index,global_step))
-#                     torch.save(agent,path)
                 self._global_step += 1
 
             else:
@@ -601,7 +594,7 @@ class Workspace:
 
                     # try to evaluate
                     if eval_every_step(self.global_step) and self.global_step != 0:
-                        evaluate(self)
+                        self.evaluate()
 
                     meta = self.agent.update_meta(meta, self.global_step, time_step)
                     # sample action

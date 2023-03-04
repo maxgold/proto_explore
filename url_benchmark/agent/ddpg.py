@@ -260,10 +260,11 @@ class DDPGAgent:
 
     def act2(self, obs, meta, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        if self.obs_type=='states':
+        if self.obs_type=='states' or self.sl is False:
             h = self.encoder(obs)
-        else:
+        elif self.sl:
             h, _ = self.encoder(obs)
+            
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -427,13 +428,13 @@ class DDPGAgent:
         obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
             batch, self.device)
         
-        # augment and encode
-        if obs.shape[0]!=1:
-            obs = obs[None,:]
-        if next_obs.shape[0]!=1:
-            next_obs = next_obs[None,:]
-        if actor1 and goal.shape[0]!=1:
-            goal = goal[None,:]
+        # # augment and encode
+        # if obs.shape[0]!=1:
+        #     obs = obs[None,:]
+        # if next_obs.shape[0]!=1:
+        #     next_obs = next_obs[None,:]
+        # if actor1 and goal.shape[0]!=1:
+        #     goal = goal[None,:]
 
         if self.obs_type == 'states':
             obs = obs_state
