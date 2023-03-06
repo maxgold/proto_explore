@@ -321,7 +321,7 @@ class Workspace:
         # figure out why we can't add parse data function to data loader
         if self.cfg.offline_gc:
             print('offline buffer')
-            self.replay_loader1 = make_replay_offline(
+            self.replay_loader1 = make_replay_buffer(
                                                     buffer_path,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,

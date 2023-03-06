@@ -1566,12 +1566,12 @@ def make_replay_buffer(
     hybrid_pct=0,
     nstep=1,
     eval=False,
-    load_every=1000,
+    load_once=True,
     inv=False,
-    goal_offset=1,
-    pmm=True,
+    goal_offset=1, 
     model_step=None,
     model_step_lb=None,
+    pmm=True,
     reverse=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
@@ -1588,23 +1588,22 @@ def make_replay_buffer(
         hybrid=hybrid,
         hybrid_pct=hybrid_pct,
         nstep=nstep,
-        load_every=load_every,
+        load_every=0,
         eval=eval,
+        load_once=load_once,
         inv=inv,
         goal_offset=goal_offset,
-        pmm=pmm,
         model_step=model_step,
+        pmm=pmm,
         reverse=reverse
     )
     iterable._load()
-
     loader = torch.utils.data.DataLoader(
             iterable,
             batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=True,
-            worker_init_fn=_worker_init_fn,
-            )
+            worker_init_fn=_worker_init_fn)
 
 
     return loader
@@ -1657,15 +1656,8 @@ def make_replay_offline(
         reverse=reverse
     )
     iterable._load()
-    loader = torch.utils.data.DataLoader(
-            iterable,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            pin_memory=True,
-            worker_init_fn=_worker_init_fn)
 
-
-    return loader
+    return iterable
 
 
 
