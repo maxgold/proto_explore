@@ -321,7 +321,7 @@ class Workspace:
         # figure out why we can't add parse data function to data loader
         if self.cfg.offline_gc:
             print('offline buffer')
-            self.replay_loader1 = make_replay_offline(
+            self.replay_loader1 = make_replay_buffer(
                                                     buffer_path,
                                                     cfg.replay_buffer_gc,
                                                     cfg.batch_size_gc,
@@ -624,7 +624,6 @@ class Workspace:
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                     if self.cfg.velocity_control:
-                        print('action', action)
                         vel = action.copy()
                         action = np.zeros(2, dtype="float32")
                         self.train_env.physics.data.qvel[0] = vel[0]
