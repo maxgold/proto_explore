@@ -23,8 +23,7 @@ current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_vi
 mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False):
     print('eval_proto_gc_only')
     if global_step % 100000 == 0 and global_step!=0 and pmm:
-        heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, 
-        mov_avg_5, mov_avg_10, mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, gc=True, proto=True)
+        heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=False)
     
     #TODO: Add goal selection from pretrain_pixel_gc_only.py later (sample_goal_distance & under self.cfg.curriculu)
 
@@ -124,8 +123,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         if global_step % 100000 == 0 and global_step!=0 and pmm:
             # TODO
             # CHANGE
-            heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, 
-            mov_avg_5, mov_avg_10, mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, gc=True, proto=True)
+            heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=True)
 
         ########################################################################
         # how should we measure exploration in non-pmm w/o heatmaps
