@@ -35,4 +35,5 @@ use_critic_trunk: ???
 init_from_proto: False
 init_from_ddpg: False
 pretrained_feature_dim: 16
+scale: ???
 

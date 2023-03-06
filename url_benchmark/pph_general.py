@@ -30,7 +30,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
                batch_size=1024, update_proto_every=10, stddev_schedule=.2, stddev_clip=.3, update_proto=2, 
                stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
                normalize=False, normalize2=False, sl=False, encoder1=False, encoder2=False, encoder3=False, feature_dim_gc=50, inv=False,
-               use_actor_trunk=False, use_critic_trunk=False, init_from_proto=False, init_from_ddpg=False, pretrained_feature_dim=16):
+               use_actor_trunk=False, use_critic_trunk=False, init_from_proto=False, init_from_ddpg=False, pretrained_feature_dim=16,
+               scale=None):
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -68,6 +69,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.inv = inv
     cfg.use_actor_trunk = use_actor_trunk
     cfg.use_critic_trunk = use_critic_trunk
+    cfg.scale = scale
 
     if cfg.name.startswith('ddpg'):
         cfg.init_from_proto = init_from_proto
@@ -109,7 +111,13 @@ class Workspace:
         # two different routes for pmm vs. non-pmm envs
         # TODO
         # write into function: init_envs
+
         if self.pmm:
+            if self.cfg.velocity_control:
+                assert self.cfg.stddev_schedule < .02 and self.cfg.stddev_schedule2 < .02
+                assert self.cfg.stddev_clip < .02 and self.cfg.stddev_clip2 < .02
+                assert self.cfg.scale is not None and self.cfg.frame_stack == 1
+
             self.no_goal_task = self.cfg.task_no_goal
             idx = np.random.randint(0, 400)
             goal_array = ndim_grid(2, 20)
@@ -183,7 +191,8 @@ class Workspace:
                                     encoder2 = cfg.encoder2,
                                     encoder3 = cfg.encoder3,
                                     feature_dim_gc = cfg.feature_dim_gc,
-                                    inv = cfg.inv)
+                                    inv = cfg.inv,
+                                    scale = cfg.scale)
         elif cfg.agent.name == 'ddpg':
             self.agent = make_agent(cfg.obs_type,
                                     self.train_env.observation_spec(),
@@ -581,7 +590,11 @@ class Workspace:
 
                         time_step = self.train_env.reset()
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
-                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+
+                        if self.cfg.velocity_control:
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm, action=vel)
+                        else:
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
                         # try to save snapshot
                         # TODO
@@ -610,11 +623,21 @@ class Workspace:
                         metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
+                    if self.cfg.velocity_control:
+                        print('action', action)
+                        vel = action.copy()
+                        action = np.zeros(2, dtype="float32")
+                        self.train_env.physics.data.qvel[0] = vel[0]
+                        self.train_env.physics.data.qvel[1] = vel[1]
+
                     # take env step
                     time_step = self.train_env.step(action)
                     episode_reward += time_step.reward
 
-                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+                    if self.cfg.velocity_control:
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm, action=vel)
+                    else:
+                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
                     episode_step += 1
                     self._global_step += 1
@@ -749,6 +772,7 @@ class Workspace:
                                                         eval_mode=False,
                                                         tile=self.cfg.frame_stack,
                                                         general=True)
+                
                             else:
                                 action1 = self.agent.act(obs,
                                                         goal_state[:2],
@@ -762,9 +786,19 @@ class Workspace:
                         #    print('physics2', self.train_env1.physics.named.model.geom_pos)
                         #    print('physics2 xpos', self.train_env1.physics.named.data.geom_xpos)
                         # take env step
+                        if self.cfg.velocity_control:
+                            print('action1', action1)
+                            vel = action1.copy()
+                            action1 = np.zeros(2,dtype="float32")
+                            self.train_env1.physics.data.qvel[0] = vel[0]
+                            self.train_env1.physics.data.qvel[1] = vel[1]
                         time_step1 = self.train_env1.step(action1)
 
-                        if self.pmm:
+                        if self.pmm and self.cfg.velocity_control is False:
+                            time_step_no_goal = self.train_env_no_goal.step(action1)
+                        elif self.pmm and self.cfg.velocity_control is False:
+                            self.train_env_no_goal.physics.data.qvel[0] = vel[0]
+                            self.train_env_no_goal.physics.data.qvel[1] = vel[1]
                             time_step_no_goal = self.train_env_no_goal.step(action1)
 
                         if self.pmm == False:
@@ -802,6 +836,13 @@ class Workspace:
                             # replay loader will get stuck since no new episodes for gc
                             if self.update_gc_while_proto and self.gc_init:
                                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+
+                        if self.cfg.velocity_control:
+                            print('action', action)
+                            vel = action.copy()
+                            action = np.zeros(2, dtype="float32")
+                            self.train_env.physics.data.qvel[0] = vel[0]
+                            self.train_env.physics.data.qvel[1] = vel[1]
 
                         time_step = self.train_env.step(action)
                         episode_reward += time_step.reward
