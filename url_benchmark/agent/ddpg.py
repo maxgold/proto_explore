@@ -44,6 +44,7 @@ class DDPGAgent:
                  init_from_proto=False,
                  init_from_ddpg=False,
                  pretrained_feature_dim=16,
+                 scale=None,
                  **kwargs):
         self.reward_free = reward_free
         self.obs_type = obs_type
@@ -77,6 +78,7 @@ class DDPGAgent:
         self.init_from_proto = init_from_proto
         self.init_from_ddpg = init_from_ddpg
         self.pretrained_feature_dim = pretrained_feature_dim
+        self.scale = scale
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
 
@@ -272,7 +274,7 @@ class DDPGAgent:
         inpt = torch.cat(inputs, dim=-1)
         #assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule2, step)
-        dist = self.actor2(inpt, stddev)
+        dist = self.actor2(inpt, stddev, scale=self.scale)
         if eval_mode:
             action = dist.mean
         else:
@@ -315,7 +317,7 @@ class DDPGAgent:
 
         with torch.no_grad():
             stddev = utils.schedule(self.stddev_schedule2, step)
-            dist = self.actor2(next_obs, stddev)
+            dist = self.actor2(next_obs, stddev, scale=self.scale)
             next_action = dist.sample(clip=self.stddev_clip2)
             target_Q1, target_Q2 = self.critic2_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
@@ -391,7 +393,7 @@ class DDPGAgent:
         metrics = dict()
 
         stddev = utils.schedule(self.stddev_schedule2, step)
-        dist = self.actor2(obs, stddev)
+        dist = self.actor2(obs, stddev, scale=self.scale)
         action = dist.sample(clip=self.stddev_clip2)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
         Q1, Q2 = self.critic2(obs, action)

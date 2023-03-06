@@ -95,7 +95,7 @@ class ReplayBufferStorage:
     def __len__(self):
         return self._num_transitions
 
-    def add(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True):
+    def add(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True, action=None):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
@@ -117,7 +117,12 @@ class ReplayBufferStorage:
                     idx_x = int(tmp_state[0])+9
                     idx_y = int(tmp_state[1])+9
                     self.state_visitation_proto_pct[idx_x,idx_y]+=1
-                
+            elif spec.name == 'action' and action is not None:
+                value = action
+                if np.isscalar(value):
+                    value = np.full(spec.shape, value, spec.dtype)
+                assert spec.shape == value.shape and spec.dtype == value.dtype
+                self._current_episode[spec.name].append(value)
             else:
                 
                 value = time_step[spec.name]
