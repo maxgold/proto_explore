@@ -119,6 +119,8 @@ init_from_ddpg: False
 pretrained_feature_dim: 16
 buffer_num: 0
 reverse: True
+velocity_control: False
+scale: None
 #experiment
 experiment: exp
 

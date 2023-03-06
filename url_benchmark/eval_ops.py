@@ -440,6 +440,12 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                                                         eval_mode=True,
                                                         tile=1)
 
+                        if cfg.velocity_control:
+                            vel = action.copy()
+                            action = np.zeros(2)
+                            eval_env.physics.data.qvel[0] = vel[0]
+                            eval_env.physics.data.qvel[1] = vel[1]
+
                         time_step = eval_env.step(action)
                         max_action = np.maximum(abs(action).sum(), max_action)
                         # print('abs', abs(action).sum())
@@ -548,6 +554,13 @@ def eval(cfg, agent, proto_goals, video_recorder, pmm, global_step, global_frame
                                         meta,
                                         global_step,
                                         eval_mode=True)
+
+                if cfg.velocity_control:
+                    vel = action.copy()
+                    action = np.zeros(2)
+                    eval_env.physics.data.qvel[0] = vel[0]
+                    eval_env.physics.data.qvel[1] = vel[1]
+
                 time_step = eval_env.step(action)
                 video_recorder.record(eval_env)
                 total_reward += time_step.reward
