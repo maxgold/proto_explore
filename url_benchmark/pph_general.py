@@ -624,7 +624,6 @@ class Workspace:
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
                     if self.cfg.velocity_control:
-                        print('action', action)
                         vel = action.copy()
                         action = np.zeros(2, dtype="float32")
                         self.train_env.physics.data.qvel[0] = vel[0]
@@ -787,7 +786,6 @@ class Workspace:
                         #    print('physics2 xpos', self.train_env1.physics.named.data.geom_xpos)
                         # take env step
                         if self.cfg.velocity_control:
-                            print('action1', action1)
                             vel = action1.copy()
                             action1 = np.zeros(2,dtype="float32")
                             self.train_env1.physics.data.qvel[0] = vel[0]
@@ -838,7 +836,6 @@ class Workspace:
                                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
 
                         if self.cfg.velocity_control:
-                            print('action', action)
                             vel = action.copy()
                             action = np.zeros(2, dtype="float32")
                             self.train_env.physics.data.qvel[0] = vel[0]

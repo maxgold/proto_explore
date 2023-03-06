@@ -192,10 +192,13 @@ class Actor_proto(nn.Module):
 
         self.apply(utils.weight_init)
 
-    def forward(self, obs, std):
+    def forward(self, obs, std, scale=None):
         h = self.trunk(obs)
         mu = self.policy(h)
-        mu = torch.tanh(mu)
+        if scale is not None:
+            mu = torch.tanh(mu)*scale
+        else:
+            mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
         return dist
