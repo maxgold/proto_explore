@@ -483,32 +483,32 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
-        #action
+        ##action
 
-        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
-        result.fillna(0, inplace=True)
-        print('result', result)
-        plt.clf()
-        fig, ax = plt.subplots()
-        plt.title(str(init))
-        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
-        wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
+        #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
+        #result.fillna(0, inplace=True)
+        #print('result', result)
+        #plt.clf()
+        #fig, ax = plt.subplots()
+        #plt.title(str(init))
+        #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        #ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        #ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        #plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
+        #wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
 
-        #min dist to goal
-        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
-        result.fillna(0, inplace=True)
-        print('result', result)
-        plt.clf()
-        fig, ax = plt.subplots()
-        plt.title(str(init))
-        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
-        wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
+        ##min dist to goal
+        #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
+        #result.fillna(0, inplace=True)
+        #print('result', result)
+        #plt.clf()
+        #fig, ax = plt.subplots()
+        #plt.title(str(init))
+        #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        #ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        #ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        #plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
+        #wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
 
 
 
