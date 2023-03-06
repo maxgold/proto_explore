@@ -202,7 +202,7 @@ class Actor_proto(nn.Module):
         std = torch.ones_like(mu) * std
         dist = utils.TruncatedNormal(mu, std)
         return dist
-
+    
 
 class Critic_gc(nn.Module):
     def __init__(self, obs_type, obs_dim, goal_dim, action_dim, feature_dim, hidden_dim):
