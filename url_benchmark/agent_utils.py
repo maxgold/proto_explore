@@ -197,26 +197,13 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
             init_state = current_init[init_idx,:2]
 
         if actor1:
-            # train_env1 = dmc.make(cfg.task, cfg.obs_type,
-            #                               cfg.frame_stack,cfg.action_repeat,
-            #                               seed=None, goal=goal_state, init_state = init_state) 
-            # time_step1 = train_env1.reset()
+
             time_step1 = train_env1.reset(goal_state=goal_state, init_state = init_state)
-
-
-
-            # train_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-            #                                cfg.action_repeat, seed=None, goal=None,
-            #                                init_state=time_step1.observation['observations'][:2])
-            # time_step_no_goal = train_env_no_goal.reset()
             time_step_no_goal = train_env_no_goal.reset(goal_state=np.array([25,25]), init_state=time_step1.observation['observations'][:2])
             print('no goal', train_env_no_goal.physics.get_state())
 
         else:
-            #train_env = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-            #                                            cfg.action_repeat, seed=None, goal=None,
-            #                                            init_state=init_state)
-            
+
             time_step = train_env.reset(goal_state=np.array([25,25]), init_state=init_state)
             print('proto reset')
 
@@ -258,7 +245,7 @@ def sample_goal(cfg, proto_goals, proto_goals_state, unreached_goals, eval_env_n
         goal_state = unreached_goals[goal_idx]
         with eval_env_no_goal.physics.reset_context():
             eval_env_no_goal.physics.set_state(goal_state)
-        goal_pix = eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=dict(quadruped=2).get('point_mass_maze', 0))
+        goal_pix = eval_env_no_goal._env.physics.render(height=84, width=84, camera_id=cfg.camera_id)
         goal_pix = np.transpose(goal_pix, (2,0,1))
         goal_pix = np.tile(goal_pix, (cfg.frame_stack,1,1))
         unreached=True

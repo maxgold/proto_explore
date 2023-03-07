@@ -312,7 +312,7 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
         return getattr(self._env, name)
 
 
-def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
+def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed, camera_id=None):
     env = cdmc.make_jaco(task, obs_type, seed)
     env = ActionDTypeWrapper(env, np.float32)
     env = ActionRepeatWrapper(env, action_repeat)
@@ -320,7 +320,7 @@ def _make_jaco(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=True):
+def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=None,init_state=None, pmm=True, camera_id=0):
     visualize_reward = False
     if (domain, task) in suite.ALL_TASKS:
         if pmm:
@@ -355,7 +355,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
     env = ActionRepeatWrapper(env, action_repeat)
     if obs_type == 'pixels':
         # zoom in camera for quadruped
-        camera_id = dict(quadruped=2).get(domain, 0)
+        #camera_id = 0 if domain != 'quadruped' else 2
         render_kwargs = dict(height=84, width=84, camera_id=camera_id)
         env = pixels.Wrapper(env,
                              pixels_only=False,
@@ -364,7 +364,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed, goal=Non
 
 
 def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
-        goal=None, init_state=None):
+        goal=None, init_state=None, camera_id=0):
     assert obs_type in ['states', 'pixels']
     print('name', name)
     if name.startswith('point_mass_maze'):
@@ -380,9 +380,9 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1,
     make_fn = _make_jaco if domain == 'jaco' else _make_dmc
     if name.startswith('point_mass_maze'):
         print('pmm')
-        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, init_state=init_state)
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, goal=goal, init_state=init_state, camera_id=camera_id)
     else:
-        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, pmm=False)
+        env = make_fn(obs_type, domain, task, frame_stack, action_repeat, seed, pmm=False, camera_id=camera_id)
 
     if obs_type == 'pixels':
         env = FrameStackWrapper(env, frame_stack)

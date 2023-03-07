@@ -114,8 +114,8 @@ class Workspace:
 
         if self.pmm:
             if self.cfg.velocity_control:
-                assert self.cfg.stddev_schedule < .02 and self.cfg.stddev_schedule2 < .02
-                assert self.cfg.stddev_clip < .02 and self.cfg.stddev_clip2 < .02
+                assert self.cfg.stddev_schedule <= .02 and self.cfg.stddev_schedule2 <= .02
+                assert self.cfg.stddev_clip <= .02 and self.cfg.stddev_clip2 <= .02
                 assert self.cfg.scale is not None and self.cfg.frame_stack == 1
 
             self.no_goal_task = self.cfg.task_no_goal
@@ -124,31 +124,31 @@ class Workspace:
             self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
 
             self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                       cfg.action_repeat, seed=None, goal=self.first_goal)
+                                       cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
             print('goal', self.first_goal)
 
             self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                              cfg.action_repeat, seed=None, goal=None)
+                                              cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
             print('no goal task env', self.no_goal_task)
 
             self.train_env = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                      cfg.action_repeat, seed=None)
+                                      cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
 
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                     cfg.action_repeat, seed=None, goal=self.first_goal)
+                                     cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
 
             self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                             cfg.action_repeat, seed=None, goal=None)
+                                             cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
 
             self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                          1, seed=None, goal=None)
+                                          1, seed=None, goal=None, camera_id=cfg.camera_id)
         else:
             self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                       cfg.action_repeat, seed=None)
+                                       cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
             self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                      cfg.action_repeat, seed=None)
+                                      cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
             self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                     cfg.action_repeat, seed=None)
+                                     cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
 
         if cfg.cassio:
             self.pwd = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark'
