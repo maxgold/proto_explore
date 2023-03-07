@@ -81,7 +81,8 @@ class DDPGAgent:
         self.scale = scale
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
-
+        print('pretrained feature dim', self.pretrained_feature_dim)
+        print('feature_dim', self.feature_dim)
         print('stddev schedule', stddev_schedule)
         print('stddev_clip', stddev_clip)
         print('stddev schedule2', stddev_schedule2)
@@ -117,20 +118,20 @@ class DDPGAgent:
             self.critic_target = None
         else:
             self.actor = Actor_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                           feature_dim, hidden_dim).to(device)
+                           feature_dim_gc, hidden_dim).to(device)
             self.critic = Critic_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
-                             feature_dim, hidden_dim).to(device)
+                             feature_dim_gc, hidden_dim).to(device)
             self.critic_target = Critic_gc(obs_type, self.obs_dim, self.goal_dim, self.action_dim,
-                                        feature_dim, hidden_dim).to(device)
+                                        feature_dim_gc, hidden_dim).to(device)
             self.critic_target.load_state_dict(self.critic.state_dict())
 
         #2nd set of actor critic networks 
         self.actor2 = Actor_proto(obs_type, self.obs_dim, self.action_dim,
-                           feature_dim, hidden_dim).to(device)
+                           self.feature_dim, hidden_dim).to(device)
         self.critic2 = Critic_proto(obs_type, self.obs_dim, self.action_dim,
-                             feature_dim, hidden_dim).to(device)
+                             self.feature_dim, hidden_dim).to(device)
         self.critic2_target = Critic_proto(obs_type, self.obs_dim, self.action_dim,
-                                    feature_dim, hidden_dim).to(device)
+                                    self.feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
         self.actor_encoder = Actor_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,

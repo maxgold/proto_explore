@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from dm_env import specs
 import pandas as pd
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_offline
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent_utils import *
 from eval_ops import *
@@ -204,6 +204,7 @@ class Workspace:
                                     cfg.hidden_dim,
                                     cfg.update_gc,
                                     batch_size=cfg.batch_size,
+                                    feature_dim=cfg.feature_dim,
                                     stddev_schedule=cfg.stddev_schedule,
                                     stddev_clip=cfg.stddev_clip,
                                     stddev_schedule2=cfg.stddev_schedule2,
@@ -375,14 +376,24 @@ class Workspace:
         self._replay_iter = None
         self._replay_iter1 = None
 
-        self.video_recorder = VideoRecorder(
-            self.work_dir if cfg.save_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
-        self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if cfg.save_train_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
+        if self.cfg.egocentric is False:
+            self.video_recorder = VideoRecorder(
+                self.work_dir if cfg.save_video else None,
+                camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+            self.train_video_recorder = TrainVideoRecorder(
+                self.work_dir if cfg.save_train_video else None,
+                camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+        else:
+            self.video_recorder = VideoRecorder(
+                self.work_dir if cfg.save_video else None,
+                camera_id=1 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+            self.train_video_recorder = TrainVideoRecorder(
+                self.work_dir if cfg.save_train_video else None,
+                camera_id=1 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
 
         self.timer = utils.Timer()
         self._global_step = 0
@@ -571,10 +582,11 @@ class Workspace:
 
             else:
                 if self.global_step < self.switch_gc and self.cfg.model_path is False:
-                    if time_step.last():
+
+                    if time_step.last() or episode_step >= self.cfg.episode_length:
                         self._global_episode += 1
                         # wait until all the metrics schema is populated
-                        if metrics is not None:
+                        if metrics is not None and self.global_step%500==0:
                             # log stats
                             elapsed_time, total_time = self.timer.reset()
                             episode_frame = episode_step * self.cfg.action_repeat
@@ -592,9 +604,9 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                         if self.cfg.velocity_control:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm, action=vel)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm, action=vel)
                         else:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
 
                         # try to save snapshot
                         # TODO
