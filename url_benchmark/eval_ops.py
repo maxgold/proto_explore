@@ -69,7 +69,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             eval_env_no_goal.physics.set_state(proto_goals_state[ix])
 
         img = eval_env_no_goal._env.physics.render(height=84, width=84,
-                                                        camera_id=dict(quadruped=2).get(cfg.domain, 0))
+                                                        camera_id=cfg.camera_id)
         img = np.transpose(img, (2, 0, 1))
         img = np.tile(img, (cfg.frame_stack, 1, 1))
         proto_goals[ix] = img
@@ -234,7 +234,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                     eval_env_no_goal.physics.set_state(a[closest_sample][0])
 
                 img = eval_env_no_goal._env.physics.render(height=84, width=84,
-                                                                camera_id=dict(quadruped=2).get(cfg.domain, 0))
+                                                                camera_id=cfg.camera_id)
 
                 img = np.transpose(img, (2, 0, 1))
                 img = np.tile(img, (cfg.frame_stack, 1, 1))
@@ -251,7 +251,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                 eval_env_no_goal.physics.set_state(proto_goals_state[ix])
 
             img = eval_env_no_goal._env.physics.render(height=84, width=84,
-                                                            camera_id=dict(quadruped=2).get(cfg.domain, 0))
+                                                            camera_id=cfg.camera_id)
             img = np.transpose(img, (2, 0, 1))
             img = np.tile(img, (cfg.frame_stack, 1, 1))
             proto_goals[ix] = img
@@ -336,7 +336,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
             plt.clf()
             img = eval_env._env.physics.render(height=84, width=84,
-                                                    camera_id=dict(quadruped=2).get(cfg.domain, 0))
+                                                    camera_id=cfg.camera_id)
             plt.imsave(f"goals_{ix}_{global_step}.png", img)
             wandb.save(f"goals_{ix}_{global_step}.png")
 
@@ -415,8 +415,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                             time_step_goal = eval_env_goal.physics.set_state(
                                 np.array([goal_state[0], goal_state[1], 0, 0]))
                         time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
-                                                                                camera_id=dict(quadruped=2).get(
-                                                                                    'point_mass_maze', 0))
+                                                                                camera_id=cfg.camera_id)
                         time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
                     video_recorder.init(eval_env, enabled=(episode == 0))
                     
