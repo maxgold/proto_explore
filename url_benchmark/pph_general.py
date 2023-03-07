@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from dm_env import specs
 import pandas as pd
-from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_offline
+from replay_buffer import ReplayBufferStorage, make_replay_loader, make_replay_buffer
 from video import TrainVideoRecorder, VideoRecorder
 from agent_utils import *
 from eval_ops import *
@@ -114,8 +114,8 @@ class Workspace:
 
         if self.pmm:
             if self.cfg.velocity_control:
-                assert self.cfg.stddev_schedule < .02 and self.cfg.stddev_schedule2 < .02
-                assert self.cfg.stddev_clip < .02 and self.cfg.stddev_clip2 < .02
+                assert self.cfg.stddev_schedule <= .02 and self.cfg.stddev_schedule2 <= .02
+                assert self.cfg.stddev_clip <= .02 and self.cfg.stddev_clip2 <= .02
                 assert self.cfg.scale is not None and self.cfg.frame_stack == 1
 
             self.no_goal_task = self.cfg.task_no_goal
@@ -573,10 +573,10 @@ class Workspace:
 
             else:
                 if self.global_step < self.switch_gc and self.cfg.model_path is False:
-                    if time_step.last():
+                    if time_step.last() or episode_step >= self.cfg.episode_length:
                         self._global_episode += 1
                         # wait until all the metrics schema is populated
-                        if metrics is not None:
+                        if metrics is not None and self.global_step%500==0:
                             # log stats
                             elapsed_time, total_time = self.timer.reset()
                             episode_frame = episode_step * self.cfg.action_repeat
@@ -594,9 +594,9 @@ class Workspace:
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                         if self.cfg.velocity_control:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm, action=vel)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm, action=vel)
                         else:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
 
                         # try to save snapshot
                         # TODO
