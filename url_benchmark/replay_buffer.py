@@ -459,7 +459,7 @@ class ReplayBufferStorage:
         ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         eps_fn = f"{ts}_{eps_idx}_{eps_len}.npz"
-        # print('storing', eps_fn)
+        print('storing', eps_fn)
         save_episode(episode, self._replay_dir / eps_fn)
         save_episode(episode, self._replay_dir2 / eps_fn)
 
@@ -790,6 +790,7 @@ class ReplayBuffer(IterableDataset):
         goal = episode["observation"][idx_goal]
 
         if (goal.shape[0]//3)!=self.tile:
+
             goal = np.tile(goal,(self.tile,1,1))
         else:
             goal = goal[:self.tile*3,:,:]
@@ -805,6 +806,7 @@ class ReplayBuffer(IterableDataset):
                     
                 reward += discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
+
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
         
         
@@ -1479,10 +1481,14 @@ class OfflineReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.inv:
+
                 yield self._sample_inv()
+
             elif (self.offline and self.goal) or (self.hybrid and self.goal):
+
                 yield self._sample_her()
             else:
+
                 yield self._sample()
 
 

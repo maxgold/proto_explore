@@ -204,6 +204,7 @@ class Workspace:
                                     cfg.hidden_dim,
                                     cfg.update_gc,
                                     batch_size=cfg.batch_size,
+                                    feature_dim=cfg.feature_dim,
                                     stddev_schedule=cfg.stddev_schedule,
                                     stddev_clip=cfg.stddev_clip,
                                     stddev_schedule2=cfg.stddev_schedule2,
@@ -376,14 +377,24 @@ class Workspace:
         self._replay_iter = None
         self._replay_iter1 = None
 
-        self.video_recorder = VideoRecorder(
-            self.work_dir if cfg.save_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
-        self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if cfg.save_train_video else None,
-            camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
-            use_wandb=self.cfg.use_wandb)
+        if self.cfg.egocentric is False:
+            self.video_recorder = VideoRecorder(
+                self.work_dir if cfg.save_video else None,
+                camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+            self.train_video_recorder = TrainVideoRecorder(
+                self.work_dir if cfg.save_train_video else None,
+                camera_id=0 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+        else:
+            self.video_recorder = VideoRecorder(
+                self.work_dir if cfg.save_video else None,
+                camera_id=1 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
+            self.train_video_recorder = TrainVideoRecorder(
+                self.work_dir if cfg.save_train_video else None,
+                camera_id=1 if 'quadruped' not in self.cfg.domain else 2,
+                use_wandb=self.cfg.use_wandb)
 
         self.timer = utils.Timer()
         self._global_step = 0
