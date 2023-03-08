@@ -121,6 +121,8 @@ buffer_num: 0
 reverse: True
 velocity_control: False
 scale: None
+egocentric: ???
+camera_id: ???
 #experiment
 experiment: exp
 
