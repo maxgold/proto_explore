@@ -121,8 +121,8 @@ buffer_num: 0
 reverse: True
 velocity_control: False
 scale: None
-egocentric: False
-camera_id: 0 #quadruped=2 egocentric=1
+egocentric: ???
+camera_id: ??? #quadruped=2 egocentric=1
 #experiment
 experiment: exp
 
