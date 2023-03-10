@@ -464,8 +464,9 @@ class Workspace:
 
         #self.rand_init = np.random.uniform(0, .29, size=(5, 2))
         #self.rand_init[:,0] = -1 * self.rand_init[:,0]
-        self.rand_init = np.array([[-.25, .25], [-.10, .25], [-.25, .10], [-.10, .10]])
+        #self.rand_init = np.array([[-.25, .25], [-.10, .25], [-.25, .10], [-.10, .10]])
         #self.rand_init = np.array([[-.29, .29]])
+        self.rand_init = np.array([[-.2, .2], [-.2, -.2], [.2, .2], [.2, -.2]])
         self.switch_gc = self.cfg.switch_gc
         if self.cfg.gc_only:
             self.switch_gc = 0

@@ -374,7 +374,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             print('init', init.shape)
             print('goal array', goal_array.shape)
             dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
-            goal_dist, _ = torch.topk(dist, 40, dim=-1, largest=False)
+            goal_dist, _ = torch.topk(dist, 50, dim=-1, largest=False)
             goal_array = goal_array[_]
             
             #TODO: delete this part when done debugging
