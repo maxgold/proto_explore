@@ -47,7 +47,7 @@ lr: .0001
 offline: False
 tmux_session: ???
 test: False
-switch_gc: 100000
+switch_gc: 100000         #when to switch from proto pretrain to gc if training hybrid (proto+gc)
 load_encoder: False
 load_proto: False
 const_init: True
@@ -90,14 +90,14 @@ update_gc_while_proto: False
 update_proto_while_gc: False
 pmm_reward_cutoff: 100
 model_path: False
-cassio: False
-greene: False
-pluto: False
-irmak: False
+cassio: False       #when model_path is not None; gets the exact path based on machine
+greene: False       # .
+pluto: False        # .
+irmak: False        # .
 normalize: False
 normalize2: True
 load_every: 10000
-offline_gc: False
+offline_gc: False   # if gc_only then need to set init_from_proto or init_from_ddpg, model_path ...; else ...
 goal_offset: 1
 gc_only: False
 log_every_steps: 1000
@@ -112,8 +112,8 @@ inv: False
 use_actor_trunk: False
 use_critic_trunk: False
 expert_buffer: False
-offline_model_step: 0
-offline_model_step_lb: 0
+offline_model_step: None
+offline_model_step_lb: None
 init_from_proto: False
 init_from_ddpg: False
 pretrained_feature_dim: 16
@@ -123,6 +123,7 @@ velocity_control: False
 scale: None
 egocentric: ???
 camera_id: ???
+proto_explore_every: 10
 #experiment
 experiment: exp
 
