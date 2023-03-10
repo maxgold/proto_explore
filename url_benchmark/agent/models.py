@@ -393,7 +393,6 @@ class LinearInverse(nn.Module):
             input_dim = feature_dim*2
         else:
             input_dim = feature_dim
-            
         self.model = nn.Sequential(
             nn.Linear(input_dim, feature_dim*4), # input_dim*2: For current and goal obs
             nn.ReLU(),

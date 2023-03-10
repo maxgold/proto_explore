@@ -352,7 +352,6 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
 
     if actor and gc_only is False:
         assert actor1 is False
-        # now the proto explores from any reached goals by gc
         if current_init.shape[0] != 0:
 
             if current_init.shape[0] > 2:
@@ -366,12 +365,8 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
             elif len(current_init) > 0:
                 init_idx = -1
 
-            #time_step, train_env, _, _, origin = make_env(cfg, actor1=actor1, init_idx=init_idx,
-            #                                             goal_state=None, pmm=pmm, current_init=current_init, train_env=train_env)
             time_step = train_env.reset(init_state=current_init[init_idx], goal_state=np.array([25, 25]))
-            # with train_env.physics.reset_context():
-            #     train_env.physics.set_state(current_init[init_idx])
-            
+
         else:
             if pmm:
                 init_state = np.random.uniform(.25,.29,size=(train_env.physics.get_state().shape[0],))
@@ -379,13 +374,6 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[3] = 0
                 init_state[0] = init_state[0]*(-1)
             time_step = train_env.reset(init_state=init_state, goal_state=np.array([25, 25]))
-            # with train_env.physics.reset_context():
-            #     train_env.physics.set_state(init_state)
-
-            # time_step, train_env, _, _, origin = make_env(cfg, actor1=actor1, init_idx=None,
-            #                                              goal_state=None, pmm=pmm, current_init=current_init, train_env=train_env)
-            
-            # time_step = train_env.reset()
 
         print('proto_explore', time_step.observation['observations'])
 
@@ -415,27 +403,10 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
             elif len(current_init) > 0:
                 init_idx = -1
             
-            #TODO
-            #get rid of make_env
-            # time_step1, train_env1, time_step_no_goal, train_env_no_goal, origin = make_env(cfg, actor1=actor1, init_idx=init_idx,
-            #                                               goal_state=goal_state, pmm=pmm, current_init=current_init, train_env1=train_env1, train_env_no_goal=train_env_no_goal)
-
             time_step1 = train_env1.reset(init_state=current_init[init_idx], goal_state=goal_state[:2])
-            # time_step1 = train_env1.reset()
-            # with train_env1.physics.reset_context():
-            #     train_env1.physics.set_state(current_init[init_idx])
-            #     train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
-            # act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
-            # time_step1 = train_env1.step(act_)
             print('ts1', time_step1.observation['observations'])
             
             time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
-            # time_step_no_goal = train_env_no_goal.reset()
-            # with train_env_no_goal.physics.reset_context():
-            #     train_env_no_goal.physics.set_state(train_env1.physics.get_state())
-            #     train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
-            # act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
-            # time_step_no_goal = train_env_no_goal.step(act_)
             print('ts no goal', time_step_no_goal.observation['observations'])
             
         else:
@@ -446,25 +417,11 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[0] = init_state[0]*(-1)
 
             time_step1 = train_env1.reset(init_state=init_state, goal_state=goal_state[:2])
-            # time_step1 = train_env1.reset()
-            # with train_env1.physics.reset_context():
-            #     train_env1.physics.set_state(init_state)
-            #     train_env1.physics.named.data.geom_xpos['target'][:] = np.array([goal_state[0], goal_state[1], 0.])
-            # act_ = np.zeros(train_env1.action_spec().shape, train_env1.action_spec().dtype)
-            # time_step1 = train_env1.step(act_)
             print('init', init_state)
             
             time_step_no_goal = train_env_no_goal.reset(init_state=train_env1.physics.get_state(), goal_state=np.array([25, 25]))
-            # time_step_no_goal = train_env_no_goal.reset()
-            # with train_env_no_goal.physics.reset_context():
-            #     train_env_no_goal.physics.set_state(train_env1.physics.get_state())
-            #     train_env_no_goal.physics.named.data.geom_xpos['target'][:] = np.array([25, 25, 0.])
-            # act_ = np.zeros(train_env_no_goal.action_spec().shape, train_env_no_goal.action_spec().dtype)
-            # time_step_no_goal = train_env_no_goal.step(act_)
             print('ts no goal 2', time_step_no_goal.observation['observations']) 
-            # # time_step1, train_env1, time_step_no_goal, train_env_no_goal, origin = make_env(cfg, actor1=actor1, init_idx=None,
-            # #                                               goal_state=goal_state, pmm=pmm, current_init=current_init, train_env1=train_env1, train_env_no_goal=train_env_no_goal)
-        
+
         print('time step', time_step1.observation['observations'])
         print('sampled goal', goal_state)
 
