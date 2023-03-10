@@ -13,6 +13,7 @@ from torch.utils.data import IterableDataset
 from dm_control.utils import rewards
 from itertools import chain
 from pathlib import Path
+import glob
 
 
 def episode_len(episode):
@@ -1155,6 +1156,8 @@ class OfflineReplayBuffer(IterableDataset):
         else:
             self.model_step_lb = 0
         print('goal offset', goal_offset)
+        print('model step', self.model_step)
+        print('model step lb', self.model_step_lb)
 
         if obs_type == 'pixels':
             self.pixels = True      
@@ -1163,21 +1166,20 @@ class OfflineReplayBuffer(IterableDataset):
         self.eval = eval
         self.pmm = pmm
         self.reverse = reverse
+
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
             return
-        
+
         self._samples_since_last_load = 0
         print('loading offline data')
-        
+
         try:
-            
             worker_id = torch.utils.data.get_worker_info().id
-        
-        except:
-            
+        except:   
             worker_id = 0
-        if self.reverse: 
+
+        if self.reverse:
             eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=True)
         else:
             eps_fns = sorted(self._replay_dir.glob("*.npz"), reverse=False)
@@ -1222,7 +1224,6 @@ class OfflineReplayBuffer(IterableDataset):
                 self._load()
             except:
                 traceback.print_exc()
-
             self._samples_since_last_load += 1
         episode = self._sample_episode()
         

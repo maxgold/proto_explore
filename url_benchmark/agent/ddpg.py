@@ -72,6 +72,7 @@ class DDPGAgent:
         self.encoder1 = encoder1
         self.encoder2 = encoder2
         self.encoder3 = encoder3
+        assert self.encoder1 is True or self.encoder2 is True or self.encoder3 is True or self.sl is True
         self.inv = inv
         self.use_actor_trunk = use_actor_trunk
         self.use_critic_trunk = use_critic_trunk
@@ -81,12 +82,15 @@ class DDPGAgent:
         self.scale = scale
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
+        if self.inv:
+            assert self.scale is not None and (self.use_actor_trunk is True or self.use_critic_trunk is True)
         print('pretrained feature dim', self.pretrained_feature_dim)
         print('feature_dim', self.feature_dim)
         print('stddev schedule', stddev_schedule)
         print('stddev_clip', stddev_clip)
         print('stddev schedule2', stddev_schedule2)
         print('stddev_clip2', stddev_clip2)
+        print('scale', scale)
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
@@ -197,6 +201,7 @@ class DDPGAgent:
     def update_meta(self, meta, global_step, time_step, finetune=False):
         return meta
 
+
     def act(self, obs, goal, meta, step, eval_mode, tile=1, general=False):
         if self.obs_type=='states':
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
@@ -223,23 +228,10 @@ class DDPGAgent:
                 inputs = [h]
                 inputs2 = g
 
-            elif self.init_from_proto:
-                #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
+            if self.init_from_ddpg:
                 h = self.encoder(obs)
                 g = self.encoder(goal)
-                if self.use_actor_trunk:
-                    h = self.actor2.trunk(h)
-                    g = self.actor2.trunk(g)
-                else:
-                    h = self.critic2.trunk(h)
-                    g = self.critic2.trunk(g)
-
-                inputs = [h]
-                inputs2 = g
-
-            elif self.init_from_ddpg:
-                h = self.encoder(obs)
-                g = self.encoder(goal)
+                
                 if self.use_actor_trunk:
                     h = torch.cat([h, g], dim=-1)
                     h = self.actor_encoder.trunk(h)
@@ -249,6 +241,21 @@ class DDPGAgent:
                 
                 inputs = [h]
                 inputs2 = None
+            
+            else:
+                #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
+                h = self.encoder(obs)
+                g = self.encoder(goal)
+
+                if self.use_actor_trunk:
+                    h = self.actor2.trunk(h)
+                    g = self.actor2.trunk(g)
+                else:
+                    h = self.critic2.trunk(h)
+                    g = self.critic2.trunk(g)
+
+                inputs = [h]
+                inputs2 = g
 
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -266,7 +273,7 @@ class DDPGAgent:
             h = self.encoder(obs)
         elif self.sl:
             h, _ = self.encoder(obs)
-            
+
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
@@ -344,16 +351,8 @@ class DDPGAgent:
         metrics = dict()
 
         if self.inv:
-            if self.init_from_proto:
-                #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
-                if self.use_actor_trunk:
-                    obs = self.actor2.trunk(obs)
-                    goal = self.actor2.trunk(goal)
-                else:
-                    obs = self.critic2.trunk(obs)
-                    goal = self.critic2.trunk(goal)
 
-            elif self.init_from_ddpg:
+            if self.init_from_ddpg:
 
                 if self.use_actor_trunk:
                     obs = torch.cat([obs, goal], dim=-1)
@@ -363,6 +362,15 @@ class DDPGAgent:
                     obs = self.critic_encoder.trunk(obs)
                 
                 goal = None
+
+            else:
+                if self.use_actor_trunk:
+                    obs = self.actor2.trunk(obs)
+                    goal = self.actor2.trunk(goal)
+                else:
+                    obs = self.critic2.trunk(obs)
+                    goal = self.critic2.trunk(goal)
+
 
             model_action = self.actor(obs, goal)
             actor_loss = F.mse_loss(action, model_action)
@@ -429,13 +437,6 @@ class DDPGAgent:
         #TODO: change this part to be compatible with the new replay buffer
         obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
             batch, self.device)
-        # # augment and encode
-        # if obs.shape[0]!=1:
-        #     obs = obs[None,:]
-        # if next_obs.shape[0]!=1:
-        #     next_obs = next_obs[None,:]
-        # if actor1 and goal.shape[0]!=1:
-        #     goal = goal[None,:]
 
         if self.obs_type == 'states':
             obs = obs_state
@@ -452,12 +453,18 @@ class DDPGAgent:
 
         # update critic
         if self.inv is False:
-            metrics.update(
-                self.update_critic(obs, action, reward, discount, next_obs, step))
+            if self.init_from_proto or self.init_from_ddpg:
+                metrics.update(
+                self.update_critic(obs.detach(), action, reward, discount, next_obs.detach(), step))
+            else:
+                metrics.update(
+                self.update_critic(obs, action, reward, discount, next_obs.detach(), step))
 
         # update actor
-        metrics.update(self.update_actor(obs, goal, action, step))
-        
+        if self.init_from_proto or self.init_from_ddpg:
+            metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
+        else:
+            metrics.update(self.update_actor(obs, goal, action, step))
 
         # update critic target
         if self.inv is False:

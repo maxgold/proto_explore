@@ -48,7 +48,7 @@ class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc,
                  num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt,
-                 normalize, normalize2, sl, **kwargs):
+                 normalize, normalize2, sl, gc_inv, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -89,6 +89,9 @@ class ProtoAgent(DDPGAgent):
         self.normalize2 = normalize2
         self.update_proto_opt= update_proto_opt
         self.sl = sl
+        self.gc_inv = gc_inv
+        print('obs type', self.obs_type)
+
 
         # models
         #if self.gc_only==False:
@@ -306,10 +309,13 @@ class ProtoAgent(DDPGAgent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            if actor1:
+            if actor1 and self.gc_inv:
+                obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
+                    batch, self.device)
+            else:
                 obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
             batch, self.device)
-            if self.obs_type=='states' or self.sl is False:
+            if self.obs_type=='states':
                 goal = goal.reshape(-1, 2).float()
             extr_reward=extr_reward.float()
             goal_state = goal_state.float()
@@ -361,17 +367,8 @@ class ProtoAgent(DDPGAgent):
                     batch, self.device)
         else:
             return metrics
-        
 
         discount = discount.reshape(-1,1)
-        #TODO: fix this 
-        # if obs.shape[0]!=1:
-        #     print('obs', obs.shape)
-        #     obs = obs[None,:]
-        # if next_obs.shape[0]!=1:
-        #     next_obs = next_obs[None,:]
-        # if actor1 and goal.shape[0]!=1:
-        #     goal = goal[None,:]
 
         # augment and encode
         with torch.no_grad():
@@ -391,8 +388,6 @@ class ProtoAgent(DDPGAgent):
                 reward = intr_reward
             else:
                 reward = reward
-                #if self.use_tb or self.use_wandb:
-                    #metrics['extr_reward'] = extr_reward.mean().item()
             
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
@@ -408,8 +403,8 @@ class ProtoAgent(DDPGAgent):
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             
-            if self.update_enc_proto and self.update_encoder:
-                metrics.update(self.update_encoder_func(obs, next_obs, step)) 
+            # if self.update_enc_proto and self.update_encoder:
+            #     metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -429,12 +424,13 @@ class ProtoAgent(DDPGAgent):
                                  self.critic2_target_tau)
 
         elif actor1 and step % self.update_gc==0:
+
             reward = extr_reward
+
             if self.use_tb or self.use_wandb:
-                #metrics['extr_reward'] = extr_reward.mean().item()
                 metrics['batch_reward'] = reward.mean().item()
 
-            if self.obs_type=='states' or self.sl is False:
+            if self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
                 goal = self.encoder(goal)
@@ -444,17 +440,28 @@ class ProtoAgent(DDPGAgent):
                 goal, _ = self.encoder(goal)
 
             if not self.update_encoder:
-            
                 obs = obs.detach()
                 next_obs = next_obs.detach()
                 goal=goal.detach()
-        
-            if self.update_enc_gc and self.update_encoder:
-                metrics.update(self.update_encoder_func(obs, obs_state, goal, goal_state, step))
+
+            if self.gc_inv is False:
+                if self.update_enc_gc and self.update_encoder:
+                    metrics.update(
+                    self.update_critic(obs, action, reward, discount, next_obs.detach(), step))
+                else:
+                    metrics.update(
+                    self.update_critic(obs.detach(), action, reward, discount, next_obs.detach(), step))
 
             # update actor
-            metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
-
+            if self.gc_inv and self.update_enc_gc and self.update_encoder:
+                metrics.update(self.update_actor(obs, goal, action, step))
+            else:
+                metrics.update(self.update_actor(obs.detach(), goal.detach(), action, step))
+            
+            # update critic target
+            if self.gc_inv is False:
+                utils.soft_update_params(self.critic, self.critic_target,
+                             self.critic_target_tau)
 
         return metrics
 

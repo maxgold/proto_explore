@@ -80,9 +80,9 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
     return current_init, proto_goals, proto_goals_state, proto_goals_dist
 
-def eval_proto(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
+def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
 current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False):
+mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None):
 
     if eval:
         # used for continue training 
@@ -120,18 +120,10 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
 
     else:
+
         if global_step % 100000 == 0 and global_step!=0 and pmm:
-            # TODO
-            # CHANGE
             heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=True)
 
-        ########################################################################
-        # how should we measure exploration in non-pmm w/o heatmaps
-
-        ############################################################
-        # offline loader is not adding in the replay_dir2 right now, change this !!!!!!!!!!!!!
-        #path = Path(
-        #    '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.01/231849_proto_inv')
         replay_buffer = make_replay_offline(
                                             work_dir / 'buffer2' / 'buffer_copy',
                                             500000,
@@ -146,6 +138,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
         state, actions, rewards, eps, index = replay_buffer.parse_dataset()
         state = state.reshape((state.shape[0], train_env.physics.get_state().shape[0]))
+
 
     while proto_goals.shape[0] < dim:
         proto_goals = np.append(proto_goals, np.zeros((1, 3 * cfg.frame_stack, 84, 84)), axis=0)
@@ -206,9 +199,11 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                                  cfg.action_repeat, seed=None, goal=None,
                                                  init_state=None)
+
+
     if cfg.proto_goal_intr:
 
-        goal_dist, goal_indices = eval_intrinsic(encoded, a)
+        goal_dist, goal_indices = eval_intrinsic(cfg, agent, encoded, a, global_step)
         dist_arg = proto_goals_dist.argsort(axis=0)
 
         for ix, x in enumerate(goal_dist.clone().detach().cpu().numpy()):
@@ -218,7 +213,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                 closest_sample = goal_indices[ix].clone().detach().cpu().numpy()
 
                 ##################################
-                # may need to debug this
+                # TODO:may need to debug this
                 #                     fn = eps[closest_sample]
                 #                     idx_ = index[closest_sample]
                 #                     ep = np.load(fn)
@@ -245,7 +240,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
         closest_sample = _proto[:, 0].detach().clone().cpu().numpy()
         proto_goals_state = a[closest_sample]
-
         
         for ix in range(proto_goals_state.shape[0]):
             with eval_env_no_goal.physics.reset_context():
@@ -258,7 +252,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             proto_goals[ix] = img
 
     if pmm:
-
         filenames = []
         plt.clf()
         fig, ax = plt.subplots()
@@ -327,7 +320,10 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             wandb.save(f"10nn_actual_prototypes_{global_step}.png")
 
     ########################################################################
-    # implement tsne for non-pmm prototype eval?
+    # TODO: implement tsne for non-pmm prototype eval?
+
+    #for non-pmm envs we want to visualize the prototypes
+    
     if global_step % 100000 == 0 and pmm == False:
         eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
                                      cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
@@ -341,35 +337,44 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             plt.imsave(f"goals_{ix}_{global_step}.png", img)
             wandb.save(f"goals_{ix}_{global_step}.png")
 
-    # delete goals that have been reached
-    if current_init.shape[0] > 0:
-        index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
-                                          ord=2)) < .05))
-        index = np.unique(index[0])
-        print('delete goals', proto_goals_state[index])
-        proto_goals = np.delete(proto_goals, index, axis=0)
-        proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-        proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-        index = np.where((proto_goals_state == 0.).all(axis=1))[0]
-        proto_goals = np.delete(proto_goals, index, axis=0)
-        proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-        proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-        print('current goals', proto_goals_state)
-        if cfg.gc_only is False:
-            assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
-        elif cfg.gc_only and cfg.resume_training is False:
-            assert proto_goals_state.shape[0] == proto_goals.shape[0]
+
+    if cfg.offline_gc is False:
+        # delete goals that have been reached
+        if current_init.shape[0] > 0:
+            index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
+                                            ord=2)) < .05))
+            index = np.unique(index[0])
+            print('delete goals', proto_goals_state[index])
+            proto_goals = np.delete(proto_goals, index, axis=0)
+            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+            index = np.where((proto_goals_state == 0.).all(axis=1))[0]
+            proto_goals = np.delete(proto_goals, index, axis=0)
+            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+            print('current goals', proto_goals_state)
+            if cfg.gc_only is False:
+                assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
+            elif cfg.gc_only and cfg.resume_training is False:
+                assert proto_goals_state.shape[0] == proto_goals.shape[0]
+        else:
+            print('current goals', proto_goals_state)
+        return current_init, proto_goals, proto_goals_state, proto_goals_dist
     else:
-        print('current goals', proto_goals_state)
+        #for offline_gc, we only need to modify current_init and don't need proto_goals
+        current_init = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, offline_gc=cfg.offline_gc)
+        return current_init
 
-    return current_init, proto_goals, proto_goals_state, proto_goals_dist
 
-
-def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, rand_init):
+def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
-    for i, init in enumerate(rand_init):
-        for idx in range(eval_reached.shape[0]):
+    if eval_reached.shape[0] == 0:
+        eval_reached = np.random.uniform(0, .29, (1, 2))
+        eval_reached[0] = -eval_reached[0]
+    for i, init in enumerate(eval_reached):
+        print('init', init)
+        if goal_states is None:
             goal_array = ndim_grid(2, 20)
             print('init', init.shape)
             print('goal array', goal_array.shape)
@@ -383,97 +388,88 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             #    if (-.02<x[0]  or  x[1]<.02):
             #        lst.append(ix)
             # goal_array=np.delete(goal_array, lst,0)
+        else:
+            goal_array = goal_states
 
-            # init = eval_reached[idx]
-            print('goal array', goal_array)
+        print('goal array', goal_array)
 
-            for ix, x in enumerate(goal_array):
+        for ix, x in enumerate(goal_array):
+            print('goal', x)
+            step, episode, total_reward = 0, 0, 0
+            goal_state = x[:2]
+            eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
+                                    cfg.action_repeat, seed=None, goal=goal_state, init_state=init[:2], camera_id=cfg.camera_id)
+            eval_env_goal = dmc.make(cfg.task_no_goal, 'states', cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
+            eval_until_episode = utils.Until(cfg.num_eval_episodes)
+            meta = agent.init_meta()
 
-                step, episode, total_reward = 0, 0, 0
-                min_dist = 1
-                max_action = 0
+            while eval_until_episode(episode):
+                
+                time_step = eval_env.reset()
 
-                goal_state = x
-                print('goal state', goal_state)
-                eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                        cfg.action_repeat, seed=None, goal=goal_state, init_state=init, camera_id=cfg.camera_id)
-                eval_env_goal = dmc.make(cfg.task_no_goal, 'states', cfg.frame_stack,
-                                            cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
-                eval_until_episode = utils.Until(cfg.num_eval_episodes)
-                meta = agent.init_meta()
+                if cfg.obs_type == 'pixels':
+                    eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                    cfg.action_repeat, seed=None, goal=None,
+                                                    init_state=time_step.observation['observations'][:2], camera_id=cfg.camera_id)
+                    time_step_no_goal = eval_env_no_goal.reset()
 
-                while eval_until_episode(episode):
-                    
-                    time_step = eval_env.reset()
-
-                    if cfg.obs_type == 'pixels':
-                        eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
-                                                        cfg.action_repeat, seed=None, goal=None,
-                                                        init_state=time_step.observation['observations'][:2], camera_id=cfg.camera_id)
-                        time_step_no_goal = eval_env_no_goal.reset()
-
+                    #render goal
+                    if goal_pixels is None:
                         with eval_env_goal.physics.reset_context():
                             time_step_goal = eval_env_goal.physics.set_state(
                                 np.array([goal_state[0], goal_state[1], 0, 0]))
                         time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
                                                                                 camera_id=cfg.camera_id)
                         time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
-                    video_recorder.init(eval_env, enabled=(episode == 0))
-                    
-                    while step != cfg.episode_length:
-                        with torch.no_grad(), utils.eval_mode(agent):
-                            if cfg.obs_type == 'pixels':
-                                action = agent.act(time_step_no_goal.observation['pixels'],
-                                                        time_step_goal,
-                                                        meta,
-                                                        global_step,
-                                                        eval_mode=True,
-                                                        tile=cfg.frame_stack,
-                                                        general=True)
-                            else:
-                                action = agent.act(time_step.observation,
-                                                        x, 
-                                                        meta,
-                                                        global_step,
-                                                        eval_mode=True,
-                                                        tile=1)
+                    else:
+                        time_step_goal = goal_pixels[ix]
 
-                        if cfg.velocity_control:
-                            vel = action.copy()
-                            action = np.zeros(2)
-                            eval_env.physics.data.qvel[0] = vel[0]
-                            eval_env.physics.data.qvel[1] = vel[1]
-
-                        time_step = eval_env.step(action)
-                        max_action = np.maximum(abs(action).sum(), max_action)
-                        # print('abs', abs(action).sum())
-                        # print('max', max_action)
+                video_recorder.init(eval_env, enabled=(episode == 0))
+                
+                while step != cfg.episode_length:
+                    with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
-                            time_step_no_goal = eval_env_no_goal.step(action)
+                            action = agent.act(time_step_no_goal.observation['pixels'],
+                                                    time_step_goal,
+                                                    meta,
+                                                    global_step,
+                                                    eval_mode=True,
+                                                    tile=cfg.frame_stack,
+                                                    general=True)
+                        else:
+                            action = agent.act(time_step.observation,
+                                                    x, 
+                                                    meta,
+                                                    global_step,
+                                                    eval_mode=True,
+                                                    tile=1)
+                    if cfg.velocity_control:
+                        vel = action.copy()
+                        action = np.zeros(2)
+                        eval_env.physics.data.qvel[0] = vel[0]
+                        eval_env.physics.data.qvel[1] = vel[1]
+                    time_step = eval_env.step(action)
 
-                        video_recorder.record(eval_env)
-                        total_reward += time_step.reward
-                        step += 1
-                        dist = np.linalg.norm(time_step.observation['observations'][:2] - goal_state)
-                        min_dist = np.minimum(dist, min_dist)
-                    episode += 1
+                    if cfg.obs_type == 'pixels':
+                        time_step_no_goal = eval_env_no_goal.step(action)
 
-                    if ix % 10 == 0:
-                        video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
+                    video_recorder.record(eval_env)
+                    total_reward += time_step.reward
+                    step += 1
+                episode += 1
 
-                    # save(str(work_dir) + '/eval_{}.csv'.format(global_step),
-                    #      [[goal_state, total_reward, time_step.observation['observations'], step]])
+                if ix % 10 == 0:
+                    video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                    # if total_reward > 10 * cfg.num_eval_episodes:
-                    #     eval_reached = np.append(eval_reached, x, axis=0)
-                    #     eval_reached = np.unique(eval_reached, axis=0)
+                if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
+                    eval_reached = np.append(eval_reached, x[None,:], axis=0)
+                    eval_reached = np.unique(eval_reached, axis=0)
 
-                df.loc[ix, 'x'] = x[0].round(2)
-                df.loc[ix, 'y'] = x[1].round(2)
-                df.loc[ix, 'r'] = total_reward
-                df.loc[ix, 'a'] = max_action
-                df.loc[ix, 'd'] = min_dist
-                print('r', total_reward)
+            df.loc[ix, 'x'] = x[0].round(2)
+            df.loc[ix, 'y'] = x[1].round(2)
+            df.loc[ix, 'r'] = total_reward
+            print('r', total_reward)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         result.fillna(0, inplace=True)
@@ -487,32 +483,35 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
-        ##action
+        # #action
 
-        #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
-        #result.fillna(0, inplace=True)
-        #print('result', result)
-        #plt.clf()
-        #fig, ax = plt.subplots()
-        #plt.title(str(init))
-        #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        #ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        #ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        #plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
-        #wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
+        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
+        # result.fillna(0, inplace=True)
+        # print('result', result)
+        # plt.clf()
+        # fig, ax = plt.subplots()
+        # plt.title(str(init))
+        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        # plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
+        # wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
 
-        ##min dist to goal
-        #result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
-        #result.fillna(0, inplace=True)
-        #print('result', result)
-        #plt.clf()
-        #fig, ax = plt.subplots()
-        #plt.title(str(init))
-        #sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        #ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        #ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        #plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
-        #wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
+        # #min dist to goal
+        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
+        # result.fillna(0, inplace=True)
+        # print('result', result)
+        # plt.clf()
+        # fig, ax = plt.subplots()
+        # plt.title(str(init))
+        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
+        # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
+
+        if offline_gc:
+            return eval_reached
 
 
 
