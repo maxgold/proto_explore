@@ -369,9 +369,9 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
-    if eval_reached.shape[0] == 0:
-        eval_reached = np.random.uniform(0, .29, (1, 2))
-        eval_reached[0] = -eval_reached[0]
+    rand_init = np.random.uniform(0, .29, (1, 2))
+    rand_init[0,0] = -rand_init[0,0]
+    eval_reached=np.append(eval_reached, rand_init, axis=0)
     for i, init in enumerate(eval_reached):
         print('init', init)
         if goal_states is None:
@@ -381,13 +381,6 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
             goal_dist, _ = torch.topk(dist, 50, dim=-1, largest=False)
             goal_array = goal_array[_]
-            
-            #TODO: delete this part when done debugging
-            # lst=[]
-            # for ix,x in enumerate(goal_array):
-            #    if (-.02<x[0]  or  x[1]<.02):
-            #        lst.append(ix)
-            # goal_array=np.delete(goal_array, lst,0)
         else:
             goal_array = goal_states
 

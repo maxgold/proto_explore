@@ -55,6 +55,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.update_enc_proto = update_enc_proto
         cfg.update_enc_gc = update_enc_gc
         cfg.update_proto_opt = update_proto_opt
+        cfg.gc_inv = inv
 
     cfg.batch_size = batch_size
     cfg.feature_dim = feature_dim
@@ -71,7 +72,6 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.use_actor_trunk = use_actor_trunk
     cfg.use_critic_trunk = use_critic_trunk
     cfg.scale = scale
-    cfg.gc_inv = inv
 
     if cfg.name.startswith('ddpg'):
         cfg.init_from_proto = init_from_proto

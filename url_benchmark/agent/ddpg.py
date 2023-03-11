@@ -72,7 +72,6 @@ class DDPGAgent:
         self.encoder1 = encoder1
         self.encoder2 = encoder2
         self.encoder3 = encoder3
-        assert self.encoder1 is True or self.encoder2 is True or self.encoder3 is True or self.sl is True
         self.inv = inv
         self.use_actor_trunk = use_actor_trunk
         self.use_critic_trunk = use_critic_trunk
@@ -83,7 +82,7 @@ class DDPGAgent:
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
         if self.inv:
-            assert self.scale is not None and (self.use_actor_trunk is True or self.use_critic_trunk is True)
+            assert self.use_actor_trunk is True or self.use_critic_trunk is True
         print('pretrained feature dim', self.pretrained_feature_dim)
         print('feature_dim', self.feature_dim)
         print('stddev schedule', stddev_schedule)

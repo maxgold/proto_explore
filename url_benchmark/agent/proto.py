@@ -403,8 +403,6 @@ class ProtoAgent(DDPGAgent):
                 obs = obs.detach()
                 next_obs = next_obs.detach()
             
-            # if self.update_enc_proto and self.update_encoder:
-            #     metrics.update(self.update_encoder_func(obs, next_obs, step)) 
             # update critic
             metrics.update(
                 self.update_critic2(obs.detach(), action, reward, discount,
@@ -414,7 +412,6 @@ class ProtoAgent(DDPGAgent):
             metrics.update(self.update_actor2(obs.detach(), step))
 
             # update critic target
-            #if step <300000:
 
             utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
