@@ -122,7 +122,7 @@ reverse: True
 velocity_control: False
 scale: None
 egocentric: ???
-camera_id: ???
+camera_id: ??? #quadruped=2 egocentric=1
 proto_explore_every: 10
 #experiment
 experiment: exp

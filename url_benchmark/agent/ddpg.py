@@ -144,7 +144,6 @@ class DDPGAgent:
                                              self.pretrained_feature_dim, hidden_dim).to(device)
 
         # optimizers
-
         if obs_type == 'pixels':
             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
                                                 lr=lr)

@@ -463,7 +463,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
                 if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
-                    eval_reached = np.append(eval_reached, x[None,:], axis=0)
+                    eval_reached = np.append(eval_reached, goal_state[None,:], axis=0)
                     eval_reached = np.unique(eval_reached, axis=0)
 
             df.loc[ix, 'x'] = x[0].round(2)
