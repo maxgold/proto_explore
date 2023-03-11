@@ -521,7 +521,7 @@ class Workspace:
             eval(self.cfg, self.agent, self.proto_goals, self.video_recorder, self.pmm, self.global_step, self.global_frame, self.global_episode)
 
         elif self.cfg.gc_only and self.cfg.offline_gc is False:
-            self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
+            self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
@@ -566,18 +566,11 @@ class Workspace:
 
         while train_until_step(self.global_step):
 
-            # TODO
-            # write it so that it can do pretrain gc only & load in an encoder;
-            # or load in model to continue training
-            # or just regular training
-            # or just proto only
-            # tsne plots for encoder when debug
             if self.cfg.offline_gc and self.cfg.gc_only:
                 # try to evaluate
                 if eval_every_step(self.global_step+1):
                     self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-                    #TODO: change back to 100000 when not debugging
-                    if (self.global_step+1)%10000==0:
+                    if (self.global_step+1)%100000==0:
                         self.evaluate()
 
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
@@ -699,13 +692,15 @@ class Workspace:
                             # try to evaluate
                             if eval_every_step(self.global_step+1):
                                 self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-                                if (self.global_step+1)%50000==0:
-                                    self.evaluate()
+
+                                self.evaluate()
 
                             metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+
                             if self.update_proto_while_gc:
                                 metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                             self.logger.log_metrics(metrics, self.global_step, ty="train")
+
                             if log_every_step(self.global_step):
                                 elapsed_time, total_time = self.timer.reset()
                                 
@@ -715,11 +710,6 @@ class Workspace:
                                     log("step", self.global_step)
 
                     elif self.global_step > self.switch_gc and self.cfg.offline_gc and self.actor1:
-                        # try to evaluate
-                        if eval_every_step(self.global_step+1):
-                            self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-                            # if (self.global_step+1)%50000==0:
-                            #     self.evaluate()
 
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_step, ty="train")

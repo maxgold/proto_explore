@@ -337,7 +337,8 @@ def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dis
 
     current_init = np.append(current_init, train_env1.physics.get_state()[None, :],
                                   axis=0)
-
+    if pmm:
+        assert len(current_init.shape) == 2
     return reached_goals, proto_goals_matrix, unreached_goals, proto_goals, proto_goals_state, proto_goals_dist, current_init
 
 
