@@ -376,6 +376,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     if eval_reached.shape[0] > 0:
         rand_init = np.append(rand_init, eval_reached, axis=0)
 
+    print('init', rand_init)
     for i, init in enumerate(rand_init):
         init = init[:2]
         print('init', init)
