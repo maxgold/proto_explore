@@ -153,7 +153,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     encoded = []
     proto = []
     actual_proto = []
-    lst_proto = []
 
     for x in idx:
         fn = eps[x]
@@ -337,36 +336,47 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
     if cfg.offline_gc is False:
         # delete goals that have been reached
-        if current_init.shape[0] > 0:
-            index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
-                                            ord=2)) < .05))
-            index = np.unique(index[0])
-            print('delete goals', proto_goals_state[index])
-            proto_goals = np.delete(proto_goals, index, axis=0)
-            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-            index = np.where((proto_goals_state == 0.).all(axis=1))[0]
-            proto_goals = np.delete(proto_goals, index, axis=0)
-            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-            print('current goals', proto_goals_state)
-            if cfg.gc_only is False:
-                assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
-            elif cfg.gc_only and cfg.resume_training is False:
-                assert proto_goals_state.shape[0] == proto_goals.shape[0]
+        if cfg.hack is False:
+            if current_init.shape[0] > 0:
+                index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
+                                                ord=2)) < .05))
+                index = np.unique(index[0])
+                print('delete goals', proto_goals_state[index])
+                proto_goals = np.delete(proto_goals, index, axis=0)
+                proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+                proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+                index = np.where((proto_goals_state == 0.).all(axis=1))[0]
+                proto_goals = np.delete(proto_goals, index, axis=0)
+                proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+                proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+                print('current goals', proto_goals_state)
+                if cfg.gc_only is False:
+                    assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
+                elif cfg.gc_only and cfg.resume_training is False:
+                    assert proto_goals_state.shape[0] == proto_goals.shape[0]
+            else:
+                print('no current_init yet, current goals', proto_goals_state)
         else:
-            print('current goals', proto_goals_state)
+            current_init = proto_goals_state
+
         return current_init, proto_goals, proto_goals_state, proto_goals_dist
     else:
         #for offline_gc, we only need to modify current_init and don't need proto_goals
-        
+        if cfg.debug:
+            current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+
         current_init = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, offline_gc=cfg.offline_gc)
+        
         if pmm:
             assert len(current_init.shape) == 2
+
         return current_init
 
 
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
+    #every time we evaluate, we will start from upper left corner and from all the current inits
+    #current init will be reset to reachable goals after this function 
+
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
 
@@ -375,6 +385,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
     if eval_reached.shape[0] > 0:
         rand_init = np.append(rand_init, eval_reached, axis=0)
+    print('rand init', rand_init)
 
     print('init', rand_init)
     for i, init in enumerate(rand_init):
@@ -506,8 +517,8 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
         # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
 
-        if offline_gc:
-            return eval_reached
+    if offline_gc:
+        return eval_reached
 
 
 
