@@ -124,6 +124,7 @@ scale: None
 egocentric: ???
 camera_id: ??? #quadruped=2 egocentric=1
 proto_explore_every: 10
+proto_explore_episodes: 100
 #experiment
 experiment: exp
 

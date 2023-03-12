@@ -337,14 +337,15 @@ def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dis
 
     current_init = np.append(current_init, train_env1.physics.get_state()[None, :],
                                   axis=0)
-
+    if pmm:
+        assert len(current_init.shape) == 2
     return reached_goals, proto_goals_matrix, unreached_goals, proto_goals, proto_goals_state, proto_goals_dist, current_init
 
 
 def get_time_step(cfg, proto_last_explore, gc_only, current_init, actor, actor1, pmm, proto_goals=None, proto_goals_state=None, proto_goals_dist=None, 
 unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, train_env_no_goal=None):
 
-    if proto_last_explore > 100 and gc_only is False:
+    if proto_last_explore > cfg.proto_explore_episodes and gc_only is False:
         actor = True
         actor1 = False
         proto_last_explore = 0
