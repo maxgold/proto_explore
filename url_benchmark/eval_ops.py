@@ -24,9 +24,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     print('eval_proto_gc_only')
     if global_step % 1000 == 0 and global_step!=0 and pmm:
         heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=False)
-    
     #TODO: Add goal selection from pretrain_pixel_gc_only.py later (sample_goal_distance & under self.cfg.curriculu)
-
     while proto_goals.shape[0] < dim:
         proto_goals = np.append(proto_goals, np.zeros((1, 3 * cfg.frame_stack, 84, 84)), axis=0)
         proto_goals_state = np.append(proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
@@ -34,8 +32,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     
     if len(current_init) != 0:
         reached = current_init
-        current_init = np.random.uniform(.25, .29, size=(current_init.shape[0], 2))
-        current_init[:,0] = -1 * current_init[:,0] 
     else:
         reached = np.random.uniform(.25, .29, size=(1, 2))
         reached[0] = -1 * reached[0]
@@ -78,7 +74,8 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     proto_goals = np.delete(proto_goals, index, axis=0)
     proto_goals_state = np.delete(proto_goals_state, index, axis=0)
     proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-    return current_init, proto_goals, proto_goals_state, proto_goals_dist
+
+    return proto_goals, proto_goals_state, proto_goals_dist
 
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
 current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
@@ -121,7 +118,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
     else:
 
-        if global_step % 100000 == 0 and global_step!=0 and pmm:
+        if global_step % 1000== 0 and global_step!=0 and pmm:
             heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=True)
 
         replay_buffer = make_replay_offline(
@@ -156,7 +153,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     encoded = []
     proto = []
     actual_proto = []
-    lst_proto = []
 
     for x in idx:
         fn = eps[x]
@@ -340,54 +336,65 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
     if cfg.offline_gc is False:
         # delete goals that have been reached
-        if current_init.shape[0] > 0:
-            index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
-                                            ord=2)) < .05))
-            index = np.unique(index[0])
-            print('delete goals', proto_goals_state[index])
-            proto_goals = np.delete(proto_goals, index, axis=0)
-            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-            index = np.where((proto_goals_state == 0.).all(axis=1))[0]
-            proto_goals = np.delete(proto_goals, index, axis=0)
-            proto_goals_state = np.delete(proto_goals_state, index, axis=0)
-            proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
-            print('current goals', proto_goals_state)
-            if cfg.gc_only is False:
-                assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
-            elif cfg.gc_only and cfg.resume_training is False:
-                assert proto_goals_state.shape[0] == proto_goals.shape[0]
+        if cfg.hack is False:
+            if current_init.shape[0] > 0:
+                index = np.where(((np.linalg.norm(proto_goals_state[:, None, :] - current_init[None, :, :], axis=-1,
+                                                ord=2)) < .05))
+                index = np.unique(index[0])
+                print('delete goals', proto_goals_state[index])
+                proto_goals = np.delete(proto_goals, index, axis=0)
+                proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+                proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+                index = np.where((proto_goals_state == 0.).all(axis=1))[0]
+                proto_goals = np.delete(proto_goals, index, axis=0)
+                proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+                proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+                print('current goals', proto_goals_state)
+                if cfg.gc_only is False:
+                    assert proto_goals_state.shape[0] == proto_goals.shape[0] == proto_goals_dist.shape[0]
+                elif cfg.gc_only and cfg.resume_training is False:
+                    assert proto_goals_state.shape[0] == proto_goals.shape[0]
+            else:
+                print('no current_init yet, current goals', proto_goals_state)
         else:
-            print('current goals', proto_goals_state)
+            current_init = proto_goals_state
+
         return current_init, proto_goals, proto_goals_state, proto_goals_dist
     else:
         #for offline_gc, we only need to modify current_init and don't need proto_goals
+        if cfg.debug:
+            current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+
         current_init = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, offline_gc=cfg.offline_gc)
+        
+        if pmm:
+            assert len(current_init.shape) == 2
+
         return current_init
 
 
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
+    #every time we evaluate, we will start from upper left corner and from all the current inits
+    #current init will be reset to reachable goals after this function 
+
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
-    if eval_reached.shape[0] == 0:
-        eval_reached = np.random.uniform(0, .29, (1, 2))
-        eval_reached[0] = -eval_reached[0]
-    for i, init in enumerate(eval_reached):
+
+    rand_init = np.random.uniform(.25, .29, (1, 4))
+    rand_init[0,0] = -rand_init[0,0]
+
+    if eval_reached.shape[0] > 0:
+        rand_init = np.append(rand_init, eval_reached, axis=0)
+    print('rand init', rand_init)
+
+    for i, init in enumerate(rand_init):
+        init = init[:2]
         print('init', init)
         if goal_states is None:
             goal_array = ndim_grid(2, 20)
-            print('init', init.shape)
-            print('goal array', goal_array.shape)
             dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
             goal_dist, _ = torch.topk(dist, 50, dim=-1, largest=False)
             goal_array = goal_array[_]
-            
-            #TODO: delete this part when done debugging
-            # lst=[]
-            # for ix,x in enumerate(goal_array):
-            #    if (-.02<x[0]  or  x[1]<.02):
-            #        lst.append(ix)
-            # goal_array=np.delete(goal_array, lst,0)
         else:
             goal_array = goal_states
 
@@ -463,13 +470,12 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
                 if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
-                    eval_reached = np.append(eval_reached, goal_state[None,:], axis=0)
+                    eval_reached = np.append(eval_reached, x[None,:], axis=0)
                     eval_reached = np.unique(eval_reached, axis=0)
 
             df.loc[ix, 'x'] = x[0].round(2)
             df.loc[ix, 'y'] = x[1].round(2)
             df.loc[ix, 'r'] = total_reward
-            print('r', total_reward)
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         result.fillna(0, inplace=True)
@@ -510,8 +516,8 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
         # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
 
-        if offline_gc:
-            return eval_reached
+    if offline_gc:
+        return eval_reached
 
 
 

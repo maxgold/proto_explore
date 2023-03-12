@@ -205,6 +205,7 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
         else:
 
             time_step = train_env.reset(goal_state=np.array([25,25]), init_state=init_state)
+            print('init', init_state)
             print('proto reset')
 
         origin = init_state
@@ -218,13 +219,6 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
         else: 
 
             time_step = train_env.reset(goal_state=np.array([25,25]), init_state=current_init[init_idx])
-            ##can't reset now
-            # with train_env.physics.reset_context():
-            #     train_env.physics.set_state(current_init[init_idx])
-
-            # act_ = np.zeros(train_env.action_spec().shape, train_env.action_spec().dtype)
-            # time_step = train_env.step(act_)
-
             origin = current_init[init_idx]
 
     if actor1:
@@ -337,14 +331,15 @@ def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dis
 
     current_init = np.append(current_init, train_env1.physics.get_state()[None, :],
                                   axis=0)
-
+    if pmm:
+        assert len(current_init.shape) == 2
     return reached_goals, proto_goals_matrix, unreached_goals, proto_goals, proto_goals_state, proto_goals_dist, current_init
 
 
 def get_time_step(cfg, proto_last_explore, gc_only, current_init, actor, actor1, pmm, proto_goals=None, proto_goals_state=None, proto_goals_dist=None, 
 unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, train_env_no_goal=None):
 
-    if proto_last_explore > 100 and gc_only is False:
+    if proto_last_explore > cfg.proto_explore_episodes and gc_only is False:
         actor = True
         actor1 = False
         proto_last_explore = 0
@@ -366,6 +361,7 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_idx = -1
 
             time_step = train_env.reset(init_state=current_init[init_idx], goal_state=np.array([25, 25]))
+            print('init_state', current_init[init_idx])
 
         else:
             if pmm:
@@ -374,6 +370,7 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[3] = 0
                 init_state[0] = init_state[0]*(-1)
             time_step = train_env.reset(init_state=init_state, goal_state=np.array([25, 25]))
+            print('init', init_state)
 
         print('proto_explore', time_step.observation['observations'])
 
