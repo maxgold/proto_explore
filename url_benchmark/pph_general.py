@@ -469,21 +469,21 @@ class Workspace:
         self.reinitiate = False
         self.gc_init = False
 
-        #self.rand_init = np.random.uniform(0, .29, size=(5, 2))
-        #self.rand_init[:,0] = -1 * self.rand_init[:,0]
-        self.rand_init = np.array([[-.2, .2], [-.2, -.2], [.2, .2], [.2, -.2]])
         self.switch_gc = self.cfg.switch_gc
+
         if self.cfg.gc_only:
             self.switch_gc = 0
             self.update_proto_while_gc=False
         else:
             self.update_proto_while_gc=self.cfg.update_proto_while_gc
-            # TODO
-            # check if it actually sets it to 0
+
         self.update_gc_while_proto=self.cfg.update_gc_while_proto
-        if self.cfg.proto_only and self.cfg.gc_only is False:
+        if (self.cfg.proto_only or self.cfg.offline_gc) and self.cfg.gc_only is False:
             self.switch_gc = self.cfg.num_train_frames // 2
-            self.update_gc_while_proto=False
+            if self.cfg.proto_only:
+                self.update_gc_while_proto=False
+            else:
+                self.update_gc_while_proto=True
         
 
         # if both proto_only & gc_only are true, alert wrong config
@@ -517,10 +517,7 @@ class Workspace:
     def evaluate(self, eval=False):
         self.logger.log('eval_total_time', self.timer.total_time(),
                         self.global_frame)
-        if self.cfg.debug:
-            eval(self.cfg, self.agent, self.proto_goals, self.video_recorder, self.pmm, self.global_step, self.global_frame, self.global_episode)
-
-        elif self.cfg.gc_only and self.cfg.offline_gc is False:
+        if self.cfg.gc_only and self.cfg.offline_gc is False:
             self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
@@ -534,7 +531,7 @@ class Workspace:
         else:
             #TODO: get rid of moving avg 
             self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder)
-
+            print('eval. current init', self.current_init)
 
     def train(self):
         # predicates
@@ -604,7 +601,11 @@ class Workspace:
                                 log('buffer_size', len(self.replay_storage))
                                 log('step', self.global_step)
 
-                        time_step = self.train_env.reset()
+                        if self.cfg.hack is False:
+                            time_step = self.train_env.reset()
+                        else:
+                            time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
+
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                         if self.cfg.velocity_control:
@@ -638,6 +639,9 @@ class Workspace:
                     if not seed_until_step(self.global_step):
                         metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                        if self.update_gc_while_proto:
+                            metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+
 
                     if self.cfg.velocity_control:
                         vel = action.copy()
@@ -955,7 +959,7 @@ class Workspace:
                             metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                             self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
-                            if self.update_proto_while_gc:
+                            if self.update_gc_while_proto:
                                 metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
 
                     self._global_step += 1

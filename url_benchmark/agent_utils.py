@@ -205,6 +205,7 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
         else:
 
             time_step = train_env.reset(goal_state=np.array([25,25]), init_state=init_state)
+            print('init', init_state)
             print('proto reset')
 
         origin = init_state
@@ -218,13 +219,6 @@ def make_env(cfg, actor1, init_idx, goal_state, pmm, current_init, train_env=Non
         else: 
 
             time_step = train_env.reset(goal_state=np.array([25,25]), init_state=current_init[init_idx])
-            ##can't reset now
-            # with train_env.physics.reset_context():
-            #     train_env.physics.set_state(current_init[init_idx])
-
-            # act_ = np.zeros(train_env.action_spec().shape, train_env.action_spec().dtype)
-            # time_step = train_env.step(act_)
-
             origin = current_init[init_idx]
 
     if actor1:
@@ -367,6 +361,7 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_idx = -1
 
             time_step = train_env.reset(init_state=current_init[init_idx], goal_state=np.array([25, 25]))
+            print('init_state', current_init[init_idx])
 
         else:
             if pmm:
@@ -375,6 +370,7 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[3] = 0
                 init_state[0] = init_state[0]*(-1)
             time_step = train_env.reset(init_state=init_state, goal_state=np.array([25, 25]))
+            print('init', init_state)
 
         print('proto_explore', time_step.observation['observations'])
 
