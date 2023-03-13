@@ -1169,6 +1169,7 @@ class OfflineReplayBuffer(IterableDataset):
 
     def _load(self, relabel=False):
         if self._samples_since_last_load < self._load_every and len(self._episode_fns)!=0:
+            print('samples since last load', self._samples_since_last_load)
             return
 
         self._samples_since_last_load = 0
@@ -1205,6 +1206,7 @@ class OfflineReplayBuffer(IterableDataset):
             if relabel:
                 episode = self._relabel_reward(episode)
             self._episode_fns.append(eps_fn)
+            print('append', eps_fn)
             self._episodes[eps_fn] = episode
             self._size += episode_len(episode)
 

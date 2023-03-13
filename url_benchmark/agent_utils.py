@@ -371,7 +371,6 @@ unreached_goals=None, eval_env_no_goal=None, train_env=None, train_env1=None, tr
                 init_state[0] = init_state[0]*(-1)
             time_step = train_env.reset(init_state=init_state, goal_state=np.array([25, 25]))
             print('init', init_state)
-
         print('proto_explore', time_step.observation['observations'])
 
         goal_idx = None

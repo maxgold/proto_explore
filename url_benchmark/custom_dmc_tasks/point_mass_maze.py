@@ -565,7 +565,11 @@ class MultiTaskPointMassMaze(base.Task):
         randomizers.randomize_limited_and_rotational_joints(physics, self.random)
         #physics.data.qpos[0] = np.random.uniform(-.25, -.29)
         #physics.data.qpos[1] = np.random.uniform(0.25, .29)
-        physics.data.qpos[0], physics.data.qpos[1] = self._init_state
+        print('init_state', init_state)
+        if init_state is None:
+            physics.data.qpos[0], physics.data.qpos[1] = self._init_state
+        else:
+            physics.data.qpos[0], physics.data.qpos[1] = init_state[:2]
         # import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos["target"][:] = self._target
 

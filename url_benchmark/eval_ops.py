@@ -362,6 +362,11 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         return current_init, proto_goals, proto_goals_state, proto_goals_dist
     else:
         #for offline_gc, we only need to modify current_init and don't need proto_goals
+        index = np.where((proto_goals_state == 0.).all(axis=1))[0]
+        proto_goals = np.delete(proto_goals, index, axis=0)
+        proto_goals_state = np.delete(proto_goals_state, index, axis=0)
+        proto_goals_dist = np.delete(proto_goals_dist, index, axis=0)
+        
         if cfg.debug:
             current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
 
@@ -399,7 +404,6 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             goal_array = goal_states
 
         print('goal array', goal_array)
-
         for ix, x in enumerate(goal_array):
             print('goal', x)
             step, episode, total_reward = 0, 0, 0
@@ -412,9 +416,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             meta = agent.init_meta()
 
             while eval_until_episode(episode):
-                
                 time_step = eval_env.reset()
-
                 if cfg.obs_type == 'pixels':
                     eval_env_no_goal = dmc.make(cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
                                                     cfg.action_repeat, seed=None, goal=None,
@@ -433,7 +435,6 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                         time_step_goal = goal_pixels[ix]
 
                 video_recorder.init(eval_env, enabled=(episode == 0))
-                
                 while step != cfg.episode_length:
                     with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
@@ -464,6 +465,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     video_recorder.record(eval_env)
                     total_reward += time_step.reward
                     step += 1
+                
                 episode += 1
 
                 if ix % 10 == 0:
@@ -489,32 +491,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
-        # #action
-
-        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
-        # result.fillna(0, inplace=True)
-        # print('result', result)
-        # plt.clf()
-        # fig, ax = plt.subplots()
-        # plt.title(str(init))
-        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        # plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
-        # wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
-
-        # #min dist to goal
-        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
-        # result.fillna(0, inplace=True)
-        # print('result', result)
-        # plt.clf()
-        # fig, ax = plt.subplots()
-        # plt.title(str(init))
-        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
-        # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
+        
 
     if offline_gc:
         return eval_reached
