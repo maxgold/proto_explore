@@ -21,7 +21,7 @@ from video import TrainVideoRecorder, VideoRecorder
 from agent_utils import *
 from eval_ops import *
 from pathlib import Path
-import gym
+import envs
 
 torch.backends.cudnn.benchmark = True
 
@@ -110,47 +110,62 @@ class Workspace:
         if self.cfg.task.startswith('point_mass'):
             self.pmm = True
 
+            
+
         # two different routes for pmm vs. non-pmm envs
         # TODO
         # write into function: init_envs
 
-        if self.pmm:
-            if self.cfg.velocity_control:
-                assert self.cfg.stddev_schedule <= .02 and self.cfg.stddev_schedule2 <= .02
-                assert self.cfg.stddev_clip <= .02 and self.cfg.stddev_clip2 <= .02
-                assert self.cfg.scale is not None and self.cfg.frame_stack == 1
+        if self.cfg.gym is False:
+            print('running dmc envs')
+            if self.pmm:
+                if self.cfg.velocity_control:
+                    assert self.cfg.stddev_schedule <= .02 and self.cfg.stddev_schedule2 <= .02
+                    assert self.cfg.stddev_clip <= .02 and self.cfg.stddev_clip2 <= .02
+                    assert self.cfg.scale is not None and self.cfg.frame_stack == 1
 
-            self.no_goal_task = self.cfg.task_no_goal
-            idx = np.random.randint(0, 400)
-            goal_array = ndim_grid(2, 20)
-            self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
 
-            self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                       cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
-            print('goal', self.first_goal)
+                idx = np.random.randint(0, 400)
+                goal_array = ndim_grid(2, 20)
+                self.first_goal = np.array([goal_array[idx][0], goal_array[idx][1]])
 
-            self.train_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                              cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
-            print('no goal task env', self.no_goal_task)
+                self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
+                print('goal', self.first_goal)
 
-            self.train_env = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                      cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
+                self.train_env_no_goal = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
+                print('no goal task env', self.cfg.task_no_goal)
 
-            self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                     cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
+                self.train_env = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
 
-            self.eval_env_no_goal = dmc.make(self.no_goal_task, cfg.obs_type, cfg.frame_stack,
-                                             cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
+                self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=self.first_goal, camera_id=cfg.camera_id)
 
-            self.eval_env_goal = dmc.make(self.no_goal_task, 'states', cfg.frame_stack,
-                                          1, seed=None, goal=None, camera_id=cfg.camera_id)
+                self.eval_env_no_goal = dmc.make(self.cfg.task_no_goal, cfg.obs_type, cfg.frame_stack,
+                                                cfg.action_repeat, seed=None, goal=None, camera_id=cfg.camera_id)
+
+                self.eval_env_goal = dmc.make(self.cfg.task_no_goal, 'states', cfg.frame_stack,
+                                            1, seed=None, goal=None, camera_id=cfg.camera_id)
+            else:
+                self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
+                self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
+                self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
+                
         else:
-            self.train_env1 = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                       cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
-            self.train_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                      cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
-            self.eval_env = dmc.make(self.cfg.task, cfg.obs_type, cfg.frame_stack,
-                                     cfg.action_repeat, seed=None, camera_id=cfg.camera_id)
+            print('running gym envs')
+            self.train_env = envs.load_single_env(self.cfg.task)
+            self.eval_env = envs.load_single_env(self.cfg.task)
+            # print('time_step', time_step)
+            print('obs', self.train_env.obs_space)
+            print('env', self.train_env)
+            import IPython as ipy; ipy.embed(colors='neutral')
+
+            
 
         if cfg.cassio:
             self.pwd = '/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark'
@@ -162,11 +177,31 @@ class Workspace:
             self.pwd = None
             # create agent
 
+        pixel_shape = [0, 0, 0]
+        if self.cfg.gym is False:
+            obs_spec = self.train_env.observation_spec()
+            action_spec = self.train_env.action_spec()
+            pixel_shape = (3 * self.cfg.frame_stack, 84, 84)
+        else:
+            obs_spec =self.train_env.obs_space['image']
+            action_spec = self.train_env.act_space['action']
+            pixel_shape[0], pixel_shape[1], pixel_shape[2] = self.train_env.obs_space['image'].shape[2], self.train_env.obs_space['image'].shape[0], self.train_env.obs_space['image'].shape[1]
+            pixel_shape = tuple(pixel_shape)
+        #TODO:
+        #how to reset? 
+        #self.train_env.act_space.action['reset'] = True
+        #or self.env._done=True
+
+        #for velocity control 
+        #set 'walker/joints_vel' to whatever you want?
+
+        #'walker/world_zaxis' coordinates
+
         if cfg.agent.name == 'proto':
             self.agent = make_agent(cfg.obs_type,
-                                    self.train_env.observation_spec(),
-                                    self.train_env.action_spec(),
-                                    (3 * self.cfg.frame_stack, 84, 84),
+                                    obs_spec,
+                                    action_spec,
+                                    pixel_shape,
                                     cfg.num_seed_frames // cfg.action_repeat,
                                     cfg.agent,
                                     cfg.lr,
@@ -201,9 +236,9 @@ class Workspace:
 
         elif cfg.agent.name == 'ddpg':
             self.agent = make_agent(cfg.obs_type,
-                                    self.train_env.observation_spec(),
-                                    self.train_env.action_spec(),
-                                    (3 * self.cfg.frame_stack, 84, 84),
+                                    obs_spec,
+                                    action_spec,
+                                    pixel_shape,
                                     cfg.num_seed_frames // cfg.action_repeat,
                                     cfg.agent,
                                     cfg.lr,
@@ -249,8 +284,8 @@ class Workspace:
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (self.train_env.observation_spec(),
-                      self.train_env.action_spec(),
+        data_specs = (obs_spec,
+                      action_spec,
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
@@ -321,6 +356,11 @@ class Workspace:
         # TODO
         # figure out why files "disappear" in buffer_copy when used by another loader
         # figure out why we can't add parse data function to data loader
+
+        if self.cfg.gym is False:
+            state_shape = self.train_env.physics.state().shape[0]
+        else:
+            state_shape = self.train_env._env._env._physics.state().shape[0]
         if self.cfg.offline_gc:
             print('offline buffer')
             print('model path', self.cfg.model_path)
@@ -363,7 +403,7 @@ class Workspace:
                                                     loss=cfg.loss_gc, test=cfg.test,
                                                     tile=cfg.frame_stack,
                                                     pmm=self.pmm,
-                                                    obs_shape=self.train_env1.physics.state().shape[0],
+                                                    obs_shape=state_shape,
                                                     general=True,
                                                     inv=cfg.inv,
                                                     goal_offset=self.cfg.goal_offset)
@@ -545,7 +585,6 @@ class Workspace:
         episode_step, episode_reward = 0, 0
 
         time_step = self.train_env.reset()
-        time_step1 = self.train_env1.reset()
         meta = self.agent.init_meta()
 
         if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False:

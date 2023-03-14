@@ -126,6 +126,8 @@ camera_id: ??? #quadruped=2 egocentric=1
 proto_explore_every: 10
 proto_explore_episodes: 100
 hack: False
+env_name: None
+gym: False
 #experiment
 experiment: exp
 
