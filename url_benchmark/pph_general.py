@@ -469,8 +469,8 @@ class Workspace:
                 self.dim = self.agent.protos.weight.data.shape[0]
 
         # clean up this section
-        self.proto_goals = np.zeros((self.dim, 3 * self.cfg.frame_stack, 84, 84))
-        self.proto_goals_state = np.zeros((self.dim, self.train_env.physics.get_state().shape[0]))
+        self.proto_goals = np.zeros((self.dim, 3 * self.cfg.frame_stack, pixel_shape[1], pixel_shape[2]))
+        self.proto_goals_state = np.zeros((self.dim, self.train_env._env._env._physics.state().shape[0]))
         self.proto_goals_dist = np.zeros((self.dim, 1))
         self.proto_goals_matrix = np.zeros((60, 60))
         self.proto_goals_id = np.zeros((self.dim, 2))
@@ -501,10 +501,10 @@ class Workspace:
         self.r_mov_avg_100 = np.zeros((2000,))
         self.r_mov_avg_200 = np.zeros((2000,))
         self.r_mov_avg_500 = np.zeros((2000,))
-        self.unreached_goals = np.empty((0, self.train_env.physics.get_state().shape[0]))
+        self.unreached_goals = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
         self.proto_last_explore = 0
-        self.current_init = np.empty((0, self.train_env.physics.get_state().shape[0]))
-        self.eval_reached = np.empty((0, self.train_env.physics.get_state().shape[0]))
+        self.current_init = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
+        self.eval_reached = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
         self.unreached = False
         self.reinitiate = False
         self.gc_init = False
@@ -582,13 +582,28 @@ class Workspace:
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
         log_every_step = utils.Every(self.cfg.log_every_steps)
+        
         episode_step, episode_reward = 0, 0
 
-        time_step = self.train_env.reset()
+        if self.cfg.gym:
+            action = dict()
+            act = np.zeros(self.train_env.act_space['action'].shape)
+            action['action'] = act
+            action['reset'] = True
+            time_step = self.train_env.step(action)
+            print('time_step', time_step)
+        else:
+            time_step = self.train_env.reset()
+        print('action', action)
         meta = self.agent.init_meta()
 
+        if self.cfg.gym:
+            state = self.train_env._env._env._physics.state()
+        else:
+            state = self.train_env.physics.get_state()
+
         if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False:
-            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+            self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
 
         metrics = None
 
@@ -642,10 +657,15 @@ class Workspace:
                     
                     meta = self.agent.update_meta(meta, self._global_step, time_step)
 
-                    if self.cfg.velocity_control:
-                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm, action=vel)
+                    if self.cfg.gym:
+                        state = self.train_env._env._env._physics.state()
                     else:
-                        self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
+                        state = self.train_env.physics.get_state()
+
+                    if self.cfg.velocity_control:
+                        self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
+                    else:
+                        self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
 
                     # try to save snapshot
                     # TODO
@@ -664,11 +684,16 @@ class Workspace:
                 meta = self.agent.update_meta(meta, self.global_step, time_step)
                 # sample action
                 with torch.no_grad(), utils.eval_mode(self.agent):
-
-                    action = self.agent.act2(time_step.observation['pixels'],
-                                            meta,
-                                            self.global_step,
-                                            eval_mode=True)
+                    if self.cfg.gym is False:
+                        action = self.agent.act2(time_step.observation['pixels'],
+                                                meta,
+                                                self.global_step,
+                                                eval_mode=True)
+                    else:
+                        action['action'] = self.agent.act2(time_step.observation['pixels'],
+                                                meta,
+                                                self.global_step,
+                                                eval_mode=True)
 
                 # try to update the agent
                 if not seed_until_step(self.global_step):
@@ -678,20 +703,34 @@ class Workspace:
                         metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
-                if self.cfg.velocity_control:
+                if self.cfg.velocity_control and self.cfg.gym is False:
                     vel = action.copy()
                     action = np.zeros(2, dtype="float32")
                     self.train_env.physics.data.qvel[0] = vel[0]
                     self.train_env.physics.data.qvel[1] = vel[1]
+                elif self.cfg.velocity_control and self.cfg.gym:
+                    vel = action['action'].copy()
+                    action['action'] = np.zeros(self.train_env.action_space.shape[0], dtype="float32")
+                    self.train_env.obs_space['walker/joints_vel'] = vel
+
 
                 # take env step
-                time_step = self.train_env.step(action)
+                if self.cfg.gym is False:
+                    time_step = self.train_env.step(action)
+                else:
+                    time_step = self.train_env.step(action['action'])
+
                 episode_reward += time_step.reward
 
-                if self.cfg.velocity_control:
-                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm, action=vel)
+                if self.cfg.gym:
+                    state = self.train_env._env._env._physics.state()
                 else:
-                    self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
+                    state = self.train_env.physics.get_state()
+
+                if self.cfg.velocity_control:
+                    self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm, action=vel)
+                else:
+                    self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
 
                 episode_step += 1
                 self._global_step += 1
