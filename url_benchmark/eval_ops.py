@@ -13,9 +13,11 @@ from agent_utils import *
 import wandb
 import dmc
 from scipy.spatial.distance import cdist
+from floyd_warshall import *
+
 
 def ndim_grid(ndims, space):
-    L = [np.linspace(-.29,.29,space) for i in range(ndims)]
+    L = [np.linspace(-.28,.28,space) for i in range(ndims)]
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 def eval_proto_gc_only(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
@@ -577,13 +579,18 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
-    reached = np.zeros((100,))
+    reached = Graph()
+    print('reached', reached)
+    print('reached', reached.adj)
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
 
     if cfg.debug:
         rand_init = ndim_grid(2, 2)
     else:
-        rand_init = ndim_grid(2, 10)
+        rand_init = ndim_grid(2, 6)
+
+    for i, init in enumerate(rand_init):
+        reached.add_vertex(i)
 
     for i, init in enumerate(rand_init):
         init = init[:2]
@@ -591,7 +598,7 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         if cfg.debug:
             goal_array = ndim_grid(2, 2)
         else:
-            goal_array = ndim_grid(2, 10)
+            goal_array = ndim_grid(2, 6)
 
         dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
         if cfg.debug:
@@ -602,6 +609,8 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         print('goal array', goal_array)
 
         for ix, x in enumerate(goal_array):
+            if init[0] == x[0] and init[1] == x[1]:
+                continue
             print('goal', x)
             step, episode, total_reward = 0, 0, 0
             goal_state = x
@@ -664,26 +673,21 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
 
                     video_recorder.record(eval_env)
                     total_reward += time_step.reward
+                    if time_step.reward > 1.9 or total_reward > 100 * cfg.num_eval_episodes:
+                        print('reward', time_step.reward)
+                        goal_idx = np.where((rand_init == x).all(axis=1))[0][0]
+                        print('reached', reached)
+                        reached.add_edge(i, goal_idx, step)
+                        break
                     step += 1
                 episode += 1
 
                 if ix % 10 == 0:
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
-                    eval_reached = np.append(eval_reached, x[None,:], axis=0)
-                    eval_reached = np.unique(eval_reached, axis=0)
-                    set1 = set(np.where(rand_init[:,0]==x[0])[0])
-                    set2 = set(np.where(rand_init[:,1]==x[1])[0])
-                    if len(set1.intersection(set2)) > 0:
-                        reached[list(set1.intersection(set2))[0]] = 1
-
-
             df.loc[ix, 'x'] = x[0].round(2)
             df.loc[ix, 'y'] = x[1].round(2)
             df.loc[ix, 'r'] = total_reward
-
-        
 
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         result.fillna(0, inplace=True)
@@ -697,7 +701,9 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
-    np.savetxt("./final_reachable_goals.csv", reached, delimiter=",")
+    distance, path = reached.floydwarshall()
+    print('distance', distance)
+    print('path', path)
 
 
 
