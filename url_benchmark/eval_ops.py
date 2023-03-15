@@ -17,7 +17,7 @@ from floyd_warshall import *
 
 
 def ndim_grid(ndims, space):
-    L = [np.linspace(-.28,.28,space) for i in range(ndims)]
+    L = [np.linspace(-.29,.29,space) for i in range(ndims)]
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 def eval_proto_gc_only(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
@@ -587,7 +587,7 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
     if cfg.debug:
         rand_init = ndim_grid(2, 2)
     else:
-        rand_init = ndim_grid(2, 6)
+        rand_init = ndim_grid(2, 8)
 
     for i, init in enumerate(rand_init):
         reached.add_vertex(i)
@@ -596,10 +596,16 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         init = init[:2]
         print('init', init)
         if cfg.debug:
-            goal_array = ndim_grid(2, 2)
+            goal_array = ndim_grid(2, 3)
         else:
-            goal_array = ndim_grid(2, 6)
-
+            goal_array = ndim_grid(2, 8)
+        print('goal array', goal_array)
+        
+        for goal in goal_array:
+            if (-.02 < goal[0] < .02 and -.22 < goal[1] < .22) or (-.02 < goal[1] < .02 and -.22 < goal[0] < .22):
+                goal_array = np.delete(goal_array, np.where((goal_array == goal).all(axis=1))[0][0], axis=0)
+        print('goal array', goal_array)
+        
         dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
         if cfg.debug:
             goal_dist, _ = torch.topk(dist, 2, dim=-1, largest=False)
@@ -702,6 +708,10 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
     distance, path = reached.floydwarshall()
+    df_dist = pd.DataFrame(distance)
+    df_path = pd.DataFrame(path)
+    df_dist.to_csv(f"./{global_step}_distance.csv", index=False)
+    df_path.to_csv(f"./{global_step}_path.csv", index=False)
     print('distance', distance)
     print('path', path)
 
