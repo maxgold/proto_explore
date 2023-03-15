@@ -161,9 +161,8 @@ class Workspace:
             self.train_env = envs.load_single_env(self.cfg.task)
             self.eval_env = envs.load_single_env(self.cfg.task)
             # print('time_step', time_step)
-            print('obs', self.train_env.obs_space)
-            print('env', self.train_env)
-            import IPython as ipy; ipy.embed(colors='neutral')
+
+            
 
             
 
@@ -183,7 +182,8 @@ class Workspace:
             action_spec = self.train_env.action_spec()
             pixel_shape = (3 * self.cfg.frame_stack, 84, 84)
         else:
-            obs_spec =self.train_env.obs_space['image']
+            #obs_spec =self.train_env._env._env._physics.state()
+            obs_spec = self.train_env.obs_space['image']
             action_spec = self.train_env.act_space['action']
             pixel_shape[0], pixel_shape[1], pixel_shape[2] = self.train_env.obs_space['image'].shape[2], self.train_env.obs_space['image'].shape[0], self.train_env.obs_space['image'].shape[1]
             pixel_shape = tuple(pixel_shape)
@@ -284,10 +284,11 @@ class Workspace:
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (obs_spec,
-                      action_spec,
+        data_specs = (specs.Array(obs_spec.shape, np.int, 'observation'),
+                      specs.Array(action_spec.shape, np.float32, 'action'),
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
+        print('data specs', data_specs)
 
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
@@ -591,10 +592,9 @@ class Workspace:
             action['action'] = act
             action['reset'] = True
             time_step = self.train_env.step(action)
-            print('time_step', time_step)
         else:
             time_step = self.train_env.reset()
-        print('action', action)
+
         meta = self.agent.init_meta()
 
         if self.cfg.gym:
@@ -603,6 +603,7 @@ class Workspace:
             state = self.train_env.physics.get_state()
 
         if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False:
+            import IPython as ipy; ipy.embed(colors='neutral')
             self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
 
         metrics = None
@@ -663,6 +664,7 @@ class Workspace:
                         state = self.train_env.physics.get_state()
 
                     if self.cfg.velocity_control:
+                        import IPython as ipy; ipy.embed(colors='neutral')
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
                     else:
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
