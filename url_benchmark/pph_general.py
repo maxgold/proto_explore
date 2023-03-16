@@ -30,7 +30,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
                update_gc=2, tau=.1, num_iterations=3, feature_dim=50, pred_dim=128, proj_dim=512,
                batch_size=1024, update_proto_every=10, stddev_schedule=.2, stddev_clip=.3, update_proto=2, 
                stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
-               normalize=False, normalize2=False, sl=False, encoder1=False, encoder2=False, encoder3=False, feature_dim_gc=50, inv=False,
+               normalize=False, normalize2=False, sl=False, encoder1=False, encoder2=False, encoder3=False, encoder1_ant=False, feature_dim_gc=50, inv=False,
                use_actor_trunk=False, use_critic_trunk=False, init_from_proto=False, init_from_ddpg=False, pretrained_feature_dim=16,
                scale=None, gc_inv=False):
     
@@ -68,6 +68,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.encoder1 = encoder1
     cfg.encoder2 = encoder2
     cfg.encoder3 = encoder3
+    cfg.encoder1_ant = encoder1_ant
     cfg.feature_dim_gc = feature_dim_gc
     cfg.inv = inv
     cfg.use_actor_trunk = use_actor_trunk
@@ -182,11 +183,13 @@ class Workspace:
             action_spec = self.train_env.action_spec()
             pixel_shape = (3 * self.cfg.frame_stack, 84, 84)
         else:
-            #obs_spec =self.train_env._env._env._physics.state()
-            obs_spec = self.train_env.obs_space['image']
+            print('img', self.train_env.obs_space['image'])
+            obs = self.train_env.obs_space['image']
             action_spec = self.train_env.act_space['action']
-            pixel_shape[0], pixel_shape[1], pixel_shape[2] = self.train_env.obs_space['image'].shape[2], self.train_env.obs_space['image'].shape[0], self.train_env.obs_space['image'].shape[1]
+            pixel_shape[0], pixel_shape[1], pixel_shape[2] = obs.shape[2], obs.shape[0], obs.shape[1]
             pixel_shape = tuple(pixel_shape)
+            obs_spec = np.zeros(pixel_shape)
+            #we only need the shape of obs_spec
         #TODO:
         #how to reset? 
         #self.train_env.act_space.action['reset'] = True
@@ -197,7 +200,18 @@ class Workspace:
 
         #'walker/world_zaxis' coordinates
 
+        if self.cfg.gym is False:
+            self.encoder1 = self.cfg.encoder1
+            self.encoder1_ant = False
+        else:
+            self.encoder1 = False
+            if self.cfg.encoder1:
+                self.encoder1_ant = True
+            else:
+                raise NotImplementedError
+
         if cfg.agent.name == 'proto':
+
             self.agent = make_agent(cfg.obs_type,
                                     obs_spec,
                                     action_spec,
@@ -224,9 +238,10 @@ class Workspace:
                                     normalize=cfg.normalize,
                                     normalize2=cfg.normalize2,
                                     sl = cfg.sl,
-                                    encoder1 = cfg.encoder1,
+                                    encoder1 = self.encoder1,
                                     encoder2 = cfg.encoder2,
                                     encoder3 = cfg.encoder3,
+                                    encoder1_ant = self.encoder1_ant,
                                     feature_dim_gc = cfg.feature_dim_gc,
                                     inv = cfg.inv,
                                     use_actor_trunk=cfg.use_actor_trunk,
@@ -251,9 +266,10 @@ class Workspace:
                                     stddev_schedule2=cfg.stddev_schedule2,
                                     stddev_clip2=cfg.stddev_clip2,
                                     sl = cfg.sl,
-                                    encoder1 = cfg.encoder1,
+                                    encoder1 = self.encoder1,
                                     encoder2 = cfg.encoder2,
                                     encoder3 = cfg.encoder3,
+                                    encoder1_ant = self.encoder1_ant,
                                     feature_dim_gc = cfg.feature_dim_gc,
                                     inv = cfg.inv,
                                     use_actor_trunk=cfg.use_actor_trunk,
@@ -284,11 +300,11 @@ class Workspace:
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (specs.Array(obs_spec.shape, np.int, 'observation'),
+        data_specs = (specs.Array(obs_spec.shape, np.int32, 'observation'),
                       specs.Array(action_spec.shape, np.float32, 'action'),
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
-        print('data specs', data_specs)
+
 
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
@@ -588,7 +604,7 @@ class Workspace:
 
         if self.cfg.gym:
             action = dict()
-            act = np.zeros(self.train_env.act_space['action'].shape)
+            act = np.zeros(self.train_env.act_space['action'].shape, dtype=np.float32)
             action['action'] = act
             action['reset'] = True
             time_step = self.train_env.step(action)
@@ -601,10 +617,14 @@ class Workspace:
             state = self.train_env._env._env._physics.state()
         else:
             state = self.train_env.physics.get_state()
+        
+        # import IPython as ipy; ipy.embed(colors='neutral')
 
-        if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False:
-            import IPython as ipy; ipy.embed(colors='neutral')
+        if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False and self.cfg.gym is False:
+            
             self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
+        else:
+            self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
 
         metrics = None
 
@@ -633,8 +653,9 @@ class Workspace:
                 self._global_step += 1
 
             else:
-
-                if time_step.last() or episode_step >= self.cfg.episode_length:
+                
+                if (self.cfg.gym is False and time_step.last()) or (self.cfg.gym and time_step['is_last']) or episode_step >= self.cfg.episode_length:
+                    print('episode_step', episode_step)
                     self._global_episode += 1
                     # wait until all the metrics schema is populated
                     if metrics is not None and self.global_step%500==0:
@@ -651,11 +672,19 @@ class Workspace:
                             log('buffer_size', len(self.replay_storage))
                             log('step', self.global_step)
 
-                    if self.cfg.hack is False:
+                    if self.cfg.hack is False and self.cfg.gym is False:
                         time_step = self.train_env.reset()
-                    else:
+                    elif self.cfg.hack is True and self.cfg.gym is False:
                         time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
-                    
+                    elif self.cfg.gym:
+                        action = dict()
+                        act = np.zeros(self.train_env.act_space['action'].shape, dtype=np.float32)
+                        action['action'] = act
+                        action['reset'] = True
+                        # print('before resetting', time_step)
+                        time_step = self.train_env.step(action)
+                        # print('resetting env', time_step)
+
                     meta = self.agent.update_meta(meta, self._global_step, time_step)
 
                     if self.cfg.gym:
@@ -663,11 +692,14 @@ class Workspace:
                     else:
                         state = self.train_env.physics.get_state()
 
-                    if self.cfg.velocity_control:
-                        import IPython as ipy; ipy.embed(colors='neutral')
+                    if self.cfg.velocity_control and self.cfg.gym is False:
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
-                    else:
+                    elif self.cfg.velocity_control is False and self.cfg.gym is False:
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
+                    elif self.cfg.velocity_control and self.cfg.gym:
+                        self.replay_storage.add_gym(time_step, state, meta, True, last=True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
+                    elif self.cfg.velocity_control is False and self.cfg.gym:
+                        self.replay_storage.add_gym(time_step, state, meta, True, last=True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
 
                     # try to save snapshot
                     # TODO
@@ -678,7 +710,11 @@ class Workspace:
                     episode_step = 0
                     episode_reward = 0
 
-                    print('proto_explore1', time_step.observation['observations'])
+                    if self.cfg.gym is False:
+                        print('proto_explore1', time_step.observation['observations'])
+                    else:
+                        print('proto_explore1', time_step['walker/world_zaxis'])
+
                 # try to evaluate
                 if eval_every_step(self.global_step) and self.global_step != 0:
                     self.evaluate()
@@ -692,7 +728,7 @@ class Workspace:
                                                 self.global_step,
                                                 eval_mode=True)
                     else:
-                        action['action'] = self.agent.act2(time_step.observation['pixels'],
+                        action['action'] = self.agent.act2(np.transpose(time_step['image'].copy(), (2,0,1)),
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=True)
@@ -711,28 +747,30 @@ class Workspace:
                     self.train_env.physics.data.qvel[0] = vel[0]
                     self.train_env.physics.data.qvel[1] = vel[1]
                 elif self.cfg.velocity_control and self.cfg.gym:
-                    vel = action['action'].copy()
+                    vel = action['action'].copy().astype('float32')
                     action['action'] = np.zeros(self.train_env.action_space.shape[0], dtype="float32")
                     self.train_env.obs_space['walker/joints_vel'] = vel
 
-
                 # take env step
+                time_step = self.train_env.step(action)
                 if self.cfg.gym is False:
-                    time_step = self.train_env.step(action)
+                    episode_reward += time_step.reward
                 else:
-                    time_step = self.train_env.step(action['action'])
-
-                episode_reward += time_step.reward
+                    episode_reward += time_step['reward']
 
                 if self.cfg.gym:
                     state = self.train_env._env._env._physics.state()
                 else:
                     state = self.train_env.physics.get_state()
 
-                if self.cfg.velocity_control:
+                if self.cfg.velocity_control and self.cfg.gym is False:
                     self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm, action=vel)
-                else:
+                elif self.cfg.velocity_control is False and self.cfg.gym is False:
                     self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
+                elif self.cfg.velocity_control and self.cfg.gym:
+                    self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
+                elif self.cfg.velocity_control is False and self.cfg.gym:
+                    self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
 
                 episode_step += 1
                 self._global_step += 1

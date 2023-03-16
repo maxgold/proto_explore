@@ -152,12 +152,12 @@ class ReplayBufferStorage:
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
     
-    def add_gym(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True, action=None):
+    def add_gym(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True, action=None, discount=None):
         for key, value in meta.items():
             self._current_episode[key].append(value)
         for spec in self._data_specs:
             if spec.name == 'observation' and pixels:
-                value = time_step['image']    
+                value = time_step['image'].transpose(2,0,1)
                 self._current_episode['observation'].append(value)
                 if state is not None:
                     self._current_episode['state'].append(state)
@@ -166,13 +166,19 @@ class ReplayBufferStorage:
                     raise NotImplementedError
 
                 tmp_state = time_step['walker/world_zaxis']*100
-                print('check the limits of the x, y coordinates')
+                # print('check the limits of the x, y coordinates')
                 idx_x = int(tmp_state[0])+29
                 idx_y = int(tmp_state[1])+29
                 self.state_visitation_proto[idx_x,idx_y]+=1
 
             elif spec.name == 'action' and action is not None:
                 value = action
+                if np.isscalar(value):
+                    value = np.full(spec.shape, value, spec.dtype)
+                assert spec.shape == value.shape and spec.dtype == value.dtype
+                self._current_episode[spec.name].append(value)
+            elif spec.name == 'discount' and discount is not None:
+                value = discount
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
                 assert spec.shape == value.shape and spec.dtype == value.dtype
@@ -185,7 +191,7 @@ class ReplayBufferStorage:
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode[spec.name].append(value)
                     
-        if time_step.last() or last:
+        if last:
             episode = dict()
             for spec in self._data_specs:
                 if spec.name == 'observation' and pixels:
@@ -203,7 +209,7 @@ class ReplayBufferStorage:
                 episode[spec.name] = np.array(value, spec.dtype)
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
-            print('storing episode, no goal')
+            print('storing episode, no goal, gym')
 
     def add_goal(self, time_step, meta, goal, time_step_no_goal=False,goal_state=False,pixels=False, last=False, asym=False):
         for key, value in meta.items():

@@ -37,6 +37,7 @@ class DDPGAgent:
                  encoder1=False,
                  encoder2=False,
                  encoder3=False,
+                 encoder1_ant=False,
                  feature_dim_gc=16,
                  inv=False,
                  use_actor_trunk=False,
@@ -72,6 +73,7 @@ class DDPGAgent:
         self.encoder1 = encoder1
         self.encoder2 = encoder2
         self.encoder3 = encoder3
+        self.encoder1_ant = encoder1_ant
         self.inv = inv
         self.use_actor_trunk = use_actor_trunk
         self.use_critic_trunk = use_critic_trunk
@@ -101,6 +103,9 @@ class DDPGAgent:
                 self.encoder = Encoder2(obs_shape).to(device)
             elif self.encoder3:
                 self.encoder = Encoder3(obs_shape).to(device)
+            elif self.encoder1_ant:
+                print('encoder1_ant')
+                self.encoder = Encoder1_ant(obs_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
             self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
@@ -272,13 +277,11 @@ class DDPGAgent:
             h = self.encoder(obs)
         elif self.sl:
             h, _ = self.encoder(obs)
-
         inputs = [h]
         for value in meta.values():
             value = torch.as_tensor(value, device=self.device).unsqueeze(0)
             inputs.append(value)
         inpt = torch.cat(inputs, dim=-1)
-        #assert obs.shape[-1] == self.obs_shape[-1]
         stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(inpt, stddev, scale=self.scale)
         if eval_mode:
