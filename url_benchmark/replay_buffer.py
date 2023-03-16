@@ -1148,11 +1148,11 @@ class OfflineReplayBuffer(IterableDataset):
         self.inv=inv
         self.goal_offset=goal_offset
         if model_step is not None:
-            self.model_step = int(model_step//500)
+            self.model_step = int(model_step//200)
         else:
             self.model_step = None
         if model_step_lb is not None:
-            self.model_step_lb = int(model_step_lb//500)
+            self.model_step_lb = int(model_step_lb//200)
         else:
             self.model_step_lb = 0
         print('goal offset', goal_offset)
