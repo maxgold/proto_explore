@@ -159,8 +159,8 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                                             obs_type='pixels'
                                             )
 
-        state, actions, rewards, eps, index = replay_buffer.parse_dataset()
-        state = state.reshape((state.shape[0], train_env.physics.get_state().shape[0]))
+    state, actions, rewards, eps, index = replay_buffer.parse_dataset()
+    state = state.reshape((state.shape[0], train_env.physics.get_state().shape[0]))
 
     while proto_goals.shape[0] < dim:
         proto_goals = np.append(proto_goals, np.zeros((1, 3 * cfg.frame_stack, 84, 84)), axis=0)
