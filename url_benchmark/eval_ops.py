@@ -14,6 +14,7 @@ import wandb
 import dmc
 from scipy.spatial.distance import cdist
 from floyd_warshall import *
+import re
 
 
 def ndim_grid(ndims, space):
@@ -81,7 +82,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
 current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None):
+mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None, model_step=None, pretrained_agent=None):
 
     if eval:
         # used for continue training 
@@ -89,7 +90,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         path = cfg.model_path.split('/')
         path = Path(pwd + '/'.join(path[:-1]))
         replay_buffer = make_replay_offline(
-                                            path / 'buffer1' / 'buffer_copy',
+                                            path / 'buffer2' / 'buffer_copy',
                                             500000,
                                             0,
                                             0,
@@ -97,25 +98,48 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                                             goal=False,
                                             relabel=False,
                                             replay_dir2=False,
-                                            obs_type='pixels'
+                                            obs_type='pixels',
+                                            model_step=model_step,
                                             )
+        
+        if cfg.offline_gc is False:
 
-        state, actions, rewards, goal_states, eps, index = replay_buffer.parse_dataset(goal_state=True)
+            state, actions, rewards, goal_states, eps, index = replay_buffer.parse_dataset(goal_state=True)
 
-        df = pd.DataFrame(
-            {'s0': state[:, 0], 's1': state[:, 1], 'r': rewards[:, 0], 'g0': goal_states[:, 0], 'g1': goal_states[:, 1],
-             'e': eps})
-        df['eps'] = [x.split('/')[-1] for x in df['e']]
-        df1 = pd.DataFrame()
-        df1['g0'] = df.groupby('eps')['g0'].first()
-        df1['g1'] = df.groupby('eps')['g1'].first()
-        df1['r'] = df.groupby('eps')['r'].sum()
-        df1 = df1[df1['r'] > 100]
-        df1 = df1.reset_index(drop=True)
+            df = pd.DataFrame(
+                {'s0': state[:, 0], 's1': state[:, 1], 'r': rewards[:, 0], 'g0': goal_states[:, 0], 'g1': goal_states[:, 1],
+                'e': eps})
+            df['eps'] = [x.split('/')[-1] for x in df['e']]
+            df1 = pd.DataFrame()
+            df1['g0'] = df.groupby('eps')['g0'].first()
+            df1['g1'] = df.groupby('eps')['g1'].first()
+            df1['r'] = df.groupby('eps')['r'].sum()
+            df1 = df1[df1['r'] > 100]
+            df1 = df1.reset_index(drop=True)
 
-        current_init = df1[['g0', 'g1']].to_numpy()
-        current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
-        current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
+            current_init = df1[['g0', 'g1']].to_numpy()
+            current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
+            current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
+
+        # else:
+        #     # import IPython as ipy; ipy.embed(colors='neutral')
+
+        #     state, actions, rewards, eps, index = replay_buffer.parse_dataset()
+
+        #     df = pd.DataFrame(
+        #         {'s0': state[:, 0], 's1': state[:, 1], 'r': rewards[:, 0], 'e': eps})
+        #     df['eps'] = [x.split('/')[-1] for x in df['e']]
+        #     df1 = pd.DataFrame()
+        #     df1['s0'] = df.groupby('eps')['s0'].first()
+        #     df1['s1'] = df.groupby('eps')['s1'].first()
+        #     df1['r'] = df.groupby('eps')['r'].first()
+        #     df1 = df1.reset_index(drop=True)
+
+        #     current_init = df1[['s0', 's1']].to_numpy()
+        #     current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
+        #     current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
+            
+
 
 
     else:
@@ -138,13 +162,17 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         state, actions, rewards, eps, index = replay_buffer.parse_dataset()
         state = state.reshape((state.shape[0], train_env.physics.get_state().shape[0]))
 
-
     while proto_goals.shape[0] < dim:
         proto_goals = np.append(proto_goals, np.zeros((1, 3 * cfg.frame_stack, 84, 84)), axis=0)
         proto_goals_state = np.append(proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
         proto_goals_dist = np.append(proto_goals_dist, np.array([[0.]]), axis=0)
 
-    protos = agent.protos.weight.data.detach().clone()
+    if cfg.offline_gc is False:
+        agent2 = agent
+    else:
+        agent2 = pretrained_agent
+
+    protos = agent2.protos.weight.data.detach().clone()
 
     num_sample = 600
     idx = np.random.randint(0, state.shape[0], size=num_sample)
@@ -172,17 +200,16 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             else:
                 obs = torch.as_tensor(obs.copy(), device=device)
             if cfg.sl == False:
-                z = agent.encoder(obs)
+                z = agent2.encoder(obs)
             else:
-
-                z = agent.encoder2(obs)
+                z = agent2.encoder2(obs)
             encoded.append(z)
-            z = agent.predictor(z)
-            z = agent.projector(z)
+            z = agent2.predictor(z)
+            z = agent2.projector(z)
             if cfg.normalize:
                 z = F.normalize(z, dim=1, p=2)
             proto.append(z)
-            sim = agent.protos(z)
+            sim = agent2.protos(z)
             idx_ = sim.argmax()
             actual_proto.append(protos[idx_][None, :])
 
@@ -198,10 +225,9 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
                                                  cfg.action_repeat, seed=None, goal=None,
                                                  init_state=None)
 
-
     if cfg.proto_goal_intr:
 
-        goal_dist, goal_indices = eval_intrinsic(cfg, agent, encoded, a, global_step)
+        goal_dist, goal_indices = eval_intrinsic(cfg, agent2, encoded, a, global_step)
         dist_arg = proto_goals_dist.argsort(axis=0)
 
         for ix, x in enumerate(goal_dist.clone().detach().cpu().numpy()):
@@ -364,70 +390,18 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         return current_init, proto_goals, proto_goals_state, proto_goals_dist
     else:
         #for offline_gc, we only need to modify current_init and don't need proto_goals
-        if cfg.debug:
-            current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
-
-        current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, offline_gc=cfg.offline_gc)
-        # neighbor = dict()
-        # #0 = [-.25,.25,0.,0.]
-        # neighbor['0'] = [1, 2, 3]
-        # #1 = [-.1,.25,0.,0.]
-        # neighbor['1'] = [0, 2, 3, 16]
-        # #2 = [-.1,.1,0.,0.]
-        # neighbor['2'] = [0, 1, 3]
-        # #3 = [-.25,.1,0.,0.]
-        # neighbor['3'] = [0, 1, 2, 17]
-        # #4 = [.25,.25,0.,0.]
-        # neighbor['4'] = [5, 6, 7]
-        # #5 = [.1,.25,0.,0.]
-        # neighbor['5'] = [4, 6, 7, 16]
-        # #6 = [.1,.1,0.,0.]
-        # neighbor['6'] = [4, 5, 7]
-        # #7 = [.25,.1,0.,0.]
-        # neighbor['7'] = [4, 5, 6, 19]
-        # #8 = [.25,-.25,0.,0.]
-        # neighbor['8'] = [9, 10, 11]
-        # #9 = [.1,-.25,0.,0.]
-        # neighbor['9'] = [8, 10, 11, 18]
-        # #10 = [.1,-.1,0.,0.]
-        # neighbor['10'] = [8, 9, 11]
-        # #11 = [.25,-.1,0.,0.]
-        # neighbor['11'] = [8, 9, 10, 19]
-        # #12 = [-.25,-.25,0.,0.]
-        # neighbor['12'] = [13, 14, 15]
-        # #13 = [-.1,-.25,0.,0.]
-        # neighbor['13'] = [12, 14, 15, 18]
-        # #14 = [-.1,-.1,0.,0.]
-        # neighbor['14'] = [12, 13, 15]
-        # #15 = [-.25,-.1,0.,0.]
-        # neighbor['15'] = [12, 13, 14, 17]
-        # #16 = [0.,.27,0.,0.]
-        # neighbor['16'] = [1,5]
-        # #17 = [-.27,0.,0.,0.]
-        # neighbor['17'] = [3,15]
-        # #18 = [0.,-.27,0.,0.]
-        # neighbor['18'] = [9,13]
-        # #19 = [.27,0.,0.,0.]
-        # neighbor['19'] = [7,11]
-
-        # for i in reached.keys():
-        #     neighbors = neighbor[i]
-        #     for n in neighbors:
-        #         set1 = set(reached[i])
-        #         set2 = set(reached[str(n)])
-        #         if len(set1.intersection(set2)) > 0:
-
-
-
-
+        # if cfg.debug:
+        #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+        if global_step!=0:
+            current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
 
         if pmm:
             assert len(current_init.shape) == 2
 
-        return current_init
+        return current_init, proto_goals_state
 
 
-def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
+def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None):
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
     reached = dict()
@@ -523,10 +497,10 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                 if ix % 10 == 0:
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
+                if total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc:
                     eval_reached = np.append(eval_reached, x[None,:], axis=0)
                     eval_reached = np.unique(eval_reached, axis=0)
-                    if str(i) not in reaached.keys():
+                    if str(i) not in reached.keys():
                         reached[str(i)] = []
                     reached[str(i)].append(x)
 
@@ -539,7 +513,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         print('result', result)
         plt.clf()
         fig, ax = plt.subplots()
-        plt.title(str(init))
+        plt.title(str(init)+' '+str(goal_state))
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
         ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
         ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
@@ -573,7 +547,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
         # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
 
-    if offline_gc:
+    if cfg.offline_gc:
         return eval_reached, reached
 
 def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):

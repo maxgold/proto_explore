@@ -232,17 +232,17 @@ class Workspace:
         print('model p', cfg.model_path)
         if cfg.model_path:
             assert os.path.isfile(self.pwd + cfg.model_path)
-            pretrained_agent = torch.load(self.pwd + cfg.model_path)
+            self.pretrained_agent = torch.load(self.pwd + cfg.model_path)
             if self.cfg.resume_training:
-                self.agent.init_from(pretrained_agent)
+                self.agent.init_from(self.pretrained_agent)
             elif self.cfg.gc_only:
                 print('gc only, only loading in the encoder from pretrained agent')
                 if self.cfg.sl:
-                    self.agent.init_encoder_from(pretrained_agent.encoder)
+                    self.agent.init_encoder_from(self.pretrained_agent.encoder)
                 elif self.cfg.init_from_proto:
-                    self.agent.init_encoder_trunk_from(pretrained_agent.encoder, pretrained_agent.critic2, pretrained_agent.actor2)
+                    self.agent.init_encoder_trunk_from(self.pretrained_agent.encoder, self.pretrained_agent.critic2, self.pretrained_agent.actor2)
                 elif self.cfg.init_from_ddpg:
-                    self.agent.init_encoder_trunk_gc_from(pretrained_agent.encoder, pretrained_agent.critic, pretrained_agent.actor)
+                    self.agent.init_encoder_trunk_gc_from(self.pretrained_agent.encoder, self.pretrained_agent.critic, self.pretrained_agent.actor)
             path = self.cfg.model_path.split('/')
             path = Path(self.pwd + '/'.join(path[:-1]))
 
@@ -419,6 +419,7 @@ class Workspace:
         self.global_index = []
         self.storage1 = False
         self.distance_goal_init = {}
+        self.goal_loaded = False
 
         if self.cfg.proto_goal_intr:
             self.dim = 10
@@ -524,7 +525,7 @@ class Workspace:
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
             xy = np.array([.25, .25, .1, .1])
-            if self.cfg.debug:
+            if self.cfg.debug and self.cfg.eval_proto_goals is False:
                 self.eval_reached = np.empty((16,4))
                 for i in range(4):
                     for j in range(4):
@@ -536,12 +537,25 @@ class Workspace:
                 print(self.eval_reached)
                 # import IPython as ipy; ipy.embed(colors='neutral')      
                 eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
+
+            elif self.goal_loaded is False and self.cfg.eval_proto_goals:
+                #calls eval_pmm from eval_proto
+                model_step = int(re.findall('\d+', self.cfg.model_path)[-1])
+                print('model_step', model_step) 
+                self.current_init, self.proto_goals_state = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step)
+                print('eval. current init', self.current_init)
+                print('proto goals state', self.proto_goals_state)
+                self.goal_loaded = True
+
+            elif self.goal_loaded is True and self.cfg.eval_proto_goals:
+                self.current_init, reached = eval_pmm(self.cfg, self.agent, self.current_init, self.video_recorder, self.global_step, self.global_frame, self.work_dir, goal_states=self.proto_goals_state)
+            
             else:
-                self.eval_reached= None
+                self.eval_reached = None
                 eval_pmm_stitch(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only is False and self.cfg.offline_gc:
-            self.current_init = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder)
+            self.current_init = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder)
 
         else:
             #TODO: get rid of moving avg 
@@ -575,6 +589,8 @@ class Workspace:
 
         if self.cfg.model_path and self.cfg.offline_gc is False:
             self.evaluate(eval=True)
+        elif self.cfg.model_path:
+            self.evaluate()
 
         while train_until_step(self.global_step):
 
