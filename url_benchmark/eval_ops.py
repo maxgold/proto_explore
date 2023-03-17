@@ -121,23 +121,23 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
             current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
 
-        else:
-            # import IPython as ipy; ipy.embed(colors='neutral')
+        # else:
+        #     # import IPython as ipy; ipy.embed(colors='neutral')
 
-            state, actions, rewards, eps, index = replay_buffer.parse_dataset()
+        #     state, actions, rewards, eps, index = replay_buffer.parse_dataset()
 
-            df = pd.DataFrame(
-                {'s0': state[:, 0], 's1': state[:, 1], 'r': rewards[:, 0], 'e': eps})
-            df['eps'] = [x.split('/')[-1] for x in df['e']]
-            df1 = pd.DataFrame()
-            df1['s0'] = df.groupby('eps')['s0'].first()
-            df1['s1'] = df.groupby('eps')['s1'].first()
-            df1['r'] = df.groupby('eps')['r'].first()
-            df1 = df1.reset_index(drop=True)
+        #     df = pd.DataFrame(
+        #         {'s0': state[:, 0], 's1': state[:, 1], 'r': rewards[:, 0], 'e': eps})
+        #     df['eps'] = [x.split('/')[-1] for x in df['e']]
+        #     df1 = pd.DataFrame()
+        #     df1['s0'] = df.groupby('eps')['s0'].first()
+        #     df1['s1'] = df.groupby('eps')['s1'].first()
+        #     df1['r'] = df.groupby('eps')['r'].first()
+        #     df1 = df1.reset_index(drop=True)
 
-            current_init = df1[['s0', 's1']].to_numpy()
-            current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
-            current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
+        #     current_init = df1[['s0', 's1']].to_numpy()
+        #     current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
+        #     current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
             
 
 

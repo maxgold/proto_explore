@@ -586,8 +586,10 @@ class Workspace:
         if self.pmm == False:
             time_step_no_goal = None
 
-        if self.cfg.model_path:
+        if self.cfg.model_path and self.cfg.offline_gc is False:
             self.evaluate(eval=True)
+        elif self.cfg.model_path:
+            self.evaluate()
 
         while train_until_step(self.global_step):
 
