@@ -497,10 +497,10 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                 if ix % 10 == 0:
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                if total_reward > 10 * cfg.num_eval_episodes and offline_gc:
+                if total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc:
                     eval_reached = np.append(eval_reached, x[None,:], axis=0)
                     eval_reached = np.unique(eval_reached, axis=0)
-                    if str(i) not in reaached.keys():
+                    if str(i) not in reached.keys():
                         reached[str(i)] = []
                     reached[str(i)].append(x)
 
@@ -513,7 +513,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         print('result', result)
         plt.clf()
         fig, ax = plt.subplots()
-        plt.title(str(init))
+        plt.title(str(init)+' '+str(goal_state))
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
         ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
         ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
