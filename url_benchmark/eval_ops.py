@@ -513,7 +513,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         print('result', result)
         plt.clf()
         fig, ax = plt.subplots()
-        plt.title(str(init)+' '+str(goal_state))
+        plt.title(str(init))
         sns.heatmap(result, cmap="Blues_r").invert_yaxis()
         ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
         ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
