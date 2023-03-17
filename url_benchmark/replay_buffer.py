@@ -76,7 +76,7 @@ def my_reward(action, next_obs, goal):
     return float(r * control_reward)
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir):
+    def __init__(self, data_specs, meta_specs, replay_dir, visitation_matrix_size=60, visitation_limit=.29):
         self._data_specs = data_specs
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
@@ -87,12 +87,13 @@ class ReplayBufferStorage:
         self._current_episode = defaultdict(list)
         self._current_episode_goal = defaultdict(list)
         self._preload()
-        self.state_visitation_proto = np.zeros((60,60))
+        self.state_visitation_proto = np.zeros((visitation_matrix_size,visitation_matrix_size))
         self.state_visitation_proto_pct = np.zeros((20,20))
-        self.state_visitation_gc = np.zeros((60,60))
+        self.state_visitation_gc = np.zeros((visitation_matrix_size,visitation_matrix_size))
         self.state_visitation_gc_pct = np.zeros((20,20))
-        self.reward_matrix = np.zeros((60,60))
-        self.goal_state_matrix = np.zeros((60,60))
+        self.reward_matrix = np.zeros((visitation_matrix_size,visitation_matrix_size))
+        self.goal_state_matrix = np.zeros((visitation_matrix_size,visitation_matrix_size))
+        self.visitation_limit = visitation_limit*100
     def __len__(self):
         return self._num_transitions
 
@@ -110,14 +111,14 @@ class ReplayBufferStorage:
 
                 if pmm:
                     tmp_state = value['observations']*100
-                    idx_x = int(tmp_state[0])+29
-                    idx_y = int(tmp_state[1])+29
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
                     self.state_visitation_proto[idx_x,idx_y]+=1
                 
-                    tmp_state = tmp_state/3
-                    idx_x = int(tmp_state[0])+9
-                    idx_y = int(tmp_state[1])+9
-                    self.state_visitation_proto_pct[idx_x,idx_y]+=1
+                    # tmp_state = tmp_state/3
+                    # idx_x = int(tmp_state[0])+9
+                    # idx_y = int(tmp_state[1])+9
+                    # self.state_visitation_proto_pct[idx_x,idx_y]+=1
             elif spec.name == 'action' and action is not None:
                 value = action
                 if np.isscalar(value):
@@ -167,8 +168,8 @@ class ReplayBufferStorage:
 
                 tmp_state = time_step['walker/world_zaxis']*100
                 # print('check the limits of the x, y coordinates')
-                idx_x = int(tmp_state[0])+29
-                idx_y = int(tmp_state[1])+29
+                idx_x = int(tmp_state[0])+self.visitation_limit
+                idx_y = int(tmp_state[1])+self.visitation_limit
                 self.state_visitation_proto[idx_x,idx_y]+=1
 
             elif spec.name == 'action' and action is not None:
@@ -222,14 +223,14 @@ class ReplayBufferStorage:
                 
                 
                 tmp_state = value['observations']*100
-                idx_x = int(tmp_state[0])+29
-                idx_y = int(tmp_state[1])+29
+                idx_x = int(tmp_state[0])+self.visitation_limit
+                idx_y = int(tmp_state[1])+self.visitation_limit
                 self.state_visitation_gc[idx_x,idx_y]+=1
                 
-                tmp_state = tmp_state/3
-                idx_x = int(tmp_state[0])+9
-                idx_y = int(tmp_state[1])+9
-                self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                # tmp_state = tmp_state/3
+                # idx_x = int(tmp_state[0])+9
+                # idx_y = int(tmp_state[1])+9
+                # self.state_visitation_gc_pct[idx_x,idx_y]+=1
                 
             else:
                 value = time_step[spec.name]
@@ -241,21 +242,21 @@ class ReplayBufferStorage:
                 if spec.name == 'reward' and pixels:
                     value = time_step['observation']
                     tmp_state = value['observations']*100
-                    idx_x = int(tmp_state[0])+29
-                    idx_y = int(tmp_state[1])+29
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
                 
         if pixels and asym==False:
             goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0]*100)+29
-            idx_y = int(goal_state[1]*100)+29
+            idx_x = int(goal_state[0]*100)+self.visitation_limit
+            idx_y = int(goal_state[1]*100)+self.visitation_limit
             self.goal_state_matrix[idx_x,idx_y]+=1
             
         elif pixels and asym:
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0]*100)+29
-            idx_y = int(goal_state[1]*100)+29
+            idx_x = int(goal_state[0]*100)+self.visitation_limit
+            idx_y = int(goal_state[1]*100)+self.visitation_limit
             self.goal_state_matrix[idx_x,idx_y]+=1
         self._current_episode_goal['goal'].append(goal)
 
@@ -309,8 +310,8 @@ class ReplayBufferStorage:
 
 
                     tmp_state = value['observations']*100
-                    idx_x = int(tmp_state[0])+29
-                    idx_y = int(tmp_state[1])+29
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
                     self.state_visitation_gc[idx_x,idx_y]+=1
 
                     #tmp_state = tmp_state/3
@@ -335,16 +336,16 @@ class ReplayBufferStorage:
                     assert time_step['reward']>=0.
                     value = time_step['observation']
                     tmp_state = value['observations']*100
-                    idx_x = int(tmp_state[0])+29
-                    idx_y = int(tmp_state[1])+29
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
                 
         if pixels and asym==False and pmm:
             
             #goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0]*100)+29
-            idx_y = int(goal_state[1]*100)+29
+            idx_x = int(goal_state[0]*100)+self.visitation_limit
+            idx_y = int(goal_state[1]*100)+self.visitation_limit
             self.goal_state_matrix[idx_x,idx_y]+=1
             
         elif pixels and asym==False:
@@ -402,13 +403,13 @@ class ReplayBufferStorage:
                 
                 if pmm:
                     tmp_state = value2['observations']*100
-                    idx_x = int(tmp_state[0])+29
-                    idx_y = int(tmp_state[1])+29
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
                     self.state_visitation_gc[idx_x,idx_y]+=1
-                    tmp_state = tmp_state/3
-                    idx_x = int(tmp_state[0])+9
-                    idx_y = int(tmp_state[1])+9
-                    self.state_visitation_gc_pct[idx_x,idx_y]+=1
+                    # tmp_state = tmp_state/3
+                    # idx_x = int(tmp_state[0])+9
+                    # idx_y = int(tmp_state[1])+9
+                    # self.state_visitation_gc_pct[idx_x,idx_y]+=1
 
             elif spec.name=='reward' and pmm:
                 
@@ -417,8 +418,8 @@ class ReplayBufferStorage:
 
                 value = time_step['observation']
                 tmp_state = value['observations']*100
-                idx_x = int(tmp_state[0])+29
-                idx_y = int(tmp_state[1])+29
+                idx_x = int(tmp_state[0])+self.visitation_limit
+                idx_y = int(tmp_state[1])+self.visitation_limit
                 if neg_reward:
                     self.reward_matrix[idx_x,idx_y]+=reward+1
                 else:
@@ -435,8 +436,8 @@ class ReplayBufferStorage:
 
         if goal_state is not None and pmm:
             self._current_episode_goal['goal_state'].append(goal_state)
-            idx_x = int(goal_state[0]*100)+29
-            idx_y = int(goal_state[1]*100)+29
+            idx_x = int(goal_state[0]*100)+self.visitation_limit
+            idx_y = int(goal_state[1]*100)+self.visitation_limit
             self.goal_state_matrix[idx_x,idx_y]+=1 
 
         if time_step.last() or last:

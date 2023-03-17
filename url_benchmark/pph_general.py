@@ -305,12 +305,21 @@ class Workspace:
                       specs.Array((1,), np.float32, 'reward'),
                       specs.Array((1,), np.float32, 'discount'))
 
-
+        if self.cfg.gym is False:
+            self.visitation_matrix_size = 60
+            self.visitation_limit = .29
+        else:
+            self.visitation_matrix_size = 202
+            self.visitation_limit = 1
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
-                                                   self.work_dir / 'buffer1')
+                                                   self.work_dir / 'buffer1', 
+                                                   visitation_matrix_size=self.visitation_matrix_size, 
+                                                   visitation_limit=self.visitation_limit)
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
-                                                  self.work_dir / 'buffer2')
+                                                  self.work_dir / 'buffer2', 
+                                                   visitation_matrix_size=self.visitation_matrix_size, 
+                                                   visitation_limit=self.visitation_limit)
 
         # create replay buffer
         self.combine_storage = False
@@ -611,6 +620,7 @@ class Workspace:
         else:
             time_step = self.train_env.reset()
 
+        action['reset'] = False
         meta = self.agent.init_meta()
 
         if self.cfg.gym:
@@ -684,6 +694,7 @@ class Workspace:
                         # print('before resetting', time_step)
                         time_step = self.train_env.step(action)
                         # print('resetting env', time_step)
+                        action['reset'] = False
 
                     meta = self.agent.update_meta(meta, self._global_step, time_step)
 
@@ -732,7 +743,7 @@ class Workspace:
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=True)
-
+                        # print('action', action['action'])
                 # try to update the agent
                 if not seed_until_step(self.global_step):
                     metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
@@ -748,11 +759,13 @@ class Workspace:
                     self.train_env.physics.data.qvel[1] = vel[1]
                 elif self.cfg.velocity_control and self.cfg.gym:
                     vel = action['action'].copy().astype('float32')
-                    action['action'] = np.zeros(self.train_env.action_space.shape[0], dtype="float32")
+                    action['action'] = np.zeros(self.train_env.act_space['action'].shape[0], dtype="float32")
                     self.train_env.obs_space['walker/joints_vel'] = vel
 
                 # take env step
                 time_step = self.train_env.step(action)
+                # print('xy', time_step['walker/world_zaxis'])
+
                 if self.cfg.gym is False:
                     episode_reward += time_step.reward
                 else:
