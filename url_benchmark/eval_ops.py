@@ -140,8 +140,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         #     current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
             
 
-
-
     else:
 
         if global_step % 1000== 0 and global_step!=0 and pmm:
@@ -167,10 +165,10 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         proto_goals_state = np.append(proto_goals_state, np.array([[0., 0., 0., 0.]]), axis=0)
         proto_goals_dist = np.append(proto_goals_dist, np.array([[0.]]), axis=0)
 
-    if cfg.offline_gc is False:
-        agent2 = agent
-    else:
+    if cfg.offline_gc and cfg.gc_only:
         agent2 = pretrained_agent
+    else:
+        agent2 = agent
 
     protos = agent2.protos.weight.data.detach().clone()
 
