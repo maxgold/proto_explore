@@ -307,10 +307,11 @@ class Workspace:
                 buffer_path = Path('/misc/vlgscratch4/FergusGroup/mortensen/proto_explore/url_benchmark/exp_local/2023.02.15/234008_proto/buffer1/buffer_copy')
 
             elif self.cfg.irmak:
-                if self.cfg.buffer_num == 0:
-                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
-                elif self.cfg.buffer_num == 1:
-                    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+                buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.03.03/140228_proto/buffer1/buffer_copy')
+                #if self.cfg.buffer_num == 0:
+                #    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
+                #elif self.cfg.buffer_num == 1:
+                #    buffer_path = Path('/home/nina/proto_explore/url_benchmark/exp_local/2023.02.14/163804_proto_sl_inv/buffer1/buffer_copy')
 
         elif self.cfg.offline_gc:
             if self.cfg.init_from_proto:
@@ -523,25 +524,25 @@ class Workspace:
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
-            xy = np.array([.25, .25, .1, .1])
-            if self.cfg.debug and self.cfg.eval_proto_goals is False:
-                self.eval_reached = np.empty((16,4))
-                for i in range(4):
-                    for j in range(4):
-                        self.eval_reached[i*4+j,0]=xy[i] * (-1)**i
-                        self.eval_reached[i*4+j,1]=xy[j] * (-1)**j
-                        self.eval_reached[i*4+j,2]=0
-                        self.eval_reached[i*4+j,3]=0
-                
-                print(self.eval_reached)
-                # import IPython as ipy; ipy.embed(colors='neutral')      
-                eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
+            #xy = np.array([.25, .25, .1, .1])
+            #if self.cfg.debug and self.cfg.eval_proto_goals is False:
+            #    self.eval_reached = np.empty((16,4))
+             #   for i in range(4):
+             #       for j in range(4):
+             #           self.eval_reached[i*4+j,0]=xy[i] * (-1)**i
+             #           self.eval_reached[i*4+j,1]=xy[j] * (-1)**j
+             #           self.eval_reached[i*4+j,2]=0
+             #           self.eval_reached[i*4+j,3]=0
+              #  
+              #  print(self.eval_reached)
+              #  # import IPython as ipy; ipy.embed(colors='neutral')      
+              #  eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
-            elif self.goal_loaded is False and self.cfg.eval_proto_goals:
+            if self.goal_loaded is False and self.cfg.eval_proto_goals:
                 #calls eval_pmm from eval_proto
                 model_step = int(re.findall('\d+', self.cfg.model_path)[-1])
                 print('model_step', model_step) 
-                self.current_init, self.proto_goals_state = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step)
+                self.current_init, self.proto_goals_state = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=True, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step)
                 print('eval. current init', self.current_init)
                 print('proto goals state', self.proto_goals_state)
                 self.goal_loaded = True

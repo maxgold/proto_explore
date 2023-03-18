@@ -196,7 +196,7 @@ class Actor_proto(nn.Module):
         h = self.trunk(obs)
         mu = self.policy(h)
         if scale is not None:
-            mu = torch.tanh(mu)*scale
+            mu = torch.tanh(mu) * scale
         else:
             mu = torch.tanh(mu)
         std = torch.ones_like(mu) * std
