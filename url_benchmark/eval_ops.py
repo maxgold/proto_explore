@@ -389,6 +389,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         #for offline_gc, we only need to modify current_init and don't need proto_goals
         # if cfg.debug:
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+        print('goal states', proto_goals_state)
         if global_step!=0:
             current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
 
