@@ -470,23 +470,17 @@ class Workspace:
         self.unreached = False
         self.reinitiate = False
         self.gc_init = False
+        self.gc_step = 0 
+        self.proto_step = 0
 
         self.switch_gc = self.cfg.switch_gc
 
-        if self.cfg.gc_only:
-            self.switch_gc = 0
-            self.update_proto_while_gc=False
+        if self.cfg.gc_only or self.cfg.proto_only:
+            self.hybrid=False
         else:
-            self.update_proto_while_gc=self.cfg.update_proto_while_gc
+            self.hybrid=True
 
-        self.update_gc_while_proto=self.cfg.update_gc_while_proto
-        if (self.cfg.proto_only or self.cfg.offline_gc) and self.cfg.gc_only is False:
-            self.switch_gc = self.cfg.num_train_frames // 2
-            if self.cfg.proto_only:
-                self.update_gc_while_proto=False
-            else:
-                self.update_gc_while_proto=True
-        
+    
 
         # if both proto_only & gc_only are true, alert wrong config
         if all((self.cfg.proto_only, self.cfg.gc_only)):
@@ -569,6 +563,10 @@ class Workspace:
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.action_repeat)
         log_every_step = utils.Every(self.cfg.log_every_steps)
+        gc_train_until_step = utils.Until(self.cfg.num_gc_train_frames,
+                                            self.cfg.action_repeat)
+        proto_train_until_step = utils.Until(self.cfg.num_proto_train_frames,
+                                            self.cfg.action_repeat)     
         episode_step, episode_reward = 0, 0
 
         time_step = self.train_env.reset()
@@ -579,7 +577,6 @@ class Workspace:
             self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
 
         metrics = None
-
         goal_idx = 0
 
         if self.pmm == False:
@@ -590,30 +587,10 @@ class Workspace:
 
         while train_until_step(self.global_step):
 
-            if self.cfg.offline_gc and self.cfg.gc_only:
-                # try to evaluate
-                if eval_every_step(self.global_step+1):
-                    self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-                    if self.cfg.debug:
-                        self.evaluate()
-                    else:
-                        if (self.global_step+1)%100000==0:
-                            self.evaluate()
-
-                metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                self.logger.log_metrics(metrics, self.global_step, ty="train")
-                if log_every_step(self.global_step):
-                    elapsed_time, total_time = self.timer.reset()
-                    
-                    with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
-                        log("fps", self.cfg.log_every_steps / elapsed_time)
-                        log("total_time", total_time)
-                        log("step", self.global_step)
-
-                self._global_step += 1
-
-            else:
-                if self.global_step < self.switch_gc and self.cfg.model_path is False:
+            if self.hybrid:
+                
+                self.gc_step = 0 
+                while proto_train_until_step(self.proto_step):
                     if time_step.last() or episode_step >= self.cfg.episode_length:
                         self._global_episode += 1
                         # wait until all the metrics schema is populated
@@ -652,9 +629,6 @@ class Workspace:
                         episode_step = 0
                         episode_reward = 0
 
-                    # try to evaluate
-                    if eval_every_step(self.global_step) and self.global_step != 0:
-                        self.evaluate()
 
                     meta = self.agent.update_meta(meta, self.global_step, time_step)
                     # sample action
@@ -669,9 +643,6 @@ class Workspace:
                     if not seed_until_step(self.global_step):
                         metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
                         self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                        if self.update_gc_while_proto:
-                            metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-
 
                     if self.cfg.velocity_control:
                         vel = action.copy()
@@ -690,309 +661,28 @@ class Workspace:
 
                     episode_step += 1
                     self._global_step += 1
-
-
-
-
-
-
-
-
-                # switching from proto exploration mode only, to gc + proto
-                elif self.global_step >= self.switch_gc and self.cfg.proto_only is False:
-
-                    if self.global_step == self.switch_gc or self.reinitiate is False:
-                        # self.reinitiate is for when loading in model_path & continuing training
-                        self.reinitiate = True
-                        episode_step = 0
-                        episode_reward = 0
-                        self.actor1 = True
-                        self.actor = False
-
-                        if self.cfg.offline_gc is False:
-                            # render first goal
-                            goal_pix = self.proto_goals[0]
-                            goal_state = self.proto_goals_state[0]
-                            time_step1, self.train_env1, time_step_no_goal, self.train_env_no_goal, self.origin = make_env(self.cfg, actor1=self.actor1, init_idx=None, goal_state=goal_state, pmm=self.pmm, current_init=self.current_init, train_env1=self.train_env1, train_env_no_goal=self.train_env_no_goal)
-                            # non-pmm we just use current state
-                            meta = self.agent.update_meta(meta, self._global_step, time_step1)
-                            self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
-                                                                goal_pix, goal_state,
-                                                                time_step_no_goal, True)
-
-                            if self.cfg.model_path == False:
-                                self.evaluate()
-                        else:
-                            # try to evaluate
-                            if eval_every_step(self.global_step+1):
-                                self.logger.log("eval_total_time", self.timer.total_time(), self.global_step)
-
-                                self.evaluate()
-
-                            metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-
-                            if self.update_proto_while_gc:
-                                metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-                            self.logger.log_metrics(metrics, self.global_step, ty="train")
-
-                            if log_every_step(self.global_step):
-                                elapsed_time, total_time = self.timer.reset()
-                                
-                                with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
-                                    log("fps", self.cfg.log_every_steps / elapsed_time)
-                                    log("total_time", total_time)
-                                    log("step", self.global_step)
-
-                    elif self.global_step > self.switch_gc and self.cfg.offline_gc and self.actor1:
-
-                        metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                        self.logger.log_metrics(metrics, self.global_step, ty="train")
-                        if log_every_step(self.global_step):
-                            self.proto_last_explore += 1
-
-                            if self.proto_last_explore > self.cfg.proto_explore_every:
-                                self.actor=True
-                                self.actor1=False
-                                self.proto_last_explore = 0
-                                self.evaluate()
-
-                            elapsed_time, total_time = self.timer.reset()
-                            
-                            with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
-                                log("fps", self.cfg.log_every_steps / elapsed_time)
-                                log("total_time", total_time)
-                                log("step", self.global_step)
-                                
-
-                    #save_stats(self)
-                    #we need this part for offline_gc when proto is exploring
-                    if (((time_step1.last() and self.actor1) or (time_step.last() and self.actor) or (episode_step >= self.cfg.episode_length)) and (
-                            self.global_step != self.switch_gc or self.cfg.model_path) and self.cfg.offline_gc is False) or (((time_step.last() and self.actor) or (episode_step >= self.cfg.episode_length)) and (self.global_step != self.switch_gc or self.cfg.model_path)):
-                        print('last')
-                        self._global_episode += 1
-                        # wait until all the metrics schema is populated
-                        if metrics is not None:
-                            # log stats
-                            elapsed_time, total_time = self.timer.reset()
-                            episode_frame = episode_step * self.cfg.action_repeat
-                            with self.logger.log_and_dump_ctx(self.global_frame, ty='train') as log:
-                                log('fps', episode_frame / elapsed_time)
-                                log('total_time', total_time)
-                                log('episode_reward', episode_reward)
-                                log('episode_length', episode_frame)
-                                log('episode', self.global_episode)
-                                log('buffer_size', len(self.replay_storage1))
-                                log('step', self.global_step)
-
-                        if self.cfg.obs_type == 'pixels' and self.actor1:
-                            self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
-                                                                goal_pix, goal_state,
-                                                                time_step_no_goal, True, last=True)
-
-                        elif self.cfg.obs_type == 'pixels' and self.actor:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True,
-                                                    pmm=self.pmm)
-
-                        if self.actor == False:
-                            self.proto_last_explore += 1
-                        else:
-                            self.proto_last_explore = 0
-
-                        self.unreached = False
-                        # try to save snapshot
-                        ##################################
-                        # TODO
-                        # check why this isn't working
-                        if self.global_frame in self.cfg.snapshots:
-                            self.save_snapshot()
-                        episode_step = 0
-                        episode_reward = 0
-                        self.actor, self.actor1, self.proto_explore_count, self.gc_init = gc_or_proto(self.actor, self.actor1, self.proto_explore_count, self.gc_init)
-
+                    self.proto_step += 1
+            
+            self.proto_step = 0 # reset proto_step
+            while gc_train_until_step(self.gc_step):
+                if self.gc_step == (self.cfg.num_gc_train_frames//self.cfg.action_repeat)-1:
                     # try to evaluate
-                    if eval_every_step(self.global_step) and self.global_step != 0 and self.cfg.offline_gc is False:
-                        self.evaluate()
+                    self.evaluate()
 
-                    # we need this part for offline_gc as well 
-                    if episode_step == 0 and self.global_step != 0:
-                        if self.cfg.gc_only:
-                            assert self.actor is False
-                        if self.actor:
-                            #time_step_no_goal, goal_idx, goal_state, goal_pix = None here 
-                            print('actor')
-                            time_step, self.train_env, time_step_no_goal, goal_idx, goal_state, goal_pix, self.actor, self.actor1, self.proto_last_explore = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
+                metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                self.logger.log_metrics(metrics, self.global_step, ty="train")
+                if log_every_step(self.global_step):
+                    elapsed_time, total_time = self.timer.reset()
+                    
+                    with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
+                        log("fps", self.cfg.log_every_steps / elapsed_time)
+                        log("total_time", total_time)
+                        log("step", self.global_step)
 
-                            meta = self.agent.update_meta(meta, self.global_step, time_step)
-                            if self.cfg.obs_type == 'pixels':
-                                self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True,
-                                        last=False, pmm=self.pmm)
-                        elif self.cfg.offline_gc is False:
-                            print('actor1')
-                            time_step1, self.train_env1, time_step_no_goal, self.train_env_no_goal, goal_idx, goal_state, goal_pix, self.actor, self.actor1, self.proto_last_explore, self.unreached = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.unreached_goals, self.eval_env_no_goal, train_env1=self.train_env1, train_env_no_goal=self.train_env_no_goal)
+                self._global_step += 1
+                self.gc_step += 1
 
-                            meta = self.agent.update_meta(meta, self.global_step, time_step1)
-                            if self.cfg.obs_type == 'pixels' and time_step1.last() is False and episode_step != self.cfg.episode_length:
-                                self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta, goal_pix, goal_state, time_step_no_goal, True)
 
-                    # sample action
-                    if self.actor1 and self.cfg.offline_gc is False:
-
-                        # pmm and non-pmm envs use different obs inputs
-                        # pmm's doesn't have goal in it since this is pretraining phase
-                        if self.cfg.obs_type == 'pixels' and self.pmm:
-                            obs = time_step_no_goal.observation['pixels'].copy()
-                        elif self.cfg.obs_type == 'pixels' and self.pmm is False:
-                            obs = time_step1.observation['pixels'].copy()
-                        elif self.cfg.obs_type == 'states':
-                            obs = time_step1.observation.copy()
-
-                        with torch.no_grad(), utils.eval_mode(self.agent):
-                            #no need to change tile to cfg.frame_stack here, proto_goals are already stacked in eval_proto
-                            if self.cfg.obs_type == 'pixels':
-                                action1 = self.agent.act(obs,
-                                                        goal_pix,
-                                                        meta,
-                                                        self._global_step,
-                                                        eval_mode=False,
-                                                        tile=self.cfg.frame_stack,
-                                                        general=True)
-                
-                            else:
-                                action1 = self.agent.act(obs,
-                                                        goal_state[:2],
-                                                        meta,
-                                                        self._global_step,
-                                                        eval_mode=False,
-                                                        tile=1,
-                                                        general=True)
-
-                        #if episode_step==1:
-                        #    print('physics2', self.train_env1.physics.named.model.geom_pos)
-                        #    print('physics2 xpos', self.train_env1.physics.named.data.geom_xpos)
-                        # take env step
-                        if self.cfg.velocity_control:
-                            vel = action1.copy()
-                            action1 = np.zeros(2,dtype="float32")
-                            self.train_env1.physics.data.qvel[0] = vel[0]
-                            self.train_env1.physics.data.qvel[1] = vel[1]
-                        time_step1 = self.train_env1.step(action1)
-
-                        if self.pmm and self.cfg.velocity_control is False:
-                            time_step_no_goal = self.train_env_no_goal.step(action1)
-                        elif self.pmm and self.cfg.velocity_control is False:
-                            self.train_env_no_goal.physics.data.qvel[0] = vel[0]
-                            self.train_env_no_goal.physics.data.qvel[1] = vel[1]
-                            time_step_no_goal = self.train_env_no_goal.step(action1)
-
-                        if self.pmm == False:
-                            print('not pmm, calculating reward')
-                            # calculate reward
-                            reward = calc_reward(time_step1.observation['pixels'], goal_pix, goal_state)
-                            time_step1 = time_step1._replace(reward=reward)
-
-                        if time_step1.reward > self.cfg.reward_cutoff:
-                            episode_reward += (time_step1.reward + abs(self.cfg.reward_cutoff))
-
-                        # if goal hasn't been reached, then add to replay buffer
-                        if self.cfg.obs_type == 'pixels' and time_step1.last() is False and episode_step != self.cfg.episode_length \
-                                and ((episode_reward < abs(self.cfg.reward_cutoff * 20) and self.pmm == False)
-                                    or ((episode_reward < self.cfg.pmm_reward_cutoff) and self.pmm)):
-                            self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
-                                                                goal_pix, goal_state,
-                                                                time_step_no_goal, True)
-                        episode_step += 1
-
-                    # self.actor. proto's turn
-                    #we need this aprt for offline_gc as well
-                    elif self.actor:
-                        with torch.no_grad(), utils.eval_mode(self.agent):
-                            if self.cfg.obs_type == 'pixels':
-                                action = self.agent.act2(time_step.observation['pixels'],
-                                                        meta,
-                                                        self.global_step,
-                                                        eval_mode=True)
-
-                        if self.global_step > (self.cfg.num_seed_frames + self.switch_gc):
-
-                            metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-                            self.logger.log_metrics(metrics, self.global_frame, ty='train')
-                            # TODO
-                            # one issue: if gc reaches goal too quickly & proto explores for 25 episodes
-                            # replay loader will get stuck since no new episodes for gc
-                            if self.update_gc_while_proto and self.gc_init:
-                                metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-
-                        if self.cfg.velocity_control:
-                            vel = action.copy()
-                            action = np.zeros(2, dtype="float32")
-                            self.train_env.physics.data.qvel[0] = vel[0]
-                            self.train_env.physics.data.qvel[1] = vel[1]
-
-                        time_step = self.train_env.step(action)
-                        episode_reward += time_step.reward
-
-                        if self.cfg.obs_type == 'pixels' and time_step.last() == False:
-                            self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, pmm=self.pmm)
-
-                        episode_step += 1
-
-                    if self.actor1 and self.cfg.offline_gc is False:
-                        if time_step1.reward == 0. and self.pmm is False:
-                            time_step1 = time_step1._replace(reward=-1)
-
-                        # if goal is reached
-                        if (self.pmm is False and (episode_reward > abs(self.cfg.reward_cutoff * 20))
-                            and episode_step > 5) or (self.pmm and episode_reward > 100):
-                            print('proto_goals', self.proto_goals_state)
-                            print('r', episode_reward)
-
-                            self.reached_goals, self.proto_goals_matrix, self.unreached_goals, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.current_init = goal_reached_save_stats(self.cfg, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.current_init,  goal_state, goal_idx, self.origin, self.reached_goals, self.proto_goals_matrix, self.pmm, self.train_env1, self.unreached, self.unreached_goals)
-
-                            episode_reward = 0
-                            episode_step = 0
-
-                            if self.cfg.obs_type == 'pixels' and time_step1.last() is False:
-                                self.replay_storage1.add_goal_general(time_step1, self.train_env1.physics.get_state(), meta,
-                                                                    goal_pix, goal_state,
-                                                                    time_step_no_goal, True, last=True)
-
-                            if self.cfg.gc_only is False:
-                                self.actor = True
-                                self.actor1 = False
-                                self.unreached = False  # TODO: what is this for
-                                print('current', self.current_init)
-                                print('obs', self.train_env1.physics.get_state())
-                                meta = self.agent.update_meta(meta, self._global_step, time_step1)
-
-                                # setting state to just reached goal for proto to start exploring
-                                time_step, train_env, _, _, self.origin = make_env(self.cfg, actor1=False, init_idx=-1, goal_state=None,
-                                                                        pmm=self.pmm, current_init=self.current_init, train_env=self.train_env)
-                                # non pmm env needs this part for their env to work after setting state
-                                if self.pmm is False:
-                                    act_ = np.zeros(self.train_env.action_spec().shape, self.train_env.action_spec().dtype)
-                                    time_step = self.train_env.step(act_)
-
-                            else:
-                                self.actor1 = True
-                                self.actor = False
-
-                        if episode_step == 499 and (
-                                (self.pmm == False and episode_reward < abs(self.cfg.reward_cutoff * 20))
-                                or (self.pmm and episode_reward < 100)):
-                            # add goal to self.unreached if the goal was chosen from self.proto_goals
-                            if self.unreached is False:
-                                self.unreached_goals = np.append(self.unreached_goals,
-                                                                self.proto_goals_state[goal_idx][None, :], axis=0)
-
-                        if self.global_step > (self.switch_gc + self.cfg.num_seed_frames):
-
-                            metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                            self.logger.log_metrics(metrics, self.global_frame, ty='train')
-
-                            if self.update_gc_while_proto:
-                                metrics = self.agent.update(self.replay_iter, self.global_step, test=self.cfg.test)
-
-                    self._global_step += 1
 
             if self._global_step % 200000 == 0 and self._global_step != 0:
                 print('saving agent')

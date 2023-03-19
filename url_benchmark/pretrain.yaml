@@ -127,6 +127,8 @@ proto_explore_every: 10
 proto_explore_episodes: 100
 hack: False
 eval_proto_goals: False
+num_gc_train_frames: 100000
+num_proto_train_frames: 100000
 #experiment
 experiment: exp
 
