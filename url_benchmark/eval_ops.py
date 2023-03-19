@@ -83,7 +83,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
 current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
 mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None, model_step=None, pretrained_agent=None):
-
     if eval:
         # used for continue training 
         # finds the current init from buffer loaded in (reached goals of previous training)
@@ -396,7 +395,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         if pmm:
             assert len(current_init.shape) == 2
 
-        return current_init, proto_goals_state
+        return current_init
 
 
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None):
@@ -408,14 +407,13 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
     rand_init = np.random.uniform(.25, .29, (1, 4))
     rand_init[0,0] = -rand_init[0,0]
-
+    
     if eval_reached.shape[0] > 0:
         rand_init = np.append(rand_init, eval_reached, axis=0)
     print('rand init', rand_init)
 
     for i, init in enumerate(rand_init):
         init = init[:2]
-        print('init', init)
         if goal_states is None:
             goal_array = ndim_grid(2, 10)
             dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
@@ -497,6 +495,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
                 if total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc:
                     eval_reached = np.append(eval_reached, x[None,:], axis=0)
+                    print('eval reached2', eval_reached)
                     eval_reached = np.unique(eval_reached, axis=0)
                     if str(i) not in reached.keys():
                         reached[str(i)] = []
