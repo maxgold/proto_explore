@@ -118,7 +118,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
             current_init = df1[['g0', 'g1']].to_numpy()
             current_init = current_init[sorted(np.unique(current_init, return_index=True, axis=0)[1])]
-            current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=1)
+            current_init = np.concatenate((current_init, np.zeros((current_init.shape[0], 2))), axis=-1)
 
         # else:
         #     # import IPython as ipy; ipy.embed(colors='neutral')
@@ -396,7 +396,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         if pmm:
             assert len(current_init.shape) == 2
 
-        return current_init
+        return current_init, proto_goals_state
 
 
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None):
@@ -427,16 +427,23 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
     for i, init in enumerate(rand_init):
         init = init[:2]
-        if goal_states is None:
-            goal_array = ndim_grid(2, 10)
-            dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
-            goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
-            goal_array = goal_array[_]
-        else:
-            goal_array = goal_states
-
+        goal_array = ndim_grid(2, 10)
+        dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
+        goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
+        goal_array = goal_array[_]
+        goal_array = np.concatenate((goal_array, np.zeros((goal_array.shape[0],2))), axis=-1)
         print('goal array', goal_array)
 
+        if goal_states is not None:
+            print('goal array', goal_array)
+            print('goal state', goal_states)
+            assert len(goal_array.shape) == len(goal_states.shape)
+            goal_array = np.append(goal_array, goal_states, axis=0)
+            print('final goal array', goal_array)
+        # else:
+        #     goal_array = goal_states
+        if cfg.debug:
+            goal_array = goal_array[:2]
         for ix, x in enumerate(goal_array):
             print('goal', x)
             step, episode, total_reward = 0, 0, 0
@@ -459,15 +466,15 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     time_step_no_goal = eval_env_no_goal.reset()
 
                     #render goal
-                    if goal_pixels is None:
-                        with eval_env_goal.physics.reset_context():
-                            time_step_goal = eval_env_goal.physics.set_state(
-                                np.array([goal_state[0], goal_state[1], 0, 0]))
-                        time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
-                                                                                camera_id=cfg.camera_id)
-                        time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
-                    else:
-                        time_step_goal = goal_pixels[ix]
+                    # if goal_pixels is None:
+                    with eval_env_goal.physics.reset_context():
+                        time_step_goal = eval_env_goal.physics.set_state(
+                            np.array([goal_state[0], goal_state[1], 0, 0]))
+                    time_step_goal = eval_env_goal._env.physics.render(height=84, width=84,
+                                                                            camera_id=cfg.camera_id)
+                    time_step_goal = np.transpose(time_step_goal, (2, 0, 1))
+                    # else:
+                    #     time_step_goal = goal_pixels[ix]
 
                 video_recorder.init(eval_env, enabled=(episode == 0))
                 
@@ -506,9 +513,8 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                 if ix % 10 == 0:
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
-                if total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc:
+                if (total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc):
                     eval_reached = np.append(eval_reached, x[None,:], axis=0)
-                    print('eval reached2', eval_reached)
                     eval_reached = np.unique(eval_reached, axis=0)
                     if str(i) not in reached.keys():
                         reached[str(i)] = []
@@ -580,10 +586,10 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
     print('reached', reached.adj)
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
 
-    if cfg.debug:
-        rand_init = ndim_grid(2, 2)
-    else:
-        rand_init = ndim_grid(2, 8)
+    # if cfg.debug:
+    #     rand_init = ndim_grid(2, 2)
+    # else:
+    rand_init = ndim_grid(2, 8)
 
     for i, init in enumerate(rand_init):
         reached.add_vertex(i)
@@ -591,10 +597,10 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
     for i, init in enumerate(rand_init):
         init = init[:2]
         print('init', init)
-        if cfg.debug:
-            goal_array = ndim_grid(2, 3)
-        else:
-            goal_array = ndim_grid(2, 8)
+        # if cfg.debug:
+        #     goal_array = ndim_grid(2, 3)
+        # else:
+        goal_array = ndim_grid(2, 8)
         print('goal array', goal_array)
         
         for goal in goal_array:
@@ -603,10 +609,10 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
         print('goal array', goal_array)
         
         dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
-        if cfg.debug:
-            goal_dist, _ = torch.topk(dist, 2, dim=-1, largest=False)
-        else:
-            goal_dist, _ = torch.topk(dist, 8, dim=-1, largest=False)
+        # if cfg.debug:
+        #     goal_dist, _ = torch.topk(dist, 2, dim=-1, largest=False)
+        # else:
+        goal_dist, _ = torch.topk(dist, 8, dim=-1, largest=False)
         goal_array = goal_array[_]
         print('goal array', goal_array)
 

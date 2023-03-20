@@ -585,10 +585,9 @@ class Workspace:
         if self.cfg.model_path and self.cfg.offline_gc is False:
             self.evaluate(eval=True)
 
-        if self.cfg.debug:
-            self.evaluate()
+        # if self.cfg.debug:
+        #     self.evaluate()
         while train_until_step(self.global_step):
-
             if self.hybrid:
                 
                 self.gc_step = 0 
@@ -666,6 +665,7 @@ class Workspace:
                     self.proto_step += 1
             
             self.proto_step = 0 # reset proto_step
+            print('gc_step: ', self.gc_step)
             while gc_train_until_step(self.gc_step):
                 if self.gc_step == (self.cfg.num_gc_train_frames//self.cfg.action_repeat)-1:
                     # try to evaluate
@@ -684,6 +684,7 @@ class Workspace:
                 self._global_step += 1
                 self.gc_step += 1
 
+            self.gc_step =0
 
 
             if self._global_step % 200000 == 0 and self._global_step != 0:
