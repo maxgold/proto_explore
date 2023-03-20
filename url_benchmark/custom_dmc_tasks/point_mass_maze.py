@@ -323,13 +323,16 @@ def reach_hard2_no_goal(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
-def make_target_str(goal):
+def make_target_str(goal, ix=None):
     new_pos_str = 'pos="'
     for p in goal:
         new_pos_str += str(p) + " "
     new_pos_str += '.01"'
+    if ix is None:
+        t = '    <geom name="target" ' + new_pos_str
+    else:
+        t = '    <geom name="target' + str(ix)+'" ' + new_pos_str
 
-    t = '    <geom name="target" ' + new_pos_str
     t += ' material="target" type="sphere" size=".015"'
     t += ' contype="0" conaffinity="0"/>'
 
@@ -345,21 +348,34 @@ def reach_custom_goal(
     goal=(0.15, -0.15),
 ):
     """Returns the Run task."""
-    assert abs(goal[0]) <= 0.29
-    assert abs(goal[1]) <= 0.29
+    #goal can also be a list of goals
+
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
     xml = get_model_and_assets("reach_bottom_right")
-    #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
+    if goal.shape!= (2,):
+        new_targ_str_final = ''
+
+        for ix in range(goal.shape[0]):
+            new_targ_str = make_target_str(goal[ix][:2], ix)
+            new_targ_str = re.sub("\t", "    ", new_targ_str)
+            new_targ_str = '\n' + new_targ_str
+            new_targ_str_final += new_targ_str 
+
+        new_targ_str = new_targ_str_final
+        goal_np = np.r_[np.array([2.,2.]), 0.01]
+    else:
+        new_targ_str = make_target_str(goal)
+        new_targ_str = re.sub("\t", "    ", new_targ_str)
+        goal_np = np.r_[goal, 0.01]
+
     xml_str = xml_str.split("\n")
     xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
     xml_str2 = xml_str2.encode("utf-8")
     xml2 = xml_str2, xml_dict
     physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
+
     task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(
@@ -569,7 +585,8 @@ class MultiTaskPointMassMaze(base.Task):
             physics.data.qpos[0], physics.data.qpos[1] = self._init_state
         else:
             physics.data.qpos[0], physics.data.qpos[1] = init_state[:2] 
-        # import ipdb; ipdb.set_trace()
+
+        # if self._target.shape[0] != 2:
         physics.named.data.geom_xpos["target"][:] = self._target
 
         super().initialize_episode(physics)

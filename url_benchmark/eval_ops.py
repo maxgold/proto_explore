@@ -390,7 +390,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         # if cfg.debug:
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
         print('goal states', proto_goals_state)
-        if global_step!=0:
+        if global_step!=0 or cfg.debug:
             current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
 
         if pmm:
@@ -402,9 +402,21 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None):
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
+    if goal_states is not None:
+        multigoal_env = dmc.make('point_mass_maze_reach_custom_goal', cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=goal_states, camera_id=cfg.camera_id)
+        
+        plt.clf()
+        time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
+                                                                camera_id=cfg.camera_id)
+        plt.imsave(f"goals_{global_step}.png", time_step_multigoal)
+        wandb.save(f"goals_{global_step}.png")
+    
     reached = dict()
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
+    old_len = eval_reached.shape[0]
+    #making this into a recursive function
 
     rand_init = np.random.uniform(.25, .29, (1, 4))
     rand_init[0,0] = -rand_init[0,0]
@@ -506,6 +518,15 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             df.loc[ix, 'y'] = x[1].round(2)
             df.loc[ix, 'r'] = total_reward
 
+        multigoal_env = dmc.make('point_mass_maze_reach_custom_goal', cfg.obs_type, cfg.frame_stack,
+                                        cfg.action_repeat, seed=None, goal=eval_reached, camera_id=cfg.camera_id)
+        
+        plt.clf()
+        time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
+                                                                camera_id=cfg.camera_id)
+        plt.imsave(f"reached_goals_{global_step}.png", time_step_multigoal)
+        wandb.save(f"reached_goals_{global_step}.png")
+
         result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         result.fillna(0, inplace=True)
         print('result', result)
@@ -544,7 +565,10 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
         # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
         # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
-
+    
+    if eval_reached.shape[0] > old_len:
+        eval_reached, reached = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels)
+    
     if cfg.offline_gc:
         return eval_reached, reached
 

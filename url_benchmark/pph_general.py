@@ -585,6 +585,8 @@ class Workspace:
         if self.cfg.model_path and self.cfg.offline_gc is False:
             self.evaluate(eval=True)
 
+        if self.cfg.debug:
+            self.evaluate()
         while train_until_step(self.global_step):
 
             if self.hybrid:
