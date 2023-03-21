@@ -150,67 +150,46 @@ class ReplayBufferStorage:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
             self._current_episode = defaultdict(list)
+            print('episode', episode.values())
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
     
-    def add_gym(self, time_step, state=None, meta=None,pixels=False, last=False, pmm=True, action=None, discount=None):
-        for key, value in meta.items():
-            self._current_episode[key].append(value)
-        for spec in self._data_specs:
-            if spec.name == 'observation' and pixels:
-                value = time_step['image'].transpose(2,0,1)
-                self._current_episode['observation'].append(value)
-                if state is not None:
-                    self._current_episode['state'].append(state)
-                else:
-                    print('no state provided')
-                    raise NotImplementedError
+    def add_gym(self, obs, action, meta=None, last=False):
 
-                tmp_state = time_step['walker/world_zaxis']*100
+        for spec in self._data_specs:
+            if spec.name == 'image':
+                value = obs['image'].transpose(2,0,1)
+                self._current_episode['observation'].append(value)
+
+                tmp_state = obs['walker/world_zaxis']*100
                 # print('check the limits of the x, y coordinates')
                 idx_x = int(tmp_state[0])+self.visitation_limit
                 idx_y = int(tmp_state[1])+self.visitation_limit
                 self.state_visitation_proto[idx_x,idx_y]+=1
-
-            elif spec.name == 'action' and action is not None:
-                value = action
-                if np.isscalar(value):
-                    value = np.full(spec.shape, value, spec.dtype)
-                assert spec.shape == value.shape and spec.dtype == value.dtype
-                self._current_episode[spec.name].append(value)
-            elif spec.name == 'discount' and discount is not None:
-                value = discount
-                if np.isscalar(value):
-                    value = np.full(spec.shape, value, spec.dtype)
-                assert spec.shape == value.shape and spec.dtype == value.dtype
-                self._current_episode[spec.name].append(value)
             else:
-                
-                value = time_step[spec.name]
+                if spec.name == 'action' or spec.name == 'reset':
+                    value = action[spec.name]
+                else:
+                    value = obs[spec.name]
+                value = np.array(value, spec.dtype)
+
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
+
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode[spec.name].append(value)
-                    
+
         if last:
             episode = dict()
             for spec in self._data_specs:
-                if spec.name == 'observation' and pixels:
-                    value1 = self._current_episode['observation']
-                    value2 = self._current_episode['state']
-                    episode['observation'] = np.array(value1, spec.dtype)
-                    episode['state'] = np.array(value2, 'float32')
-                    
-                else:
-                    value = self._current_episode[spec.name]
-                    episode[spec.name] = np.array(value, spec.dtype)
-            
-            for spec in self._meta_specs:
                 value = self._current_episode[spec.name]
                 episode[spec.name] = np.array(value, spec.dtype)
+            print('episode', next(iter(episode.values())))
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal, gym')
+            # next(iter(episode.values())).shape[0] - 1
+
 
     def add_goal(self, time_step, meta, goal, time_step_no_goal=False,goal_state=False,pixels=False, last=False, asym=False):
         for key, value in meta.items():

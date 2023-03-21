@@ -302,11 +302,20 @@ class Workspace:
         # create replay buffer
         data_specs = []
 
-        for k in self.train_env.obs_space.keys():
-            data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
-        for k in self.train_env.act_space.keys():
-            data_specs.append(specs.Array(self.train_env.act_space[k].shape, self.train_env.act_space[k].dtype, k))
-        data_specs = tuple(data_specs)
+        if self.cfg.gym:
+            for k in self.train_env.obs_space.keys():
+                data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
+            for k in self.train_env.act_space.keys():
+                data_specs.append(specs.Array(self.train_env.act_space[k].shape, self.train_env.act_space[k].dtype, k))
+            data_specs = tuple(data_specs)
+        else:
+            data_specs = (self.train_env.observation_spec(),
+                      self.train_env.action_spec(),
+                      specs.Array((1,), np.float32, 'reward'),
+                      specs.Array((1,), np.float32, 'discount'))
+
+        # import IPython as ipy; ipy.embed(colors='neutral')
+
 
         if self.cfg.gym is False:
             self.visitation_matrix_size = 60
@@ -620,24 +629,22 @@ class Workspace:
             action['action'] = act
             action['reset'] = True
             time_step = self.train_env.step(action)
+            action['reset'] = False
         else:
             time_step = self.train_env.reset()
 
-        action['reset'] = False
         meta = self.agent.init_meta()
 
-        if self.cfg.gym:
-            state = self.train_env._env._env._physics.state()
-        else:
+        if self.cfg.gym is False:
             state = self.train_env.physics.get_state()
         
-        import IPython as ipy; ipy.embed(colors='neutral')
+        # import IPython as ipy; ipy.embed(colors='neutral')
 
         if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False and self.cfg.gym is False:
             
             self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
         else:
-            self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
+            self.replay_storage.add_gym(obs=time_step, action=action)
 
         metrics = None
 
@@ -710,10 +717,8 @@ class Workspace:
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
                     elif self.cfg.velocity_control is False and self.cfg.gym is False:
                         self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
-                    elif self.cfg.velocity_control and self.cfg.gym:
-                        self.replay_storage.add_gym(time_step, state, meta, True, last=True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
-                    elif self.cfg.velocity_control is False and self.cfg.gym:
-                        self.replay_storage.add_gym(time_step, state, meta, True, last=True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
+                    elif self.cfg.gym:
+                        self.replay_storage.add_gym(obs=time_step, action=action, last=True)
 
                     # try to save snapshot
                     # TODO
@@ -783,11 +788,8 @@ class Workspace:
                     self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm, action=vel)
                 elif self.cfg.velocity_control is False and self.cfg.gym is False:
                     self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
-                elif self.cfg.velocity_control and self.cfg.gym:
-                    self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
-                elif self.cfg.velocity_control is False and self.cfg.gym:
-                    self.replay_storage.add_gym(time_step, state, meta, True, pmm=self.pmm, action=action['action'], discount=self.cfg.discount)
-
+                elif self.cfg.gym:
+                    self.replay_storage.add_gym(obs=time_step, action=action)
                 episode_step += 1
                 self._global_step += 1
 
