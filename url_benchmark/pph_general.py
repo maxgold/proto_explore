@@ -300,10 +300,13 @@ class Workspace:
         # get meta specs
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
-        data_specs = (specs.Array(obs_spec.shape, np.int32, 'observation'),
-                      specs.Array(action_spec.shape, np.float32, 'action'),
-                      specs.Array((1,), np.float32, 'reward'),
-                      specs.Array((1,), np.float32, 'discount'))
+        data_specs = []
+
+        for k in self.train_env.obs_space.keys():
+            data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
+        for k in self.train_env.act_space.keys():
+            data_specs.append(specs.Array(self.train_env.act_space[k].shape, self.train_env.act_space[k].dtype, k))
+        data_specs = tuple(data_specs)
 
         if self.cfg.gym is False:
             self.visitation_matrix_size = 60
@@ -628,7 +631,7 @@ class Workspace:
         else:
             state = self.train_env.physics.get_state()
         
-        # import IPython as ipy; ipy.embed(colors='neutral')
+        import IPython as ipy; ipy.embed(colors='neutral')
 
         if self.cfg.obs_type == 'pixels' and self.cfg.gc_only is False and self.cfg.gym is False:
             
