@@ -434,26 +434,31 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # reached.add_vertex(i)
         init = init[:2]
         goal_array = ndim_grid(2, 10)
-        dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
-        goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
-        goal_array = goal_array[_]
         goal_array = np.concatenate((goal_array, np.zeros((goal_array.shape[0],2))), axis=-1)
         print('goal array', goal_array)
 
         if goal_states is not None:
             print('goal array', goal_array)
             print('goal state', goal_states)
+            index = np.where((goal_states == 0.).all(axis=1))[0]
+            goal_states = np.delete(goal_states, index, axis=0)
             assert len(goal_array.shape) == len(goal_states.shape)
             goal_array = np.append(goal_array, goal_states, axis=0)
             print('final goal array', goal_array)
 
-        if cfg.debug:
-            eval_reached = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+        dist= torch.norm(torch.tensor([[init[0], init[1], 0, 0]]) - torch.tensor(goal_array), dim=-1, p=2)
+        goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
+        goal_array = goal_array[_]
+
         if eval_reached.shape[0] > 0:
             for x in eval_reached:
                 a = np.where((goal_array == x).all(axis=1))[0]
                 if len(a) > 0:
                     goal_array = np.delete(goal_array, a[0], axis=0)
+        
+        goal_array = goal_array.round(2)
+        goal_array = np.unique(goal_array, axis=0)
+            
         print('goal array', goal_array)
 
         if cfg.debug:
