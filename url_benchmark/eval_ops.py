@@ -412,7 +412,9 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.imsave(f"goals_{global_step}.png", time_step_multigoal)
         wandb.save(f"goals_{global_step}.png")
     
-    reached = dict()
+    reached = Graph()
+    print('reached', reached)
+    print('reached', reached.adj)
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
     old_len = eval_reached.shape[0]
@@ -424,8 +426,12 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     if eval_reached.shape[0] > 0:
         rand_init = np.append(rand_init, eval_reached, axis=0)
     print('rand init', rand_init)
+    vertex_count = 0 
 
     for i, init in enumerate(rand_init):
+        #uncomment when we need to save the graph
+        # i = i + vertex_count
+        # reached.add_vertex(i)
         init = init[:2]
         goal_array = ndim_grid(2, 10)
         dist= torch.norm(torch.tensor(init[None,:]) - torch.tensor(goal_array), dim=-1, p=2)
@@ -440,10 +446,19 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             assert len(goal_array.shape) == len(goal_states.shape)
             goal_array = np.append(goal_array, goal_states, axis=0)
             print('final goal array', goal_array)
-        # else:
-        #     goal_array = goal_states
+
+        if cfg.debug:
+            eval_reached = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
+        if eval_reached.shape[0] > 0:
+            for x in eval_reached:
+                a = np.where((goal_array == x).all(axis=1))[0]
+                if len(a) > 0:
+                    goal_array = np.delete(goal_array, a[0], axis=0)
+        print('goal array', goal_array)
+
         if cfg.debug:
             goal_array = goal_array[:2]
+
         for ix, x in enumerate(goal_array):
             print('goal', x)
             step, episode, total_reward = 0, 0, 0
@@ -507,18 +522,26 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
                     video_recorder.record(eval_env)
                     total_reward += time_step.reward
+                    if time_step.reward > 1.9 or total_reward > 50 * cfg.num_eval_episodes:
+                        print('reward', time_step.reward)
+                        #uncomment when we need to save the graph
+                        # goal_idx = np.where((rand_init == x).all(axis=1))[0]
+                        # if len(goal_idx) > 0:
+                        #     goal_idx = goal_idx[0]
+                        #     reached.add_edge(i, goal_idx, step)
+                        # else:
+                        #     vertex_count += 1
+                        #     reached.add_vertex(i+1)
+                        #     reached.add_edge(i, i+1, step)
+
+                        eval_reached = np.append(eval_reached, x[None,:], axis=0)
+                        eval_reached = np.unique(eval_reached, axis=0)
+                        break
                     step += 1
                 episode += 1
 
                 if ix % 10 == 0:
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
-
-                if (total_reward > 10 * cfg.num_eval_episodes and cfg.offline_gc):
-                    eval_reached = np.append(eval_reached, x[None,:], axis=0)
-                    eval_reached = np.unique(eval_reached, axis=0)
-                    if str(i) not in reached.keys():
-                        reached[str(i)] = []
-                    reached[str(i)].append(x)
 
             df.loc[ix, 'x'] = x[0].round(2)
             df.loc[ix, 'y'] = x[1].round(2)
@@ -545,33 +568,15 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
         wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
-        # #action
+    #uncomment when we need to save the graph
+    # distance, path = reached.floydwarshall()
+    # df_dist = pd.DataFrame(distance)
+    # df_path = pd.DataFrame(path)
+    # df_dist.to_csv(f"./{global_step}_distance.csv", index=False)
+    # df_path.to_csv(f"./{global_step}_path.csv", index=False)
+    # print('distance', distance)
+    # print('path', path)
 
-        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['a']/2
-        # result.fillna(0, inplace=True)
-        # print('result', result)
-        # plt.clf()
-        # fig, ax = plt.subplots()
-        # plt.title(str(init))
-        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        # plt.savefig(f"./{global_step}_{i}_heatmap_max_action.png")
-        # wandb.save(f"./{global_step}_{i}_heatmap_max_action.png")
-
-        # #min dist to goal
-        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['d']/2
-        # result.fillna(0, inplace=True)
-        # print('result', result)
-        # plt.clf()
-        # fig, ax = plt.subplots()
-        # plt.title(str(init))
-        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        # plt.savefig(f"./{global_step}_{i}_heatmap_dist.png")
-        # wandb.save(f"./{global_step}_{i}_heatmap_dist.png")
-    
     if eval_reached.shape[0] > old_len:
         eval_reached, reached = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels)
     
