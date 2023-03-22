@@ -391,6 +391,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
         print('goal states', proto_goals_state)
         if global_step!=0 or cfg.debug:
+            current_init = np.empty((0,4))
             current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
             assert type(current_init) is not tuple
         if pmm:
@@ -405,7 +406,6 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     if goal_states is not None:
         multigoal_env = dmc.make('point_mass_maze_reach_custom_goal', cfg.obs_type, cfg.frame_stack,
                                         cfg.action_repeat, seed=None, goal=goal_states, camera_id=cfg.camera_id)
-        
         plt.clf()
         time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
                                                                 camera_id=cfg.camera_id)
