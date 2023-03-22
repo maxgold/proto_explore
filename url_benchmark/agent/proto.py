@@ -48,7 +48,7 @@ class ProtoAgent(DDPGAgent):
     def __init__(self, pred_dim, proj_dim, queue_size, num_protos, tau,
                  encoder_target_tau, topk, update_encoder, update_gc,
                  num_iterations, update_proto_every, update_enc_proto, update_enc_gc, update_proto_opt,
-                 normalize, normalize2, sl, gc_inv, **kwargs):
+                 normalize, normalize2, sl, gc_inv, gym1, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
         self.encoder_target_tau = encoder_target_tau
@@ -90,6 +90,7 @@ class ProtoAgent(DDPGAgent):
         self.update_proto_opt= update_proto_opt
         self.sl = sl
         self.gc_inv = gc_inv
+        self.gym = gym1
         print('obs type', self.obs_type)
 
 
@@ -173,7 +174,11 @@ class ProtoAgent(DDPGAgent):
         # find a candidate for each prototype
         with torch.no_grad():
             if eval==False:
-                if self.obs_type=='states' or self.sl is False:
+                if self.gym:
+                    z1 = self.encoder(obs)
+                    z2 = self.state_encoder(obs_state)
+                    z = torch.cat((z1,z2), dim=-1)
+                elif self.obs_type=='states' or self.sl is False:
                     z = self.encoder(obs)
                 else:
                     z, _ = self.encoder(obs)
@@ -229,7 +234,11 @@ class ProtoAgent(DDPGAgent):
         #self.normalize_protos()
 
         # online network
-        if self.obs_type=='states' or self.sl is False:
+        if self.gym:
+            s1 = self.encoder(obs)
+            s2 = self.state_encoder(obs_state)
+            s = torch.cat((s1,s2), dim=1)
+        elif self.obs_type=='states' or self.sl is False:
             s = self.encoder(obs)
         else:
             s, _ = self.encoder(obs)
@@ -238,7 +247,6 @@ class ProtoAgent(DDPGAgent):
         if self.normalize:
             s = F.normalize(s, dim=1, p=2)
         scores_s = self.protos(s)
-        #import IPython as ipy; ipy.embed(colors='neutral')
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
@@ -250,16 +258,11 @@ class ProtoAgent(DDPGAgent):
             if self.normalize:
                 t = F.normalize(t, dim=1, p=2)
             scores_t = self.protos(t)
-
             q_t = sinkhorn_knopp(scores_t / self.tau)
- 
         
         loss = -(q_t * log_p_s).sum(dim=1).mean()
-        #loss2 = self.criterion(p_s, q_t)
-
         if self.use_tb or self.use_wandb:
             metrics['repr_loss'] = loss.item()
-        
 
         if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.zero_grad(set_to_none=True)
@@ -277,28 +280,28 @@ class ProtoAgent(DDPGAgent):
             self.proto_opt.step()
         return metrics
     
-    def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
+    # def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
 
-        metrics = dict()
+    #     metrics = dict()
 
-        if self.obs_type=='states' or self.sl is False:
-            obs = self.encoder(obs)
-            goal = self.encoder(goal)
-        else:
-            obs, _ = self.encoder(obs)
-            goal, _ = self.encoder(goal)
+    #     if self.obs_type=='states' or self.sl is False:
+    #         obs = self.encoder(obs)
+    #         goal = self.encoder(goal)
+    #     else:
+    #         obs, _ = self.encoder(obs)
+    #         goal, _ = self.encoder(goal)
 
-        encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
+    #     encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
 
-        if self.use_tb or self.use_wandb:
+    #     if self.use_tb or self.use_wandb:
 
-            metrics['encoder_loss'] = encoder_loss.item()
+    #         metrics['encoder_loss'] = encoder_loss.item()
 
-        self.encoder_opt.zero_grad(set_to_none=True)
-        encoder_loss.backward()
-        self.encoder_opt.step()
+    #     self.encoder_opt.zero_grad(set_to_none=True)
+    #     encoder_loss.backward()
+    #     self.encoder_opt.step()
         
-        return metrics 
+    #     return metrics 
 
 
     def update(self, replay_iter, step, actor1=False, test=False):
@@ -310,6 +313,7 @@ class ProtoAgent(DDPGAgent):
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
             if actor1 and self.gc_inv:
+                #same for antmaze & dmenvs
                 obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
                     batch, self.device)
             else:
@@ -321,47 +325,6 @@ class ProtoAgent(DDPGAgent):
             goal_state = goal_state.float()
             obs_state = obs_state.float()
 
-                
-        elif actor1==False and test:
-            obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state = utils.to_torch(
-                    batch, self.device)
-           
-            #batch moving average tracks how many states are moving in & out of each 10x10grid between every update batch. (should divide by 2)
-            obs_state = obs_state.clone().detach().cpu().numpy()
-            self.current_heatmap, _, _ = np.histogram2d(obs_state[:, 0], obs_state[:, 1], bins=10, range=np.array(([-.29, .29],[-.29, .29])))
-            if self.prev_heatmap.sum()==0:
-                self.prev_heatmap=self.current_heatmap
-            else:
-                total_chg = np.abs((self.current_heatmap-self.prev_heatmap)).sum()
-                
-                chg_ptr = self.chg_queue_ptr
-                self.chg_queue[chg_ptr] = torch.tensor(total_chg,device=self.device)
-                self.chg_queue_ptr = (chg_ptr+1) % self.chg_queue.shape[0]
-                if step>=1000 and step%1000==0:
-                    
-                    indices=[5,10,20,50,100,200,500]
-                    sets = [self.mov_avg_5, self.mov_avg_10, self.mov_avg_20,
-                            self.mov_avg_50, self.mov_avg_100, self.mov_avg_200,
-                            self.mov_avg_500]
-                    for ix,x in enumerate(indices):
-                        if chg_ptr-x<0:
-                            lst = torch.cat([self.chg_queue[:chg_ptr], self.chg_queue[chg_ptr-x:]])
-                            sets[ix][self.count]=lst.mean()
-                        else:
-                            sets[ix][self.count]=self.chg_queue[chg_ptr-x:chg_ptr].mean()
-
-                if step%100000==0:
-                    plt.clf()
-                    fig, ax = plt.subplots(figsize=(15,5))
-                    labels = ['mov_avg_5', 'mov_avg_10', 'mov_avg_20', 'mov_avg_50',
-                            'mov_avg_100', 'mov_avg_200', 'mov_avg_500']
-                    
-                    for ix,x in enumerate(indices):
-                        ax.plot(np.arange(0,sets[ix].shape[0]), sets[ix].clone().detach().cpu().numpy(), label=labels[ix])
-                    ax.legend()
-                    
-                    plt.savefig(f"batch_moving_avg_{step}.png")
-                    
         elif actor1==False:
             obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
@@ -378,7 +341,10 @@ class ProtoAgent(DDPGAgent):
         if actor1==False:
 
             if self.reward_free:
-                metrics.update(self.update_proto(obs, next_obs, step))
+                if self.gym is False:
+                    metrics.update(self.update_proto(obs, next_obs, step))
+                else:
+                    metrics.update(self.update_proto(obs, obs_state, next_obs, next_obs_state, step))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, next_obs_state, step)
 
@@ -392,7 +358,14 @@ class ProtoAgent(DDPGAgent):
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            if self.obs_type=='states' or self.sl is False:
+            if self.gym:
+                obs = self.encoder(obs)
+                next_obs = self.encoder(next_obs)
+                obs_state = self.state_encoder(obs_state)
+                next_obs_state = self.state_encoder(next_obs_state)
+                obs = torch.cat((obs, obs_state), dim=-1)
+                next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+            elif self.obs_type=='states' or self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
             else:
@@ -427,7 +400,15 @@ class ProtoAgent(DDPGAgent):
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
-            if self.sl is False:
+            if self.gym:
+                obs = self.encoder(obs)
+                next_obs = self.encoder(next_obs)
+                goal = self.encoder(goal)
+                obs_state = self.state_encoder(obs_state)
+                next_obs_state = self.state_encoder(next_obs_state)
+                obs = torch.cat((obs, obs_state), dim=-1)
+                next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+            elif self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
                 goal = self.encoder(goal)

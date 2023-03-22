@@ -76,7 +76,7 @@ def my_reward(action, next_obs, goal):
     return float(r * control_reward)
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir, visitation_matrix_size=60, visitation_limit=.29):
+    def __init__(self, data_specs, meta_specs, replay_dir, visitation_matrix_size=60, visitation_limit=.29, obs_spec_keys=None, act_spec_keys=None):
         self._data_specs = data_specs
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
@@ -94,6 +94,10 @@ class ReplayBufferStorage:
         self.reward_matrix = np.zeros((visitation_matrix_size,visitation_matrix_size))
         self.goal_state_matrix = np.zeros((visitation_matrix_size,visitation_matrix_size))
         self.visitation_limit = visitation_limit*100
+        if obs_spec_keys is not None:
+            self.obs_spec_keys = obs_spec_keys
+        if act_spec_keys is not None:
+            self.act_spec_keys = act_spec_keys
     def __len__(self):
         return self._num_transitions
 
@@ -157,34 +161,38 @@ class ReplayBufferStorage:
     def add_gym(self, obs, action, meta=None, last=False):
 
         for spec in self._data_specs:
-            if spec.name == 'image':
-                value = obs['image'].transpose(2,0,1)
-                self._current_episode['observation'].append(value)
+            if spec.name in self.obs_spec_keys:
+                if spec.name == 'image':
+                    value = obs['image'].transpose(2,0,1)
+                    self._current_episode['image'].append(value)
 
-                tmp_state = obs['walker/world_zaxis']*100
-                # print('check the limits of the x, y coordinates')
-                idx_x = int(tmp_state[0])+self.visitation_limit
-                idx_y = int(tmp_state[1])+self.visitation_limit
-                self.state_visitation_proto[idx_x,idx_y]+=1
-            else:
-                if spec.name == 'action' or spec.name == 'reset':
-                    value = action[spec.name]
+                    tmp_state = obs['walker/world_zaxis']*100
+                    # print('check the limits of the x, y coordinates')
+                    idx_x = int(tmp_state[0])+self.visitation_limit
+                    idx_y = int(tmp_state[1])+self.visitation_limit
+                    self.state_visitation_proto[idx_x,idx_y]+=1
                 else:
                     value = obs[spec.name]
-                value = np.array(value, spec.dtype)
+            else:
+                value = action[spec.name]
 
-                if np.isscalar(value):
-                    value = np.full(spec.shape, value, spec.dtype)
+            value = np.array(value, spec.dtype)
 
-                assert spec.shape == value.shape and spec.dtype == value.dtype
-                self._current_episode[spec.name].append(value)
+            if np.isscalar(value):
+                value = np.full(spec.shape, value, spec.dtype)
+            print('spec.name', spec.name, 'spec.shape', spec.shape, 'value.shape', value.shape, 'value.dtype', value.dtype, 'spec.dtype', spec.dtype)
+            assert spec.shape == value.shape and spec.dtype == value.dtype
+            self._current_episode[spec.name].append(value)
 
         if last:
             episode = dict()
             for spec in self._data_specs:
-                value = self._current_episode[spec.name]
-                episode[spec.name] = np.array(value, spec.dtype)
-            print('episode', next(iter(episode.values())))
+                if spec.name not in self.obs_spec_keys + self.act_spec_keys:
+                    continue
+                else:
+                    value = self._current_episode[spec.name]
+                    episode[spec.name] = np.array(value, spec.dtype)
+            # print('episode', episode.values())
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal, gym')
@@ -533,7 +541,8 @@ class ReplayBuffer(IterableDataset):
         obs_shape=4,
         general=False,
         inv=False,
-        goal_offset=1):
+        goal_offset=1,
+        gym=False):
         self._storage = storage
         self._storage2 = storage2
         self._size = 0
@@ -570,6 +579,7 @@ class ReplayBuffer(IterableDataset):
         self.general = general
         self.inv = inv
         self.goal_offset = goal_offset
+        self.gym = gym
         if obs_type == 'pixels':
             self.pixels = True
         else:
@@ -728,39 +738,82 @@ class ReplayBuffer(IterableDataset):
             if self.pixels and self.goal_proto==False:
                 goal = np.tile(goal,(self.tile,1,1))
             return (obs, action, reward, discount, next_obs, goal, *meta)
+
         elif self.loss:
             
-            if self.test:
-                #if idx < episode_len(episode)//2:
-                #    rand_idx = np.random.randint(episode_len(episode)-50, episode_len(episode))
-                #    rand_obs = episode["observation"][rand_idx]
-                #    rand_obs_state = episode["state"][rand_idx]
-                #else:
-                #    rand_idx = np.random.randint(0, 50)
-                #    rand_obs = episode["observation"][rand_idx]
-                #    rand_obs_state = episode["state"][rand_idx]
-                next_obs_state = episode["state"][idx + self._nstep - 1]    
-                obs_state =  episode["state"][idx - 1]
-                
-                episode = self._sample_episode()
-                idx = np.random.randint(0, episode_len(episode))
-                rand_obs = episode['observation'][idx - 1]
-                rand_obs_state = episode["state"][idx-1]
-                return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, rand_obs_state, *meta)
-            else:
-                obs_state =  episode["state"][idx - 1]
-                next_obs_state = episode["state"][idx + self._nstep - 1]
-                
-                episode = self._sample_episode()
-                idx = np.random.randint(0, episode_len(episode))
-                rand_obs = episode['observation'][idx - 1]
-                return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, *meta)	
-
-        elif self.test:
             obs_state =  episode["state"][idx - 1]
-            return (obs, obs_state, action, reward, discount, next_obs, *meta)
+            next_obs_state = episode["state"][idx + self._nstep - 1]
+            
+            episode = self._sample_episode()
+            idx = np.random.randint(0, episode_len(episode))
+            rand_obs = episode['observation'][idx - 1]
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, *meta)	
         else:
             return (obs, action, reward, discount, next_obs, next_obs_state, *meta)
+    
+    def _sample_gym(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        
+        # import IPython as ipy; ipy.embed(colors='neutral')
+
+        keys = self._storage._data_specs.keys()
+        if not keys:
+            return None
+
+        total = episode_len(episode)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+
+        # if self.prio_starts:
+        # lower -= int(self.chunk * self.prio_starts)
+        # if self.prio_ends:
+        # upper += int(self.chunk * self.prio_ends)
+
+        state = np.empty((1,))
+        #if need to change obs_spec_keys that are used, then use original implemnetation 
+        #from https://github.com/danijar/director/blob/a6a649efedc25a9d194155682bf39163fba4b5a2/embodied/agents/director/nets.py#L172
+        for key in self._storage.obs_spec_keys():
+            if key == 'image':
+                obs = episode[key][idx - 1]
+                next_obs = episode[key][idx + self._nstep - 1]
+
+            elif key.startswith('log_'):
+                continue
+
+            elif key.startswith('act'):
+                action = episode[key][idx]
+
+            elif key.startswith('reset'):
+                continue
+            elif key.startswith('is'):
+                continue
+            else:
+                if len(episode[key][idx - 1].shape) > 1:
+                    continue
+                else:
+                    state_ = episode[key][idx - 1]
+                    next_state_ = episode[key][idx + self._nstep - 1]
+                    if len(state_.shape) == 0:
+                        state_ = state_[..., None]
+                    state = np.concatenate((state, state_), axis=-1)
+                    next_state = np.concatenate((next_state, next_state_), axis=-1)
+
+        #joint states
+        # state = {k: episode[k][idx-1] for k in self._storage.obs_spec_keys()}
+        # chunk['is_first'] = np.zeros(len(chunk['action']), bool)
+        # chunk['is_first'][0] = True
+
+        for i in range(self._nstep):
+            step_reward = episode["reward"][idx + i]
+            reward += self._discount * step_reward
+            discount *= self._discount * self._discount
+
+        return (obs, state, action, reward, next_obs, next_state, *meta)
     
 
     def _sample_sl(self):
@@ -1125,7 +1178,10 @@ class ReplayBuffer(IterableDataset):
             elif self.hybrid:
                 yield self._sample_goal_hybrid()
             else:
-                yield self._sample()
+                if self.gym is False:
+                    yield self._sample()
+                else:
+                    yield self._sample_gym()
 
 
 class OfflineReplayBuffer(IterableDataset):
@@ -1152,7 +1208,8 @@ class OfflineReplayBuffer(IterableDataset):
         pmm=True,
         model_step=None,
         model_step_lb=None,
-        reverse=True):
+        reverse=True,
+        gym=False,):
 
         self._replay_dir = replay_dir
         self._replay_dir2 = replay_dir2
@@ -1186,6 +1243,7 @@ class OfflineReplayBuffer(IterableDataset):
         self.switch=False
         self.inv=inv
         self.goal_offset=goal_offset
+        self.gym=gym
         if model_step is not None:
             self.model_step = int(model_step//500)
         else:
@@ -1342,6 +1400,50 @@ class OfflineReplayBuffer(IterableDataset):
         discount = episode["discount"][idx] * self._discount
         reward = my_reward(action, next_obs, np.array((0.15, 0.15)))
         return (obs, action, reward, discount, next_obs)
+
+    def _sample_gym(self):
+        try:
+            self._try_fetch()
+        except:
+            traceback.print_exc()
+        self._samples_since_last_fetch += 1
+        episode = self._sample_episode()
+        # add +1 for the first dummy transition
+        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
+        meta = []
+        for spec in self._storage._meta_specs:
+            meta.append(episode[spec.name][idx - 1])
+        
+        obs = episode["observation"][idx - 1]
+        obs_state =  episode["state"][idx - 1]
+        action = episode["action"][idx]
+        next_obs = episode["observation"][idx + self._nstep - 1]
+        next_obs_state = episode["state"][idx + self._nstep - 1]
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["discount"][idx])
+        
+        for i in range(self._nstep):
+            step_reward = episode["reward"][idx + i]
+            reward += discount * step_reward
+            discount *= episode["discount"][idx + i] * self._discount
+         
+        if self.goal:
+            goal = episode["goal"][idx-1]
+            if self.pixels and self.goal_proto==False:
+                goal = np.tile(goal,(self.tile,1,1))
+            return (obs, action, reward, discount, next_obs, goal, *meta)
+            
+        elif self.loss:
+            
+            obs_state =  episode["state"][idx - 1]
+            next_obs_state = episode["state"][idx + self._nstep - 1]
+            
+            episode = self._sample_episode()
+            idx = np.random.randint(0, episode_len(episode))
+            rand_obs = episode['observation'][idx - 1]
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, *meta)	
+        else:
+            return (obs, action, reward, discount, next_obs, next_obs_state, *meta)
     
     def _sample_goal(self):
         if self._load_every!=0:
@@ -1517,22 +1619,19 @@ class OfflineReplayBuffer(IterableDataset):
         goal = goal.astype(int)
         obs = np.array(obs)
         return (obs, action, reward, discount, next_obs, goal)
-    
        
                 
     def __iter__(self):
         while True:
             if self.inv:
-
                 yield self._sample_inv()
-
             elif (self.offline and self.goal) or (self.hybrid and self.goal):
-
                 yield self._sample_her()
             else:
-
-                yield self._sample()
-
+                if self.gym is False:
+                    yield self._sample()
+                else:
+                    yield self._sample_gym()
 
     def parse_dataset(self, start_ind=0, end_ind=-1,goal_state=None, proto_goal=False):
         states = []
@@ -1620,7 +1719,8 @@ def make_replay_buffer(
     model_step=None,
     model_step_lb=None,
     pmm=True,
-    reverse=True):
+    reverse=True,
+    gym=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1643,7 +1743,8 @@ def make_replay_buffer(
         goal_offset=goal_offset,
         model_step=model_step,
         pmm=pmm,
-        reverse=reverse
+        reverse=reverse,
+        gym=gym
     )
     iterable._load()
     loader = torch.utils.data.DataLoader(
@@ -1678,7 +1779,8 @@ def make_replay_offline(
     model_step=None,
     model_step_lb=None,
     pmm=True,
-    reverse=True):
+    reverse=True,
+    gym=False):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1701,7 +1803,8 @@ def make_replay_offline(
         goal_offset=goal_offset,
         model_step=model_step,
         pmm=pmm,
-        reverse=reverse
+        reverse=reverse,
+        gym=gym
     )
     iterable._load()
 
@@ -1711,7 +1814,7 @@ def make_replay_offline(
 
 def make_replay_loader(
     storage,  storage2, max_size, batch_size, num_workers, save_snapshot, nstep, discount, goal, hybrid=False, obs_type='state', hybrid_pct=0, actor1=False, replay_dir2=False,goal_proto=False, agent=None, neg_reward=False,return_iterable=False, sl=False, asym=False, loss=False, test=False, tile=1, pmm=True, obs_shape=4, general=False, inv=False,
-goal_offset=1):
+goal_offset=1, gym=False):
     max_size_per_worker = max_size // max(1, num_workers)
     iterable = ReplayBuffer(
         storage,
@@ -1740,7 +1843,8 @@ goal_offset=1):
         obs_shape=obs_shape,
         general=general,
         inv=inv,
-        goal_offset=goal_offset)
+        goal_offset=goal_offset,
+        gym=gym)
 
     loader = torch.utils.data.DataLoader(
         iterable,

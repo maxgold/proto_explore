@@ -32,7 +32,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
                stddev_schedule2=.2, stddev_clip2=.3, update_enc_proto=False, update_enc_gc=False, update_proto_opt=True,
                normalize=False, normalize2=False, sl=False, encoder1=False, encoder2=False, encoder3=False, encoder1_ant=False, feature_dim_gc=50, inv=False,
                use_actor_trunk=False, use_critic_trunk=False, init_from_proto=False, init_from_ddpg=False, pretrained_feature_dim=16,
-               scale=None, gc_inv=False):
+               scale=None, gc_inv=False, gym=False, state_shape=None, gym1=None):
     
     cfg.obs_type = obs_type
     cfg.obs_shape = obs_spec.shape
@@ -57,6 +57,7 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
         cfg.update_enc_gc = update_enc_gc
         cfg.update_proto_opt = update_proto_opt
         cfg.gc_inv = inv
+        cfg.gym1 = gym
 
     cfg.batch_size = batch_size
     cfg.feature_dim = feature_dim
@@ -74,6 +75,8 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.use_actor_trunk = use_actor_trunk
     cfg.use_critic_trunk = use_critic_trunk
     cfg.scale = scale
+    cfg.gym = gym
+    cfg.state_shape = state_shape
 
     if cfg.name.startswith('ddpg'):
         cfg.init_from_proto = init_from_proto
@@ -182,14 +185,39 @@ class Workspace:
             obs_spec = self.train_env.observation_spec()
             action_spec = self.train_env.action_spec()
             pixel_shape = (3 * self.cfg.frame_stack, 84, 84)
+                    
         else:
             print('img', self.train_env.obs_space['image'])
             obs = self.train_env.obs_space['image']
             action_spec = self.train_env.act_space['action']
             pixel_shape[0], pixel_shape[1], pixel_shape[2] = obs.shape[2], obs.shape[0], obs.shape[1]
             pixel_shape = tuple(pixel_shape)
-            obs_spec = np.zeros(pixel_shape)
             #we only need the shape of obs_spec
+            obs_spec = np.zeros(pixel_shape)
+            state_shape = 0
+            for key,value in self.train_env.obs_space.items():
+                #TODO: check original mlp_keys
+                if len(value.shape) >1:
+                    continue
+
+                elif key.startswith('log_'):
+                    continue
+
+                elif key.startswith('is'):
+                    continue
+
+                else:
+                    print('k', key)
+                    print('val shape', value.shape)
+                    if len(value.shape) == 1:
+                        state_shape += value.shape[0]
+                    else:
+                        state_shape += 1
+            self.state_shape = (state_shape,)
+            print('state_shape', self.state_shape)
+
+
+                    
         #TODO:
         #how to reset? 
         #self.train_env.act_space.action['reset'] = True
@@ -247,7 +275,10 @@ class Workspace:
                                     use_actor_trunk=cfg.use_actor_trunk,
                                     use_critic_trunk=cfg.use_critic_trunk,
                                     scale = cfg.scale,
-                                    gc_inv=cfg.inv)
+                                    gc_inv=cfg.inv,
+                                    gym=cfg.gym,
+                                    gym1=cfg.gym,
+                                    state_shape = self.state_shape)
 
         elif cfg.agent.name == 'ddpg':
             self.agent = make_agent(cfg.obs_type,
@@ -276,7 +307,9 @@ class Workspace:
                                     use_critic_trunk=cfg.use_critic_trunk,
                                     init_from_ddpg=cfg.init_from_ddpg,
                                     init_from_proto=cfg.init_from_proto,
-                                    pretrained_feature_dim=cfg.pretrained_feature_dim)
+                                    pretrained_feature_dim=cfg.pretrained_feature_dim,
+                                    gym=cfg.gym,
+                                    state_shape = self.state_shape)
 
         # initialize from pretrained
         print('pwd', self.pwd)
@@ -301,12 +334,24 @@ class Workspace:
         meta_specs = self.agent.get_meta_specs()
         # create replay buffer
         data_specs = []
+        obs_spec_keys = []
+        act_spec_keys = []
 
         if self.cfg.gym:
             for k in self.train_env.obs_space.keys():
-                data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
+                if k == 'walker/egocentric_camera' or k.startswith('is') or k.startswith('log'):
+                    continue
+                else:
+                    if k == 'image':
+                        shape = tuple([self.train_env.obs_space[k].shape[2], self.train_env.obs_space[k].shape[0], self.train_env.obs_space[k].shape[1]])
+                        data_specs.append(specs.Array(shape, self.train_env.obs_space[k].dtype, k))
+                    else:
+                        data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
+                    obs_spec_keys.append(k)
             for k in self.train_env.act_space.keys():
                 data_specs.append(specs.Array(self.train_env.act_space[k].shape, self.train_env.act_space[k].dtype, k))
+                act_spec_keys.append(k)
+
             data_specs = tuple(data_specs)
         else:
             data_specs = (self.train_env.observation_spec(),
@@ -316,22 +361,24 @@ class Workspace:
 
         # import IPython as ipy; ipy.embed(colors='neutral')
 
-
         if self.cfg.gym is False:
             self.visitation_matrix_size = 60
             self.visitation_limit = .29
         else:
             self.visitation_matrix_size = 202
             self.visitation_limit = 1
+
         # create data storage
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
                                                    self.work_dir / 'buffer1', 
                                                    visitation_matrix_size=self.visitation_matrix_size, 
-                                                   visitation_limit=self.visitation_limit)
+                                                   visitation_limit=self.visitation_limit,
+                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys)
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2', 
                                                    visitation_matrix_size=self.visitation_matrix_size, 
-                                                   visitation_limit=self.visitation_limit)
+                                                   visitation_limit=self.visitation_limit,
+                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys)
 
         # create replay buffer
         self.combine_storage = False
@@ -364,6 +411,7 @@ class Workspace:
 
                 #no early stopping, init state all = -.29, .29, ndim (2, 10)
                 #2023.02.11/180801_proto_sl_inv/
+
                 elif self.cfg.buffer_num == 2:
                     buffer_path = Path('/vast/nm1874/dm_control_2022/proto_explore/url_benchmark/exp_local/2023.02.11/180801_proto_sl_inv/buffer1/buffer_copy')
 
@@ -391,60 +439,46 @@ class Workspace:
             else:
                 buffer_path = self.work_dir / 'buffer2' / 'buffer_copy'
             print('none expert buffer', buffer_path)
+
         # TODO
         # figure out why files "disappear" in buffer_copy when used by another loader
         # figure out why we can't add parse data function to data loader
 
         if self.cfg.gym is False:
             state_shape = self.train_env.physics.state().shape[0]
-        else:
-            state_shape = self.train_env._env._env._physics.state().shape[0]
-        if self.cfg.offline_gc:
-            print('offline buffer')
-            print('model path', self.cfg.model_path)
-            if self.cfg.model_path is False:
-                self.cfg.offline_model_step = None
-                self.cfg.offline_model_step_lb = None
-                print('offline model step', self.cfg.offline_model_step)
-                print('offline model step lb', self.cfg.offline_model_step_lb)
 
-            self.replay_loader1 = make_replay_buffer(
-                                                    buffer_path,
-                                                    cfg.replay_buffer_gc,
-                                                    cfg.batch_size_gc,
-                                                    cfg.replay_buffer_num_workers,
-                                                    cfg.discount,
-                                                    offset=100,
-                                                    goal=True,
-                                                    relabel=False,
-                                                    replay_dir2=False,
-                                                    obs_type=self.cfg.obs_type,
-                                                    offline=False,
-                                                    nstep=self.cfg.nstep,
-                                                    eval=False,
-                                                    inv=cfg.inv,
-                                                    goal_offset=self.cfg.goal_offset,
-                                                    pmm=self.pmm,
-                                                    model_step=self.cfg.offline_model_step,
-                                                    model_step_lb=self.cfg.offline_model_step_lb,
-                                                    reverse=self.cfg.reverse)
-        else:
-            self.replay_loader1 = make_replay_loader(self.replay_storage1,
-                                                    self.combine_storage_gc,
-                                                    cfg.replay_buffer_gc,
-                                                    cfg.batch_size_gc,
-                                                    cfg.replay_buffer_num_workers,
-                                                    False, cfg.nstep1, cfg.discount,
-                                                    True, cfg.hybrid_gc, cfg.obs_type,
-                                                    cfg.hybrid_pct, sl=cfg.sl,
-                                                    replay_dir2=replay_dir2_gc,
-                                                    loss=cfg.loss_gc, test=cfg.test,
-                                                    tile=cfg.frame_stack,
-                                                    pmm=self.pmm,
-                                                    obs_shape=state_shape,
-                                                    general=True,
-                                                    inv=cfg.inv,
-                                                    goal_offset=self.cfg.goal_offset)
+        print('offline buffer')
+        print('model path', self.cfg.model_path)
+
+        if self.cfg.model_path is False:
+
+            self.cfg.offline_model_step = None
+            self.cfg.offline_model_step_lb = None
+            print('offline model step', self.cfg.offline_model_step)
+            print('offline model step lb', self.cfg.offline_model_step_lb)
+
+        self.replay_loader1 = make_replay_buffer(
+                                                buffer_path,
+                                                cfg.replay_buffer_gc,
+                                                cfg.batch_size_gc,
+                                                cfg.replay_buffer_num_workers,
+                                                cfg.discount,
+                                                offset=100,
+                                                goal=True,
+                                                relabel=False,
+                                                replay_dir2=False,
+                                                obs_type=self.cfg.obs_type,
+                                                offline=False,
+                                                nstep=self.cfg.nstep,
+                                                eval=False,
+                                                inv=cfg.inv,
+                                                goal_offset=self.cfg.goal_offset,
+                                                pmm=self.pmm,
+                                                model_step=self.cfg.offline_model_step,
+                                                model_step_lb=self.cfg.offline_model_step_lb,
+                                                reverse=self.cfg.reverse,
+                                                gym=self.cfg.gym)
+
 
         self.replay_loader = make_replay_loader(self.replay_storage,
                                                 self.combine_storage,
@@ -456,7 +490,8 @@ class Workspace:
                                                 obs_type=cfg.obs_type,
                                                 replay_dir2=replay_dir2,
                                                 loss=cfg.loss,
-                                                test=cfg.test
+                                                test=cfg.test,
+                                                gym=self.cfg.gym
                                                 )
 
         self._replay_iter = None
@@ -593,6 +628,7 @@ class Workspace:
         return self._replay_iter
 
     def evaluate(self, eval=False):
+
         self.logger.log('eval_total_time', self.timer.total_time(),
                         self.global_frame)
         if self.cfg.gc_only and self.cfg.offline_gc is False:
@@ -747,7 +783,7 @@ class Workspace:
                                                 self.global_step,
                                                 eval_mode=True)
                     else:
-                        action['action'] = self.agent.act2(np.transpose(time_step['image'].copy(), (2,0,1)),
+                        action['action'] = self.agent.act2(time_step,
                                                 meta,
                                                 self.global_step,
                                                 eval_mode=True)

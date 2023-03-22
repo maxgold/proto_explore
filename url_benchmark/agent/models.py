@@ -20,10 +20,6 @@ class Encoder1(nn.Module):
                                      nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
                                      nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2))
-        self.conv1 = nn.Conv2d(obs_shape[0], 32, 3, stride=2)
-        self.conv2 = nn.Conv2d(32, 32, 3, stride=1)
-        self.maxpool = nn.MaxPool2d(kernel_size = 2, stride = 2)
-        self.relu = nn.ReLU()
 
         self.apply(utils.weight_init)
 
@@ -37,29 +33,18 @@ class Encoder1_ant(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 32*6*6
+        self.repr_dim = 48*2*2*2*2
         print('obs shape', obs_shape)
         #conv2d: output = (input - kernel + 2*padding)/stride + 1
-        #(64-3)/1 + 1 = 62
-        #(62-3)/2 + 1 = 30
-        #62*62*32
-        #30*30*32
-        #maxpooling: output = (input - pool_size)/stride + 1
-        #(30-2)/2 + 1 = 15
-        #15*15*32
-        #(15-3)/1 + 1 = 13
-        #13*13*32
-        #maxpooling: output = (input - pool_size)/stride + 1
-        #(13-2)/2 + 1 = 6
-        
-        #number of parameters:
-        #(3*3*3+1)*32 = 896
-        #(3*3*32+1)*32 = 9248
-        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 32, 3, stride=1),
-                                     nn.ReLU(), nn.Conv2d(32, 32, 3, stride=2),
-                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2),
-                                     nn.Conv2d(32, 32, 3, stride=1),
-                                     nn.ReLU(), nn.MaxPool2d(kernel_size = 2, stride = 2))
+        #(64-4)/2 + 1 = 31
+        #(31-4)/2 + 1 = 14
+        #(14-4)/2 + 1 = 6
+        #(6-4)/2 + 1 = 2
+
+        self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 48, 4, stride=2), nn.ELU(), 
+                                     nn.Conv2d(48, 48*2, 4, stride=2), nn.ELU(), 
+                                     nn.Conv2d(48*2, 48*2*2, 4, stride=2),nn.ELU(), 
+                                     nn.Conv2d(48*2, 48*2*2, 4, stride=2),nn.ELU())
 
         self.apply(utils.weight_init)
 
@@ -68,6 +53,30 @@ class Encoder1_ant(nn.Module):
         h = self.convnet(obs)
         h = h.view(h.shape[0], -1)
         return h
+
+class Encoder_state(nn.Module):
+    def __init__(self, obs_shape):
+        super().__init__()
+
+        feature_dim = 512
+        hidden_dim = 512
+        self.trunk = nn.Sequential(nn.Linear(obs_shape[0], feature_dim), 
+                                    nn.LayerNorm(feature_dim), nn.ELU(),
+                                    nn.Linear(feature_dim, feature_dim), 
+                                    nn.LayerNorm(feature_dim), nn.ELU(),
+                                    nn.Linear(feature_dim, feature_dim), 
+                                    nn.LayerNorm(feature_dim), nn.ELU(),
+                                    nn.Linear(feature_dim, feature_dim), 
+                                    nn.LayerNorm(feature_dim), nn.ELU(),)
+
+        self.apply(utils.weight_init)
+
+    def forward(self, obs):
+        obs = obs / 255.0 - 0.5
+        h = self.trunk(obs)
+        h = h.view(h.shape[0], -1)
+        return dist
+
 
 class Encoder2(nn.Module):
     def __init__(self, obs_shape):

@@ -46,6 +46,8 @@ class DDPGAgent:
                  init_from_ddpg=False,
                  pretrained_feature_dim=16,
                  scale=None,
+                 gym=False,
+                 state_shape=None,
                  **kwargs):
         self.reward_free = reward_free
         self.obs_type = obs_type
@@ -81,6 +83,7 @@ class DDPGAgent:
         self.init_from_ddpg = init_from_ddpg
         self.pretrained_feature_dim = pretrained_feature_dim
         self.scale = scale
+        self.gym = gym
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
         if self.inv:
@@ -106,6 +109,7 @@ class DDPGAgent:
             elif self.encoder1_ant:
                 print('encoder1_ant')
                 self.encoder = Encoder1_ant(obs_shape).to(device)
+                self.state_encoder = Encoder_state(state_shape).to(device)
             self.obs_dim = self.encoder.repr_dim + meta_dim
             self.goal_dim = self.encoder.repr_dim + meta_dim
         else:
@@ -141,7 +145,8 @@ class DDPGAgent:
         self.critic2_target = Critic_proto(obs_type, self.obs_dim, self.action_dim,
                                     self.feature_dim, hidden_dim).to(device)
         self.critic2_target.load_state_dict(self.critic2.state_dict())
-
+        
+        #these two are used to hard update encoder/ used for it's trunk only
         self.actor_encoder = Actor_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
                                            self.pretrained_feature_dim, hidden_dim).to(device)
         self.critic_encoder = Critic_gc(obs_type, self.obs_dim, self.goal_dim,self.action_dim,
@@ -151,8 +156,14 @@ class DDPGAgent:
         if obs_type == 'pixels':
             self.encoder_opt = torch.optim.Adam(self.encoder.parameters(),
                                                 lr=lr)
+            if self.gym:
+                self.state_encoder_opt = torch.optim.Adam(self.state_encoder.parameters(),
+                                                lr=lr)
         else:
             self.encoder_opt = None
+            if self.gym:
+                self.state_encoder_opt = None
+
 
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         if self.inv is False:
@@ -174,6 +185,9 @@ class DDPGAgent:
         
         if self.inv is False:
             self.critic.train(training)
+        
+        if self.gym:
+            self.state_encoder.train(training)
 
     def init_from(self, other):
         # copy parameters over
@@ -182,17 +196,25 @@ class DDPGAgent:
         utils.hard_update_params(other.actor2, self.actor2)
         if self.init_critic:
             utils.hard_update_params(other.critic2.trunk, self.critic2.trunk)
+        if self.gym:
+            utils.hard_update_params(other.state_encoder, self.state_encoder)
 
     def init_encoder_from(self, encoder):
         utils.hard_update_params(encoder, self.encoder)
+        if self.gym:
+            utils.hard_update_params(other.state_encoder, self.state_encoder)
 
     def init_encoder_trunk_from(self, encoder, critic2, actor2):
         utils.hard_update_params(encoder, self.encoder)
+        if self.gym:
+            utils.hard_update_params(other.state_encoder, self.state_encoder)
         utils.hard_update_params(actor2.trunk, self.actor2.trunk)
         utils.hard_update_params(critic2.trunk, self.critic2.trunk)
 
     def init_encoder_trunk_gc_from(self, encoder, critic, actor):
         utils.hard_update_params(encoder, self.encoder)
+        if self.gym:
+            utils.hard_update_params(other.state_encoder, self.state_encoder)
         utils.hard_update_params(actor.trunk, self.actor_encoder.trunk)
         utils.hard_update_params(critic.trunk, self.critic_encoder.trunk)
      
@@ -207,6 +229,7 @@ class DDPGAgent:
 
 
     def act(self, obs, goal, meta, step, eval_mode, tile=1, general=False):
+        #only used for data passed in through main loop, not from buffer 
         if self.obs_type=='states':
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0).float()
             goal =torch.as_tensor(goal, device=self.device).unsqueeze(0).float()
@@ -223,6 +246,7 @@ class DDPGAgent:
         if self.obs_type=='states':
             h = self.encoder(obs)
             g = self.encoder(goal)
+
             inputs = [h]
             inputs2 = g
         else:
@@ -247,9 +271,27 @@ class DDPGAgent:
                 inputs2 = None
             
             else:
-                #TODO: use actor2.trunk or critic2.trunk to reduce encoder dim
-                h = self.encoder(obs)
-                g = self.encoder(goal)
+                if self.gym is False:
+                    h = self.encoder(obs)
+                    g = self.encoder(goal)
+                else:
+                    #when obs is passed in it's time_step, aka dict
+                    state = np.empty((1,))
+                    for key in obs.keys():
+                        if key == 'image':
+                            pix = obs[key]
+                        elif key.startswith('log_'):
+                            continue
+                        elif key.startswith('is'):
+                            continue
+                        else:
+                            state_ = obs[key]
+                            state = np.concatenate((state, state_), axis=-1)
+                    h1 = self.encoder(torch.as_tensor(pix, device=self.device).unsqueeze(0))
+                    h2 = self.state_encoder(torch.as_tensor(state, device=self.device).unsqueeze(0).float())
+                    h = torch.cat([h1, h2], dim=-1)
+                    goal = goal['image']
+                    g = self.encoder(torch.as_tensor(goal, device=self.device).unsqueeze(0))
 
                 if self.use_actor_trunk:
                     h = self.actor2.trunk(h)
@@ -272,24 +314,50 @@ class DDPGAgent:
         return action.cpu().numpy()[0]
 
     def act2(self, obs, meta, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        if self.obs_type=='states' or self.sl is False:
-            h = self.encoder(obs)
-        elif self.sl:
+        
+        if self.sl:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
             h, _ = self.encoder(obs)
+        elif self.gym:
+            #when obs is passed in it's time_step, aka dict
+            state = np.empty((1,))
+            for key in obs.keys():
+                if key == 'image':
+                    pix = obs[key].transpose(2,0,1)
+                elif key.startswith('log_'):
+                    continue
+                elif key.startswith('is'):
+                    continue
+                else:
+                    if len(obs[key].shape) > 0:
+                        if obs[key].shape[0] > 1:
+                            continue
+                    state_ = obs[key]
+                    state = np.concatenate((state, state_), axis=-1)
+            h1 = self.encoder(torch.as_tensor(pix, device=self.device).unsqueeze(0))
+            h2 = self.state_encoder(torch.as_tensor(state, device=self.device).unsqueeze(0).float())
+            h = torch.cat([h1, h2], dim=-1)      
+        elif self.obs_type=='states' or self.sl is False:
+            obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
+            h = self.encoder(obs)
+        
         inputs = [h]
-        for value in meta.values():
-            value = torch.as_tensor(value, device=self.device).unsqueeze(0)
-            inputs.append(value)
+
+        # for value in meta.values():
+        #     value = torch.as_tensor(value, device=self.device).unsqueeze(0)
+        #     inputs.append(value)
+
         inpt = torch.cat(inputs, dim=-1)
         stddev = utils.schedule(self.stddev_schedule2, step)
         dist = self.actor2(inpt, stddev, scale=self.scale)
+
         if eval_mode:
             action = dist.mean
         else:
             action = dist.sample(clip=None)
             if step < self.num_expl_steps:
                 action.uniform_(-1.0, 1.0)
+
         return action.cpu().numpy()[0]
 
     def update_critic(self, obs, goal, action, reward, discount, next_obs, step):
@@ -313,11 +381,15 @@ class DDPGAgent:
              
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
+        if self.state_encoder_opt is not None:
+            self.state_encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
         if self.encoder_opt is not None:
             self.encoder_opt.step()
+        if self.state_encoder_opt is not None:
+            self.state_encoder_opt.step()
         return metrics
 
 
@@ -342,11 +414,15 @@ class DDPGAgent:
         # optimize critic
         if self.encoder_opt is not None:
             self.encoder_opt.zero_grad(set_to_none=True)
+        if self.state_encoder_opt is not None:
+            self.state_encoder_opt.zero_grad(set_to_none=True)
         self.critic2_opt.zero_grad(set_to_none=True)
         critic2_loss.backward()
         self.critic2_opt.step()
         if self.encoder_opt is not None:
             self.encoder_opt.step()
+        if self.state_encoder_opt is not None:
+            self.state_encoder_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, action, step):
@@ -385,13 +461,9 @@ class DDPGAgent:
             actor_loss = -Q.mean()
         
         # optimize actor
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
         self.actor_opt.zero_grad(set_to_none=True)
         actor_loss.backward(retain_graph=True)
         self.actor_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
 
         if self.use_tb or self.use_wandb:
             metrics['actor_loss'] = actor_loss.item()
@@ -424,8 +496,11 @@ class DDPGAgent:
 
 
     def aug_and_encode(self, obs):
-        obs = self.aug(obs)
-        return self.encoder(obs)
+        if self.gym is False:
+            obs = self.aug(obs)
+            return self.encoder(obs)
+        else:
+            raise notImplementedError
 
     def update(self, replay_iter, step, actor1=True):
         metrics = dict()
