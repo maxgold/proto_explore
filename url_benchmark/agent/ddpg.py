@@ -314,6 +314,7 @@ class DDPGAgent:
         return action.cpu().numpy()[0]
 
     def act2(self, obs, meta, step, eval_mode):
+        #TODO: pick up from here debugging. some  of obs values are float, no attr 'shape' on line 332
         
         if self.sl:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
