@@ -9,8 +9,8 @@ import pandas as pd
 import wandb
 
 
-def heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, 
-global_step, gc=False, proto=False):
+def heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, current_init_matrix=None, 
+global_step=None, gc=False, proto=False):
     # this only works for 2D mazesf
 
     if gc:
@@ -54,15 +54,15 @@ global_step, gc=False, proto=False):
         plt.savefig(f"./{global_step}_proto_heatmap.png")
         wandb.save(f"./{global_step}_proto_heatmap.png")
 
-        heatmap = proto_goals_matrix
+        heatmap = current_init_matrix
 
         plt.clf()
         fig, ax = plt.subplots(figsize=(10, 6))
         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(global_step)
 
-        plt.savefig(f"./{global_step}_proto_goal_heatmap.png")
-        wandb.save(f"./{global_step}_proto_goal_heatmap.png")
+        plt.savefig(f"./{global_step}_proto_current_init.png")
+        wandb.save(f"./{global_step}_proto_current_init.png")
 
         # ########################################################
         # # exploration moving avg
@@ -294,15 +294,16 @@ def calc_reward(cfg, agent, pix, goal_pix, goal_state, global_step, device, trai
     return reward
 
 
-def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dist, current_init, goal_state, goal_idx, origin, 
-        reached_goals, proto_goals_matrix, pmm, train_env1, unreached, unreached_goals=None):
+def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dist, current_init, current_init_matrix, goal_state, goal_idx, origin, 
+        reached_goals, pmm, train_env1, unreached, unreached_goals=None):
+    
     idx_x = int(goal_state[0] * 100) + 29
     idx_y = int(goal_state[1] * 100) + 29
     origin_x = int(origin[0] * 100) + 29
     origin_y = int(origin[1] * 100) + 29
     reached_goals[0, origin_x, idx_x] = 1
     reached_goals[1, origin_y, idx_y] = 1
-    proto_goals_matrix[idx_x, idx_y] += 1
+    current_init_matrix[idx_x, idx_y] += 1
 
     ##############################
     # add non-pmm later
@@ -333,7 +334,7 @@ def goal_reached_save_stats(cfg, proto_goals, proto_goals_state, proto_goals_dis
                                   axis=0)
     if pmm:
         assert len(current_init.shape) == 2
-    return reached_goals, proto_goals_matrix, unreached_goals, proto_goals, proto_goals_state, proto_goals_dist, current_init
+    return reached_goals, current_init_matrix, unreached_goals, proto_goals, proto_goals_state, proto_goals_dist, current_init
 
 
 def get_time_step(cfg, proto_last_explore, gc_only, current_init, actor, actor1, pmm, proto_goals=None, proto_goals_state=None, proto_goals_dist=None, 

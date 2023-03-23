@@ -22,6 +22,7 @@ from agent_utils import *
 from eval_ops import *
 from pathlib import Path
 import envs
+from agent_utils import *
 
 torch.backends.cudnn.benchmark = True
 
@@ -516,35 +517,25 @@ class Workspace:
         else:
             if self.cfg.gc_only:
                 self.dim = 20
-                #TODO: double check this from pretrain_gc_only.py
             else:
                 self.dim = self.agent.protos.weight.data.shape[0]
 
-        # clean up this section
+        #TODO: need to fix dim. of this section
         self.proto_goals = np.zeros((self.dim, 3 * self.cfg.frame_stack, pixel_shape[1], pixel_shape[2]))
         self.proto_goals_state = np.zeros((self.dim, self.train_env._env._env._physics.state().shape[0]))
         self.proto_goals_dist = np.zeros((self.dim, 1))
-        self.proto_goals_matrix = np.zeros((60, 60))
+        self.current_init_matrix = np.zeros((200, 200))
         self.proto_goals_id = np.zeros((self.dim, 2))
         self.actor = True
         self.actor1 = False
-        self.reached_goals = np.zeros((2, 60, 60))
-        self.origin = None
+        self.reached_goals = np.zeros((2, 200, 20))
         self.proto_explore_count = 0
-        self.previous_matrix = None
-        self.current_matrix = None
-        self.unreached_goals = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
         self.proto_last_explore = 0
         self.current_init = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
         self.eval_reached = np.empty((0, self.train_env._env._env._physics.state().shape[0]))
         self.gc_init = False
         self.gc_step = 0 
         self.proto_step = 0
-
-        if self.cfg.gc_only or self.cfg.proto_only:
-            self.hybrid=False
-        else:
-            self.hybrid=True
 
         # if both proto_only & gc_only are true, alert wrong config
         if all((self.cfg.proto_only, self.cfg.gc_only)):
@@ -578,8 +569,13 @@ class Workspace:
 
         self.logger.log('eval_total_time', self.timer.total_time(),
                         self.global_frame)
-        if self.cfg.gc_only and self.cfg.offline_gc is False:
-            self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval)
+        if self.cfg.gym:
+            #TODO: change later, right now only training proto and eval. proto to check on proto-rl's exploration abilities in antmaze
+            heatmaps(state_visitation_gc=None, reward_matrix_gc=None, goal_state_matrix=None, state_visitation_proto=self.replay_storage.state_visitation_proto, current_init_matrix=self.current_init_matrix, global_step=self.global_step, gc=False, proto=True)
+            print('proto heatmap produced')
+            #TODO: current_init_matrix not implemented yet (should use save_goal_state func in agent_utils)
+        elif self.cfg.gc_only and self.cfg.offline_gc is False:
+            self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.current_init_matrix, eval=eval)
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
@@ -587,10 +583,10 @@ class Workspace:
             eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only is False and self.cfg.offline_gc:
-            self.current_init = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder)
+            self.current_init = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.current_init_matrix, eval=eval, video_recorder=self.video_recorder)
 
         else:
-            self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder)
+            self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.current_init_matrix, eval=eval, video_recorder=self.video_recorder)
 
     def train(self):
         # predicates
@@ -638,8 +634,7 @@ class Workspace:
             self.evaluate(eval=True)
 
         while train_until_step(self.global_step):
-
-            if self.hybrid:
+            if self.cfg.gc_only is False:
                 self.gc_step = 0
                 while proto_train_until_step(self.proto_step):
                     if (self.cfg.gym is False and time_step.last()) or (self.cfg.gym and time_step['is_last']) or episode_step >= self.cfg.episode_length:
@@ -659,7 +654,16 @@ class Workspace:
                                 log('episode', self.global_episode)
                                 log('buffer_size', len(self.replay_storage))
                                 log('step', self.global_step)
+                        
+                        #saving last step of episode
+                        if self.cfg.velocity_control and self.cfg.gym is False:
+                            self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
+                        elif self.cfg.velocity_control is False and self.cfg.gym is False:
+                            self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
+                        elif self.cfg.gym:
+                            self.replay_storage.add_gym(obs=time_step, action=action, last=True)
 
+                        #reset env
                         if self.cfg.hack is False and self.cfg.gym is False:
                             time_step = self.train_env.reset()
                         elif self.cfg.hack is True and self.cfg.gym is False:
@@ -669,9 +673,7 @@ class Workspace:
                             act = np.zeros(self.train_env.act_space['action'].shape, dtype=np.float32)
                             action['action'] = act
                             action['reset'] = True
-                            # print('before resetting', time_step)
                             time_step = self.train_env.step(action)
-                            # print('resetting env', time_step)
                             action['reset'] = False
 
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
@@ -681,16 +683,16 @@ class Workspace:
                         else:
                             state = self.train_env.physics.get_state()
 
+                        #saving first step of new episode
                         if self.cfg.velocity_control and self.cfg.gym is False:
-                            self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
+                            self.replay_storage.add(time_step, state, meta, True, last=False, pmm=self.pmm, action=vel)
                         elif self.cfg.velocity_control is False and self.cfg.gym is False:
-                            self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
+                            self.replay_storage.add(time_step, state, meta, True, last=False, pmm=self.pmm)
                         elif self.cfg.gym:
-                            self.replay_storage.add_gym(obs=time_step, action=action, last=True)
+                            self.replay_storage.add_gym(obs=time_step, action=action, last=False)
 
                         # try to save snapshot
-                        # TODO
-                        # check or change this snapshot saving code
+                        # TODO: check or change this snapshot saving code
                         if self.global_frame in self.cfg.snapshots:
                             self.save_snapshot()
 
@@ -701,6 +703,7 @@ class Workspace:
                             print('proto_explore1', time_step.observation['observations'])
                         else:
                             print('proto_explore1', time_step['walker/world_zaxis'])
+
 
 
                     meta = self.agent.update_meta(meta, self.global_step, time_step)
@@ -742,38 +745,89 @@ class Workspace:
                     else:
                         episode_reward += time_step['reward']
 
-                    if self.cfg.velocity_control and self.cfg.gym is False:
+                    if self.cfg.velocity_control and self.cfg.gym is False and episode_step!=(self.cfg.episode_length-1):
                         self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm, action=vel)
-                    elif self.cfg.velocity_control is False and self.cfg.gym is False:
+                    elif self.cfg.velocity_control is False and self.cfg.gym is False and episode_step!=(self.cfg.episode_length-1):
                         self.replay_storage.add(time_step, state, meta, True, pmm=self.pmm)
-                    elif self.cfg.gym:
+                    elif self.cfg.gym and episode_step!=(self.cfg.episode_length-1):
                         self.replay_storage.add_gym(obs=time_step, action=action)
+
                     episode_step += 1
                     self._global_step += 1
                     self.proto_step += 1
 
+                    if self.cfg.proto_only and (self.proto_step == (self.cfg.num_proto_train_frames//self.cfg.action_repeat-1)):
+                        # try to evaluate
+                        self.evaluate()
+
             self.proto_step = 0 # reset proto_step
-            print('gc_step: ', self.gc_step)
-            while gc_train_until_step(self.gc_step):
+            self.gc_step = 0 #just making sure
 
-                if self.gc_step == (self.cfg.num_gc_train_frames//self.cfg.action_repeat)-1:
-                    # try to evaluate
-                    self.evaluate()
+            if episode_step!=0:
+                episode_reward = 0 
+                episode_step = 0
 
-                metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
-                self.logger.log_metrics(metrics, self.global_step, ty="train")
-                if log_every_step(self.global_step):
-                    elapsed_time, total_time = self.timer.reset()
-                    
-                    with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
-                        log("fps", self.cfg.log_every_steps / elapsed_time)
-                        log("total_time", total_time)
-                        log("step", self.global_step)
+                #saving last step of episode
+                if self.cfg.velocity_control and self.cfg.gym is False:
+                    self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm, action=vel)
+                elif self.cfg.velocity_control is False and self.cfg.gym is False:
+                    self.replay_storage.add(time_step, state, meta, True, last=True, pmm=self.pmm)
+                elif self.cfg.gym:
+                    self.replay_storage.add_gym(obs=time_step, action=action, last=True)
 
-                self._global_step += 1
-                self.gc_step += 1
+                #reset env
+                if self.cfg.hack is False and self.cfg.gym is False:
+                    time_step = self.train_env.reset()
+                elif self.cfg.hack is True and self.cfg.gym is False:
+                    time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
+                elif self.cfg.gym:
+                    action = dict()
+                    act = np.zeros(self.train_env.act_space['action'].shape, dtype=np.float32)
+                    action['action'] = act
+                    action['reset'] = True
+                    time_step = self.train_env.step(action)
+                    action['reset'] = False
+
+                meta = self.agent.update_meta(meta, self._global_step, time_step)
+
+                if self.cfg.gym:
+                    state = self.train_env._env._env._physics.state()
+                else:
+                    state = self.train_env.physics.get_state()
+
+                #saving first step of new episode
+                if self.cfg.velocity_control and self.cfg.gym is False:
+                    self.replay_storage.add(time_step, state, meta, True, last=False, pmm=self.pmm, action=vel)
+                elif self.cfg.velocity_control is False and self.cfg.gym is False:
+                    self.replay_storage.add(time_step, state, meta, True, last=False, pmm=self.pmm)
+                elif self.cfg.gym:
+                    self.replay_storage.add_gym(obs=time_step, action=action, last=False)
+
+            assert episode_step == 0 #making sure that an episode is saved and env is reset.
+
+            if self.cfg.proto_only is False:
+
+                while gc_train_until_step(self.gc_step):
+
+                    if self.gc_step == (self.cfg.num_gc_train_frames//self.cfg.action_repeat)-1:
+                        # try to evaluate
+                        self.evaluate()
+
+                    metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
+                    self.logger.log_metrics(metrics, self.global_step, ty="train")
+                    if log_every_step(self.global_step):
+                        elapsed_time, total_time = self.timer.reset()
+                        
+                        with self.logger.log_and_dump_ctx(self.global_step, ty="train") as log:
+                            log("fps", self.cfg.log_every_steps / elapsed_time)
+                            log("total_time", total_time)
+                            log("step", self.global_step)
+
+                    self._global_step += 1
+                    self.gc_step += 1
+                
+                self.gc_step =0
             
-            self.gc_step =0
 
 
 

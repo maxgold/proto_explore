@@ -19,10 +19,10 @@ def ndim_grid(ndims, space):
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 def eval_proto_gc_only(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, current_init_matrix, eval=False):
     print('eval_proto_gc_only')
     if global_step % 1000 == 0 and global_step!=0 and pmm:
-        heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=False)
+        heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, current_init_matrix, global_step, gc=True, proto=False)
     #TODO: Add goal selection from pretrain_pixel_gc_only.py later (sample_goal_distance & under self.cfg.curriculu)
     while proto_goals.shape[0] < dim:
         proto_goals = np.append(proto_goals, np.zeros((1, 3 * cfg.frame_stack, 84, 84)), axis=0)
@@ -76,8 +76,10 @@ current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_vi
 
     return proto_goals, proto_goals_state, proto_goals_dist
 
+
+
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False, video_recorder=None):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, current_init_matrix, eval=False, video_recorder=None):
 
     if eval:
         # used for continue training 
@@ -117,7 +119,7 @@ current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_vi
     else:
 
         if global_step % 1000== 0 and global_step!=0 and pmm:
-            heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=True)
+            heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, current_init_matrix, global_step, gc=True, proto=True)
 
         replay_buffer = make_replay_offline(
                                             work_dir / 'buffer2' / 'buffer_copy',
