@@ -19,8 +19,7 @@ def ndim_grid(ndims, space):
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 def eval_proto_gc_only(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False):
     print('eval_proto_gc_only')
     if global_step % 1000 == 0 and global_step!=0 and pmm:
         heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=False)
@@ -78,8 +77,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     return proto_goals, proto_goals_state, proto_goals_dist
 
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False, video_recorder=None):
 
     if eval:
         # used for continue training 

@@ -48,6 +48,8 @@ class DDPGAgent:
                  scale=None,
                  gym=False,
                  state_shape=None,
+                 obs_spec_keys=None,
+                 act_spec_keys=None,
                  **kwargs):
         self.reward_free = reward_free
         self.obs_type = obs_type
@@ -84,6 +86,10 @@ class DDPGAgent:
         self.pretrained_feature_dim = pretrained_feature_dim
         self.scale = scale
         self.gym = gym
+        self.state_shape = state_shape
+        self.obs_spec_keys = obs_spec_keys
+        self.act_spec_keys = act_spec_keys
+
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
         if self.inv:
@@ -95,6 +101,10 @@ class DDPGAgent:
         print('stddev schedule2', stddev_schedule2)
         print('stddev_clip2', stddev_clip2)
         print('scale', scale)
+        print('state_shape ddpg', state_shape)
+        print('obs_spec_keys', obs_spec_keys)
+        print('act_spec_keys', act_spec_keys)
+
         # models
         if obs_type == 'pixels':
             self.aug = utils.RandomShiftsAug(pad=4)
@@ -110,8 +120,13 @@ class DDPGAgent:
                 print('encoder1_ant')
                 self.encoder = Encoder1_ant(obs_shape).to(device)
                 self.state_encoder = Encoder_state(state_shape).to(device)
-            self.obs_dim = self.encoder.repr_dim + meta_dim
-            self.goal_dim = self.encoder.repr_dim + meta_dim
+
+            if self.gym is False:
+                self.obs_dim = self.encoder.repr_dim + meta_dim
+                self.goal_dim = self.encoder.repr_dim + meta_dim
+            else:
+                self.obs_dim = self.encoder.repr_dim + self.state_encoder.repr_dim
+                self.goal_dim = self.encoder.repr_dim
         else:
             self.aug = nn.Identity()
             self.encoder = nn.Identity()
@@ -276,20 +291,18 @@ class DDPGAgent:
                     g = self.encoder(goal)
                 else:
                     #when obs is passed in it's time_step, aka dict
-                    state = np.empty((1,))
+                    state = []
                     for key in obs.keys():
                         if key == 'image':
-                            pix = obs[key]
-                        elif key.startswith('log_'):
-                            continue
-                        elif key.startswith('is'):
-                            continue
-                        else:
+                            pix = obs[key].transpose(2,0,1)[None,:]
+                        elif key in self.obs_spec_keys:
                             state_ = obs[key]
-                            state = np.concatenate((state, state_), axis=-1)
-                    h1 = self.encoder(torch.as_tensor(pix, device=self.device).unsqueeze(0))
-                    h2 = self.state_encoder(torch.as_tensor(state, device=self.device).unsqueeze(0).float())
-                    h = torch.cat([h1, h2], dim=-1)
+                            state.append(torch.as_tensor(state_, device=self.device))
+                    state = torch.cat(state, dim=-1)
+
+                    h1 = self.encoder(torch.as_tensor(pix.copy(), device=self.device))
+                    h2 = self.state_encoder(torch.as_tensor(state.unsqueeze(0), device=self.device).float())
+                    h = torch.cat([h1, h2], dim=-1)  
                     goal = goal['image']
                     g = self.encoder(torch.as_tensor(goal, device=self.device).unsqueeze(0))
 
@@ -314,29 +327,22 @@ class DDPGAgent:
         return action.cpu().numpy()[0]
 
     def act2(self, obs, meta, step, eval_mode):
-        #TODO: pick up from here debugging. some  of obs values are float, no attr 'shape' on line 332
-        
         if self.sl:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
             h, _ = self.encoder(obs)
         elif self.gym:
             #when obs is passed in it's time_step, aka dict
-            state = np.empty((1,))
+            state = []
             for key in obs.keys():
                 if key == 'image':
-                    pix = obs[key].transpose(2,0,1)
-                elif key.startswith('log_'):
-                    continue
-                elif key.startswith('is'):
-                    continue
-                else:
-                    if len(obs[key].shape) > 0:
-                        if obs[key].shape[0] > 1:
-                            continue
+                    pix = obs[key].transpose(2,0,1)[None,:]
+                elif key in self.obs_spec_keys:
                     state_ = obs[key]
-                    state = np.concatenate((state, state_), axis=-1)
-            h1 = self.encoder(torch.as_tensor(pix, device=self.device).unsqueeze(0))
-            h2 = self.state_encoder(torch.as_tensor(state, device=self.device).unsqueeze(0).float())
+                    state.append(torch.as_tensor(state_, device=self.device))
+            state = torch.cat(state, dim=-1)
+            
+            h1 = self.encoder(torch.as_tensor(pix.copy(), device=self.device))
+            h2 = self.state_encoder(torch.as_tensor(state.unsqueeze(0), device=self.device).float())
             h = torch.cat([h1, h2], dim=-1)      
         elif self.obs_type=='states' or self.sl is False:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)

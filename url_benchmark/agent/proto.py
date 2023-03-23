@@ -93,10 +93,11 @@ class ProtoAgent(DDPGAgent):
         self.gym = gym1
         print('obs type', self.obs_type)
 
-
         # models
         #if self.gc_only==False:
         self.encoder_target = deepcopy(self.encoder)
+        if self.gym:
+            self.state_encoder_target = deepcopy(self.state_encoder)
 
         self.predictor = nn.Linear(self.obs_dim, pred_dim).to(self.device)
         self.predictor.apply(utils.weight_init)
@@ -227,7 +228,7 @@ class ProtoAgent(DDPGAgent):
         #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
-    def update_proto(self, obs, next_obs, step):
+    def update_proto(self, obs, next_obs, step, obs_state=None, next_obs_state=None):
         metrics = dict()
 
         # normalize prototypes
@@ -250,10 +251,15 @@ class ProtoAgent(DDPGAgent):
         log_p_s = F.log_softmax(scores_s / self.tau, dim=1)
         # target network
         with torch.no_grad():
-            if self.obs_type=='states' or self.sl is False:
+            if self.gym:
+                t1 = self.encoder_target(next_obs)
+                t2 = self.state_encoder_target(next_obs_state)
+                t = torch.cat((t1,t2), dim=1)
+            elif self.obs_type=='states' or self.sl is False:
                 t = self.encoder_target(next_obs)
             else:
                 t, _ = self.encoder_target(next_obs)
+
             t = self.predictor_target(t)
             if self.normalize:
                 t = F.normalize(t, dim=1, p=2)
@@ -326,7 +332,11 @@ class ProtoAgent(DDPGAgent):
             obs_state = obs_state.float()
 
         elif actor1==False:
-            obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
+            if self.gym is False:
+                obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
+                    batch, self.device)
+            else:
+                obs, obs_state, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
                     batch, self.device)
         else:
             return metrics
@@ -344,7 +354,7 @@ class ProtoAgent(DDPGAgent):
                 if self.gym is False:
                     metrics.update(self.update_proto(obs, next_obs, step))
                 else:
-                    metrics.update(self.update_proto(obs, obs_state, next_obs, next_obs_state, step))
+                    metrics.update(self.update_proto(obs, next_obs, step, obs_state=obs_state, next_obs_state=next_obs_state))
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, next_obs_state, step)
 
@@ -392,6 +402,10 @@ class ProtoAgent(DDPGAgent):
                                                     self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
+            if self.gym:
+                #TODO: maybe we need a different tau for state encoder?
+                utils.soft_update_params(self.state_encoder, self.state_encoder_target,
+                                                    self.encoder_target_tau)
 
         elif actor1 and step % self.update_gc==0:
 
@@ -406,8 +420,11 @@ class ProtoAgent(DDPGAgent):
                 goal = self.encoder(goal)
                 obs_state = self.state_encoder(obs_state)
                 next_obs_state = self.state_encoder(next_obs_state)
+                #dummy goal_state
+                goal_state = torch.ones_like(obs_state)
                 obs = torch.cat((obs, obs_state), dim=-1)
                 next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+                goal = torch.cat((goal, goal_state), dim=-1)
             elif self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)

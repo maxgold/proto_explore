@@ -59,11 +59,17 @@ def relabel_episode(env, episode):
     return episode
 
 
-def my_reward(action, next_obs, goal):
+def my_reward(action, next_obs, goal, ant=False):
     # this is optimized for speed ...
     tmp = 1 - action**2
-    control_reward = max(min(tmp[0], 1), 0) / 2
-    control_reward += max(min(tmp[1], 1), 0) / 2
+    if ant is False:
+        control_reward = max(min(tmp[0], 1), 0) / 2
+        control_reward += max(min(tmp[1], 1), 0) / 2
+    else:
+        control_reward = 0
+        for i in range(action.shape[0]):
+            control_reward += max(min(tmp[i], 1), 0) / action.shape[0]
+
     dist_to_target = np.linalg.norm(goal - next_obs[:2])
     if dist_to_target < 0.015:
         r = 1
@@ -161,38 +167,39 @@ class ReplayBufferStorage:
     def add_gym(self, obs, action, meta=None, last=False):
 
         for spec in self._data_specs:
-            if spec.name in self.obs_spec_keys:
-                if spec.name == 'image':
-                    value = obs['image'].transpose(2,0,1)
-                    self._current_episode['image'].append(value)
+            if spec.name == 'image':
+                value = obs['image'].transpose(2,0,1)
 
-                    tmp_state = obs['walker/world_zaxis']*100
-                    # print('check the limits of the x, y coordinates')
-                    idx_x = int(tmp_state[0])+self.visitation_limit
-                    idx_y = int(tmp_state[1])+self.visitation_limit
-                    self.state_visitation_proto[idx_x,idx_y]+=1
-                else:
-                    value = obs[spec.name]
-            else:
+                #saving stats for heatmap later 
+                tmp_state = obs['walker/world_zaxis']*100
+                # print('check the limits of the x, y coordinates')
+                idx_x = int(tmp_state[0])+self.visitation_limit
+                idx_y = int(tmp_state[1])+self.visitation_limit
+                self.state_visitation_proto[idx_x,idx_y]+=1
+            
+            elif spec.name == 'reward':
+                value = obs[spec.name]
+            elif spec.name in self.obs_spec_keys:
+                value = obs[spec.name]
+            elif spec.name in self.act_spec_keys:
                 value = action[spec.name]
 
             value = np.array(value, spec.dtype)
 
             if np.isscalar(value):
                 value = np.full(spec.shape, value, spec.dtype)
-            print('spec.name', spec.name, 'spec.shape', spec.shape, 'value.shape', value.shape, 'value.dtype', value.dtype, 'spec.dtype', spec.dtype)
+                
             assert spec.shape == value.shape and spec.dtype == value.dtype
             self._current_episode[spec.name].append(value)
 
         if last:
             episode = dict()
             for spec in self._data_specs:
-                if spec.name not in self.obs_spec_keys + self.act_spec_keys:
+                if spec.name not in (self.obs_spec_keys + self.act_spec_keys + ['reward']):
                     continue
                 else:
                     value = self._current_episode[spec.name]
                     episode[spec.name] = np.array(value, spec.dtype)
-            # print('episode', episode.values())
             self._current_episode = defaultdict(list)
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal, gym')
@@ -759,14 +766,6 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
         # add +1 for the first dummy transition
-        
-        # import IPython as ipy; ipy.embed(colors='neutral')
-
-        keys = self._storage._data_specs.keys()
-        if not keys:
-            return None
-
-        total = episode_len(episode)
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
 
         # if self.prio_starts:
@@ -774,34 +773,27 @@ class ReplayBuffer(IterableDataset):
         # if self.prio_ends:
         # upper += int(self.chunk * self.prio_ends)
 
-        state = np.empty((1,))
+        state = []
+        next_state = []
         #if need to change obs_spec_keys that are used, then use original implemnetation 
         #from https://github.com/danijar/director/blob/a6a649efedc25a9d194155682bf39163fba4b5a2/embodied/agents/director/nets.py#L172
-        for key in self._storage.obs_spec_keys():
+
+        obs = episode['image'][idx - 1]
+        next_obs = episode['image'][idx + self._nstep - 1]
+        for key in self._storage.obs_spec_keys:
             if key == 'image':
                 obs = episode[key][idx - 1]
                 next_obs = episode[key][idx + self._nstep - 1]
-
-            elif key.startswith('log_'):
-                continue
-
-            elif key.startswith('act'):
-                action = episode[key][idx]
-
-            elif key.startswith('reset'):
-                continue
-            elif key.startswith('is'):
-                continue
             else:
-                if len(episode[key][idx - 1].shape) > 1:
-                    continue
-                else:
-                    state_ = episode[key][idx - 1]
-                    next_state_ = episode[key][idx + self._nstep - 1]
-                    if len(state_.shape) == 0:
-                        state_ = state_[..., None]
-                    state = np.concatenate((state, state_), axis=-1)
-                    next_state = np.concatenate((next_state, next_state_), axis=-1)
+                state_ = episode[key][idx - 1]
+                next_state_ = episode[key][idx + self._nstep - 1]
+                state.append(state_)
+                next_state.append(next_state_)
+        state = np.concatenate(state, axis=-1)
+        next_state = np.concatenate(next_state, axis=-1)
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["reward"][idx])
+        action = episode["action"][idx]
 
         #joint states
         # state = {k: episode[k][idx-1] for k in self._storage.obs_spec_keys()}
@@ -810,46 +802,11 @@ class ReplayBuffer(IterableDataset):
 
         for i in range(self._nstep):
             step_reward = episode["reward"][idx + i]
-            reward += self._discount * step_reward
+            reward += discount * step_reward
             discount *= self._discount * self._discount
 
-        return (obs, state, action, reward, next_obs, next_state, *meta)
-    
+        return (obs, state, action, reward, discount, next_obs, next_state)
 
-    def _sample_sl(self):
-        try:
-            self._try_fetch()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_fetch += 1
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
-
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-        obs_state = episode["state"][idx - 1]
-
-        for i in range(self._nstep):
-            step_reward = episode["reward"][idx + i]
-            reward += discount * step_reward
-            discount *= episode["discount"][idx + i] * self._discount
-
-        if self.goal:
-            goal = episode["goal"][idx-1]
-            goal_state=episode["goal_state"][idx-1]
-            if self.pixels and self.goal_proto==False:
-                goal = np.tile(goal,(self.tile,1,1))
-            return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state, *meta)
-        else:
-            return (obs, obs_state, action, reward, discount, next_obs, *meta) 
-        
         
     def _sample_inv(self):
         
@@ -883,7 +840,6 @@ class ReplayBuffer(IterableDataset):
         goal = episode["observation"][idx_goal]
 
         if (goal.shape[0]//3)!=self.tile:
-
             goal = np.tile(goal,(self.tile,1,1))
         else:
             goal = goal[:self.tile*3,:,:]
@@ -901,196 +857,61 @@ class ReplayBuffer(IterableDataset):
                 discount *= episode["discount"][idx+i] * self._discount
 
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
-        
-        
-    def _sample_asym(self):
+
+
+    def _sample_inv_gym(self):
         try:
             self._try_fetch()
         except:
             traceback.print_exc()
+            
         self._samples_since_last_fetch += 1
         episode = self._sample_episode()
+        
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
+        offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
 
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
-        next_state = episode["state"][idx + self._nstep - 1]
+        state = []
+        next_state = []
+
+        obs = episode['image'][idx - 1]
+        next_obs = episode['image'][idx + self._nstep - 1]
+        for key in self._storage.obs_spec_keys:
+            if key == 'image':
+                obs = episode[key][idx - 1]
+                next_obs = episode[key][idx + self._nstep - 1]
+            else:
+                state_ = episode[key][idx - 1]
+                next_state_ = episode[key][idx + self._nstep - 1]
+                state.append(state_)
+                next_state.append(next_state_)
+
+        state = np.concatenate(state, axis=-1)
+        next_state = np.concatenate(next_state, axis=-1)
         reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-        obs_state = episode["state"][idx - 1]
+        discount = np.ones_like(episode["reward"][idx])
+        action = episode["action"][idx]
 
+        idx_goal = idx + self._nstep + offset - 1
+        goal = episode['image'][idx_goal]
+        goal_state = episode['walker/world_zaxis'][idx_goal]
+
+        if (goal.shape[0]//3)!=self.tile:
+            goal = np.tile(goal,(self.tile,1,1))
+        else:
+            goal = goal[:self.tile*3,:,:]
+ 
         for i in range(self._nstep):
-            step_reward = episode["reward"][idx + i]
-            reward += discount * step_reward
-            discount *= episode["discount"][idx + i] * self._discount
-            
-        goal_state=episode["goal"][idx-1]
-        
-        #goal = goal[None,:,:]
-        return (obs, obs_state, action, reward, discount, next_obs, next_state, goal_state, *meta)
-
-    
-    def _sample_goal_hybrid(self):
-        #print(self._episode_fns)
-        try:
-            self._try_fetch()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_fetch += 1
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        
-        idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        meta = []
-        
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
-
-        obs = episode["observation"][idx - 1]
-        obs_state = episode["state"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
-        next_obs_state = episode["state"][idx + self._nstep - 1]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-        offset = 0 
-        #hybrid where we use hybrid_pct of relabeled gc data in each batch
-        #100-hybrid_pct*10 is just original gc data
-        key = np.random.uniform()
-
-
-        if key > self.hybrid_pct:
-            #make sure we're using an episode collected by gc 
-            while 'goal' not in episode.keys():
-                episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode)-self._nstep+1) + 1 
-            obs = episode["observation"][idx - 1]
-            obs_state = episode["state"][idx - 1]
-            action = episode["action"][idx]
-            next_obs = episode["observation"][idx + self._nstep - 1]
-            next_obs_state = episode["state"][idx + self._nstep - 1]
-            reward = np.zeros_like(episode["reward"][idx])
-            discount = np.ones_like(episode["discount"][idx])
-            offset = 0 
-            goal = episode["goal"][idx-1]
-            goal_state = episode["goal_state"][idx-1, :2]
-            
-            if self.asym:
-                goal_state = episode["goal"][idx-1]
-            
-            if self.pixels and self.goal_proto==False and self.asym==False and self.general==False:
-                goal = np.tile(goal,(self.tile,1,1))
-            
-            for i in range(self._nstep):
-                step_reward = episode["reward"][idx + i]
+                step_reward = my_reward(episode["action"][idx+i], episode['walker/world_zaxis'][idx+i][:2] , goal_state[:2])*2
+                # else:
+                #     step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index])
                 reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
-            
-            
-        elif key <= self.hybrid_pct and self.goal_proto==False:
-            idx = np.random.randint(episode_len(episode)-self._nstep) + 1
-            obs = episode["observation"][idx-1]
-            obs_state = episode["state"][idx-1]
-            action = episode["action"][idx]
-            next_obs = episode['observation'][idx + self._nstep - 1]
-            next_obs_state = episode['state'][idx + self._nstep - 1]
-            idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
-            
-            offset = idx_goal - idx
-            goal = episode["observation"][idx_goal]
-            goal_state = episode["state"][idx_goal,:2]
-            for i in range(self._nstep):
-                if self.pmm:
-                    step_reward = my_reward(episode["action"][idx+i],episode["state"][idx+i] , goal_state[:2])*2
-                else:
-                    step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index])
-                reward += discount * step_reward
-                #reward += discount * discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount
-        elif key <= self.hybrid_pct and self.goal_proto:
-            #import IPython as ipy; ipy.embed(colors='neutral')
-            idx = np.random.randint(episode_len(episode)-self._nstep)+1
-            obs = episode["observation"][idx-1]
-            obs_state = episode["state"][idx-1]
-            action = episode["action"][idx]
-            next_obs = episode['observation'][idx + self._nstep - 1]
-            next_obs_state = episode['state'][idx + self._nstep - 1]
-            idx_goal = np.random.randint(idx + self._nstep - 1,episode_len(episode))
-            goal=episode['observation'][idx_goal]
-            z = episode["observation"][idx_goal][None,:]
-            protos = self.agent.protos.weight.data.detach().clone().cpu().numpy()
-            z_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-            _ = np.argsort(z_to_proto, axis=1)[:,0]
-            goal = protos[_].reshape((protos.shape[1],))
-            offset=idx_goal-idx
-            for i in range(self._nstep):
-                obs_to_proto = np.linalg.norm(z[:, None, :] - protos[None, :, :], axis=2, ord=2)
-                dists_idx = np.argsort(obs_to_proto, axis=1)[:,0]
-                
-                if np.array_equal(goal,protos[dists_idx]):
-                    reward=1
-                else:
-                    reward=0
-                    
-                step_reward = reward*2
-                reward += discount * step_reward
-                discount *= episode["discount"][idx+i] * self._discount  
-        else:
-            print('sth went wrong in replay buffer')
-        
-        if self.loss:
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode))
-            rand_obs = episode['observation'][idx - 1]
-        
-        goal = goal.astype(int)
-        reward = np.array(reward).astype(float)
-        offset = np.array(offset).astype(float)
-        if self.sl:
-            return (obs, obs_state, action, reward, discount, next_obs, goal, goal_state)
-        elif self.loss:
-            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, rand_obs, *meta)
-        elif self.asym:
-            
-            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal_state, *meta)
-        else:
-            return (obs, action, reward, discount, next_obs, goal, *meta)
-    
-    def _sample_goal_offline(self):
-        try:
-            self._try_fetch()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_fetch += 1
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
+                discount *= self._discount * self._discount
 
-        obs = episode["observation"][idx - 1]
-
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-        
-        iz = np.random.randint(idx, episode_len(episode))+1
-        goal = episode["observation"][iz]
-        goal_state = episode["state"][iz]
-        reward = my_reward(action,episode["state"][idx] , goal_state)*2
-        #for i in range(self._nstep):
-        #    step_reward = my_reward(action,episode["state"][idx+i] , goal_state)
-        #    reward += discount * step_reward
-        #    discount *= episode["discount"][idx+i] * self._discount
-
-        return (obs, action, reward, discount, next_obs, goal, *meta)
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
 
 
     def _append(self):
@@ -1170,13 +991,10 @@ class ReplayBuffer(IterableDataset):
     def __iter__(self):
         while True:
             if self.inv:
-                yield self._sample_inv()
-            elif self.sl and self.hybrid==False:
-                yield self._sample_sl()
-            elif self.asym and self.hybrid==False:
-                yield self._sample_asym()
-            elif self.hybrid:
-                yield self._sample_goal_hybrid()
+                if self.gym is False:
+                    yield self._sample_inv()
+                else:
+                    yield self._sample_inv_gym()
             else:
                 if self.gym is False:
                     yield self._sample()
@@ -1209,7 +1027,9 @@ class OfflineReplayBuffer(IterableDataset):
         model_step=None,
         model_step_lb=None,
         reverse=True,
-        gym=False,):
+        gym=False,
+        obs_spec_keys=None,
+        tile=1,):
 
         self._replay_dir = replay_dir
         self._replay_dir2 = replay_dir2
@@ -1244,6 +1064,8 @@ class OfflineReplayBuffer(IterableDataset):
         self.inv=inv
         self.goal_offset=goal_offset
         self.gym=gym
+        self.obs_spec_keys = obs_spec_keys
+        self.tile = tile
         if model_step is not None:
             self.model_step = int(model_step//500)
         else:
@@ -1354,31 +1176,61 @@ class OfflineReplayBuffer(IterableDataset):
             discount *= episode["discount"][idx+i] * self._discount         
         return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
     
-    def _sample_her(self):
+    def _sample_inv_gym(self):
+        if self._load_every!=0:
+            try:
+                self._load()
+            except:
+                traceback.print_exc()
+            self._samples_since_last_load += 1
         episode = self._sample_episode()
+        
         # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode)) +1
-        action = episode["action"][idx]
-        obs = episode["observation"][idx - 1]
-        next_obs = episode["observation"][idx]
-        reward = episode["reward"][idx]
-        discount = episode["discount"][idx] * self._discount
-        goal = episode["goal"][idx]
-        future_offset=0
-        if np.random.uniform()<self.hybrid_pct:
-            future_offset = np.random.uniform()*(episode_len(episode) - idx +1)
-            future_offset = future_offset.astype(int)
-            goal = episode["goal"][idx]
-            
-            if self.pixels:
-            
-                reward = my_reward(action, episode["state"][idx], episode["goal_state"][idx])
+        offset = np.random.randint(self.goal_offset)
+        if (episode_len(episode) - self._nstep - offset + 1) <=0:
+            offset = np.random.randint(episode_len(episode) - self._nstep +1)
+        idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
+
+        state = []
+        next_state = []
+
+        obs = episode['image'][idx - 1]
+        next_obs = episode['image'][idx + self._nstep - 1]
+        for key in self.obs_spec_keys:
+            if key == 'image':
+                obs = episode[key][idx - 1]
+                next_obs = episode[key][idx + self._nstep - 1]
             else:
-                reward = my_reward(action, next_obs, goal)
-            
-        return (obs, action, reward, discount, next_obs, goal, future_offset)
-            
-    
+                state_ = episode[key][idx - 1]
+                next_state_ = episode[key][idx + self._nstep - 1]
+                state.append(state_)
+                next_state.append(next_state_)
+
+        obs_state = np.concatenate(state, axis=-1)
+        next_obs_state = np.concatenate(next_state, axis=-1)
+        reward = np.zeros_like(episode["reward"][idx])
+        discount = np.ones_like(episode["reward"][idx])
+        action = episode["action"][idx]
+
+        idx_goal = idx + self._nstep + offset - 1
+        goal = episode['image'][idx_goal]
+        goal_state = episode['walker/world_zaxis'][idx_goal]
+
+        if (goal.shape[0]//3)!=self.tile:
+            goal = np.tile(goal,(self.tile,1,1))
+        else:
+            goal = goal[:self.tile*3,:,:]
+ 
+        for i in range(self._nstep):
+                step_reward = my_reward(episode["action"][idx+i], episode['walker/world_zaxis'][idx+i][:2] , goal_state[:2])*2
+                # else:
+                #     step_reward = -np.linalg.norm(episode["state"][idx+i][:self.index]-goal_state[:self.index])
+                reward += discount * step_reward
+                discount *= self._discount * self._discount
+
+        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
+
+
     def _sample(self):
         
         if self._load_every!=0:
@@ -1402,231 +1254,61 @@ class OfflineReplayBuffer(IterableDataset):
         return (obs, action, reward, discount, next_obs)
 
     def _sample_gym(self):
-        try:
-            self._try_fetch()
-        except:
-            traceback.print_exc()
-        self._samples_since_last_fetch += 1
+
+        if self._load_every!=0:
+            try:
+                print('trying to load')
+                self._load()
+            except:
+                traceback.print_exc()
+
+            self._samples_since_last_load += 1
+
         episode = self._sample_episode()
         # add +1 for the first dummy transition
         idx = np.random.randint(0, episode_len(episode) - self._nstep + 1) + 1
-        meta = []
-        for spec in self._storage._meta_specs:
-            meta.append(episode[spec.name][idx - 1])
-        
-        obs = episode["observation"][idx - 1]
-        obs_state =  episode["state"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
-        next_obs_state = episode["state"][idx + self._nstep - 1]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-        
+
+        # if self.prio_starts:
+        # lower -= int(self.chunk * self.prio_starts)
+        # if self.prio_ends:
+        # upper += int(self.chunk * self.prio_ends)
+
+        state = []
+        next_state = []
+        #if need to change obs_spec_keys that are used, then use original implemnetation 
+        #from https://github.com/danijar/director/blob/a6a649efedc25a9d194155682bf39163fba4b5a2/embodied/agents/director/nets.py#L172
+
+        obs = episode['image'][idx - 1]
+        next_obs = episode['image'][idx + self._nstep - 1]
+        for key in self._storage.obs_spec_keys():
+            state_ = episode[key][idx - 1]
+            next_state_ = episode[key][idx + self._nstep - 1]
+            state.append(state_)
+            next_state.append(next_state_)
+        state = np.concatenate(state, axis=-1)
+        next_state = np.concatenate(next_state, axis=-1)
+
+        #joint states
+        # state = {k: episode[k][idx-1] for k in self._storage.obs_spec_keys()}
+        # chunk['is_first'] = np.zeros(len(chunk['action']), bool)
+        # chunk['is_first'][0] = True
+
         for i in range(self._nstep):
             step_reward = episode["reward"][idx + i]
-            reward += discount * step_reward
-            discount *= episode["discount"][idx + i] * self._discount
-         
-        if self.goal:
-            goal = episode["goal"][idx-1]
-            if self.pixels and self.goal_proto==False:
-                goal = np.tile(goal,(self.tile,1,1))
-            return (obs, action, reward, discount, next_obs, goal, *meta)
-            
-        elif self.loss:
-            
-            obs_state =  episode["state"][idx - 1]
-            next_obs_state = episode["state"][idx + self._nstep - 1]
-            
-            episode = self._sample_episode()
-            idx = np.random.randint(0, episode_len(episode))
-            rand_obs = episode['observation'][idx - 1]
-            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, rand_obs, *meta)	
-        else:
-            return (obs, action, reward, discount, next_obs, next_obs_state, *meta)
-    
-    def _sample_goal(self):
-        if self._load_every!=0:
-            try:
-                self._load()
-            except:
-                traceback.print_exc()
+            reward += self._discount * step_reward
+            discount *= self._discount * self._discount
 
-            self._samples_since_last_load += 1
-        
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
+        return (obs, state, action, reward, next_obs, next_state, *meta)
 
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx + self._nstep - 1]
-        goal = episode["observation"][idx + self.offset][:2]
-        rewards = []
-        cand_goals = np.random.uniform(-.2,.2, size=(50,2))
-        cand_goals = cand_goals[np.abs(cand_goals[:,0])>.05]
-        cand_goals = cand_goals[np.abs(cand_goals[:,1])>.05]
-        cand_goals = cand_goals[:4]
-        for goal in cand_goals:
-            rewards.append(my_reward(action, next_obs, goal))
-        #rewards.append(my_reward(action, next_obs, GOAL_ARRAY[0]))
-        discount = np.ones_like(episode["discount"][idx])
-        obs = np.tile(obs, (4, 1))
-        action = np.tile(action, (4, 1))
-        discount = np.tile(discount, (4, 1))
-        next_obs = np.tile(next_obs, (4, 1))
-        reward = np.array(rewards)
 
-        return (obs, action, reward, discount, next_obs, cand_goals)
-
-   
-    
- 
-    def _sample_future(self):
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - self.offset) + 1
-        obs = episode["observation"][idx - 1]
-        action = ["action"][idx]
-        next_obs = episode["observation"][idx + self.offset]
-        reward = episode["reward"][idx]
-        discount = episode["discount"][idx] * self._discount
-        return (obs, action, reward, discount, next_obs)
-    
-    def _get_goal_array(self, eval_mode=False, space=6):
-        #assuming max & min are 1, -1, but position vector can be 2d or more dim.
-        #fix obs_dim. figure out how to index position & orientation 
-    
-        if eval_mode==False:
-            #obs_dim = self.env.observation_spec()['position'].shape[0]
-            obs_dim = 2
-            self.goal_array = ndim_grid(obs_dim, space)
-            #self.goal_array = np.random.uniform(low=-1, high=1, size=(4,2))
-        else:
-            if not self._loaded:
-                self._load()
-                self._loaded = True
-
-            #obs_dim = env.observation_spec()['position'].shape[0]
-            obs_dim = 2
-            goal_array = ndim_grid(obs_dim, space)
-            return goal_array
-        
-
-    def _sample_pixel_goal(self, time_step):
-        episode = self._sample_episode()
-        if time_step<1000000:
-            idx = np.random.randint(int(time_step/10000)*5, min((int(time_step/10000)+1)*5, 500))
-        else:
-            idx = np.random.randint(250,500)
-        obs = episode["observation"][idx]
-        state = episode["state"][idx][:2]
-        return obs, state
-
-    
-    def _sample_sequence(self, offset=10):
-        
-        #len of obs should be 10 
-        episode = self._sample_episode()
-        # add +1 for the first dummy transition
-        idx = np.random.randint(0, episode_len(episode) - offset) + 1
-        obs = episode["observation"][idx - 1:idx + 9]
-        action = episode["action"][idx-1:idx+9]
-        next_obs = episode["observation"][idx:idx+10]
-        reward = episode["action"][idx-1:idx+9]
-        q_value = episode["q"][idx-1:idx+9]
-        split = episode['task'][0].split('_')
-       
-        
-        if split[-2] == 'top':
-            #check these coordinates
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = .25 * np.random.sample((len(obs)))
-        else:
-            
-            if split[-1] == 'left':
-                x_coor = -.25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-                
-            else:
-                x_coor = .25 * np.random.sample((len(obs)))
-                y_coor = -.25 * np.random.sample((len(obs)))
-        
-        goal = np.array(zip(x_coor, y_coor))
-        
-        return (obs, action, reward, discount, next_obs, goal, q)
-
-    def _sample_goal_hybrid(self):
-        if self._load_every!=0:
-            try:
-                self._load()
-            except:
-                traceback.print_exc()
-
-            self._samples_since_last_load += 1
-
-        episode = self._sample_episode()
-        idx = np.random.randint(0, episode_len(episode) - self._nstep+1) + 1
-        obs = episode["observation"][idx - 1]
-
-        action = episode["action"][idx]
-        next_obs = episode["observation"][idx+self._nstep-1]
-        reward = np.zeros_like(episode["reward"][idx])
-        discount = np.ones_like(episode["discount"][idx])
-
-        if 'goal' in episode.keys():
-            goal = episode["goal"][idx]
-            if self.goal_proto==False:
-                if (goal.shape[0]//3)!=self.tile:
-                    goal = np.tile(goal,(self.tile,1,1))
-                else:
-                    goal = goal[:self.tile*3,:,:]
-                    
-            for i in range(self._nstep):
-                step_reward = episode["reward"][idx + i]
-                reward += discount * step_reward
-                discount *= episode["discount"][idx + i] * self._discount
-
-        else:
-       
-            self.count+=1
-            #??
-            if self.count==1000*self.hybrid_pct:
-                self.iz +=1
-            if self.iz>500-self._nstep:
-                self.iz=1
-
-            obs = episode["observation"][self.iz-1]
-            action = episode["action"][self.iz]
-            next_obs = episode['observation'][self.iz+self._nstep-1]
-            idx_goal = np.random.randint(self.iz,min(self.iz+50, 499))
-            goal = episode["observation"][idx_goal][None, :]
-            print('goal', goal.shape)
-
-            for i in range(self._nstep):
-                for z in range(2):
-                    step_reward = my_reward(episode["action"][self.iz+i],episode["state"][self.iz+i] , goal_state[:2])
-                    reward += discount * step_reward
-                    discount *= episode["discount"][idx+i] * self._discount 
-        
-        reward = np.array(reward).astype(float)
-        goal = goal.astype(int)
-        obs = np.array(obs)
-        return (obs, action, reward, discount, next_obs, goal)
-       
                 
     def __iter__(self):
         while True:
             if self.inv:
-                yield self._sample_inv()
-            elif (self.offline and self.goal) or (self.hybrid and self.goal):
-                yield self._sample_her()
+                if self.gym is False:
+                    yield self._sample_inv()
+                else:
+                    yield self._sample_inv_gym()
             else:
                 if self.gym is False:
                     yield self._sample()
@@ -1720,7 +1402,9 @@ def make_replay_buffer(
     model_step_lb=None,
     pmm=True,
     reverse=True,
-    gym=False):
+    gym=False,
+    obs_spec_keys=None,
+    tile=1):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = OfflineReplayBuffer(
@@ -1744,7 +1428,9 @@ def make_replay_buffer(
         model_step=model_step,
         pmm=pmm,
         reverse=reverse,
-        gym=gym
+        gym=gym,
+        obs_spec_keys=obs_spec_keys,
+        tile=tile
     )
     iterable._load()
     loader = torch.utils.data.DataLoader(

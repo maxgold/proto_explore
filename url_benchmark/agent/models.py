@@ -33,7 +33,7 @@ class Encoder1_ant(nn.Module):
         super().__init__()
 
         assert len(obs_shape) == 3
-        self.repr_dim = 48*2*2*2*2
+        self.repr_dim = 48*2*2*2*2*2
         print('obs shape', obs_shape)
         #conv2d: output = (input - kernel + 2*padding)/stride + 1
         #(64-4)/2 + 1 = 31
@@ -44,7 +44,7 @@ class Encoder1_ant(nn.Module):
         self.convnet = nn.Sequential(nn.Conv2d(obs_shape[0], 48, 4, stride=2), nn.ELU(), 
                                      nn.Conv2d(48, 48*2, 4, stride=2), nn.ELU(), 
                                      nn.Conv2d(48*2, 48*2*2, 4, stride=2),nn.ELU(), 
-                                     nn.Conv2d(48*2, 48*2*2, 4, stride=2),nn.ELU())
+                                     nn.Conv2d(48*2*2, 48*2*2*2, 4, stride=2),nn.ELU())
 
         self.apply(utils.weight_init)
 
@@ -57,16 +57,17 @@ class Encoder1_ant(nn.Module):
 class Encoder_state(nn.Module):
     def __init__(self, obs_shape):
         super().__init__()
-
+        
         feature_dim = 512
         hidden_dim = 512
-        self.trunk = nn.Sequential(nn.Linear(obs_shape[0], feature_dim), 
-                                    nn.LayerNorm(feature_dim), nn.ELU(),
-                                    nn.Linear(feature_dim, feature_dim), 
-                                    nn.LayerNorm(feature_dim), nn.ELU(),
-                                    nn.Linear(feature_dim, feature_dim), 
-                                    nn.LayerNorm(feature_dim), nn.ELU(),
-                                    nn.Linear(feature_dim, feature_dim), 
+        self.repr_dim = feature_dim
+        self.trunk = nn.Sequential(nn.Linear(obs_shape[0], hidden_dim), 
+                                    nn.LayerNorm(hidden_dim), nn.ELU(),
+                                    nn.Linear(hidden_dim, hidden_dim), 
+                                    nn.LayerNorm(hidden_dim), nn.ELU(),
+                                    nn.Linear(hidden_dim, hidden_dim), 
+                                    nn.LayerNorm(hidden_dim), nn.ELU(),
+                                    nn.Linear(hidden_dim, feature_dim), 
                                     nn.LayerNorm(feature_dim), nn.ELU(),)
 
         self.apply(utils.weight_init)
@@ -75,7 +76,7 @@ class Encoder_state(nn.Module):
         obs = obs / 255.0 - 0.5
         h = self.trunk(obs)
         h = h.view(h.shape[0], -1)
-        return dist
+        return h
 
 
 class Encoder2(nn.Module):

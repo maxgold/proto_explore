@@ -39,4 +39,6 @@ pretrained_feature_dim: 16
 scale: ???
 gym: ???
 state_shape: ???
+obs_spec_keys: None
+act_spec_keys: None
 

@@ -6,9 +6,9 @@ defaults:
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
-task: point_mass_maze_reach_custom_goal
+task: loconav_ant_maze_m
 task_no_goal: point_mass_maze_reach_no_goal
-obs_type: states # [states, pixels]
+obs_type: pixels # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
 action_repeat: 2 # set to 2 for pixels
 discount: .99
@@ -17,7 +17,6 @@ num_train_frames: 2000010
 num_seed_frames: 4000
 # eval
 eval: False
-eval_every_frames: 200000
 num_eval_episodes: 2
 # snapshot
 snapshots: [100000, 500000, 1000000, 2000000]
@@ -33,32 +32,24 @@ device: cuda
 save_video: true
 save_train_video: false
 use_tb: false
-use_wandb: false
+use_wandb: True 
 goal: false
-hybrid: false
-hybrid_gc: false
-hybrid_pct: .5 #0-1
-batch_size: 1024
-batch_size_gc: 1024
-hidden_dim: 1024
+batch_size: 256
+batch_size_gc: 256
+hidden_dim: 512
 update_gc: 2
 replay_buffer_gc: 100000
 lr: .0001
 offline: False
-tmux_session: ???
-test: False
-switch_gc: 100000         #when to switch from proto pretrain to gc if training hybrid (proto+gc)
+tmux_session: ???      #when to switch from proto pretrain to gc if training hybrid (proto+gc)
 load_encoder: False
 load_proto: False
-const_init: True
-eval_after_step: 990000
-episode_length: 500
-num_protos: 512
-episode_reset_length: 500
-stddev_schedule: .2
-stddev_schedule2: .2
-stddev_clip: .3
-stddev_clip2: .3
+episode_length: 100
+num_protos: 32
+stddev_schedule: .02
+stddev_schedule2: .02
+stddev_clip: .02
+stddev_clip2: .02
 use_predictor: False
 load_model: False
 pred_dim: 128
@@ -97,20 +88,20 @@ irmak: False        # .
 normalize: False
 normalize2: True
 load_every: 10000
-offline_gc: False   # if gc_only then need to set init_from_proto or init_from_ddpg, model_path ...; else ...
+offline_gc: True   # if gc_only then need to set init_from_proto or init_from_ddpg, model_path ...; else ...
 goal_offset: 1
 gc_only: False
 log_every_steps: 1000
 model_step_index: -1
 proto_only: False
 resume_training: False
-encoder1: False
+encoder1: True
 encoder2: False
 encoder3: False
 feature_dim_gc: 50
-inv: False
+inv: True
 use_actor_trunk: False
-use_critic_trunk: False
+use_critic_trunk: True
 expert_buffer: False
 offline_model_step: None
 offline_model_step_lb: None
@@ -121,13 +112,17 @@ buffer_num: 0
 reverse: True
 velocity_control: False
 scale: None
-egocentric: ???
-camera_id: ??? #quadruped=2 egocentric=1
 proto_explore_every: 10
 proto_explore_episodes: 100
-hack: False
+hack: True
+eval_proto_goals: True
+num_gc_train_frames: 100000
+num_proto_train_frames: 100000
 env_name: None
-gym: False
+gym: True                         #only have antmaze rn (technically not gym)
+test: false
+egocentric: True
+camera_id: 1
 #experiment
 experiment: exp
 
