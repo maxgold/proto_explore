@@ -129,6 +129,7 @@ hack: False
 eval_proto_goals: False
 num_gc_train_frames: 100000
 num_proto_train_frames: 100000
+eval_episode_length: 50
 #experiment
 experiment: exp
 

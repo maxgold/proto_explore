@@ -445,7 +445,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             goal_array = np.append(goal_array, goal_states, axis=0)
 
         dist= torch.norm(torch.tensor([[init[0], init[1], 0, 0]]) - torch.tensor(goal_array), dim=-1, p=2)
-        goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
+        goal_dist, _ = torch.topk(dist, 8, dim=-1, largest=False)
         goal_array = goal_array[_]
         print('final goal array', goal_array)
 
@@ -495,7 +495,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
                 video_recorder.init(eval_env, enabled=(episode == 0))
                 
-                while step != cfg.episode_length:
+                while step != cfg.eval_episode_length:
                     with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
                             action = agent.act(time_step_no_goal.observation['pixels'],
@@ -660,7 +660,7 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
 
                 video_recorder.init(eval_env, enabled=(episode == 0))
                 
-                while step != cfg.episode_length:
+                while step != cfg.eval_episode_length:
                     with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
                             action = agent.act(time_step_no_goal.observation['pixels'],
