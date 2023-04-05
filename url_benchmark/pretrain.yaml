@@ -123,6 +123,7 @@ gym: True                         #only have antmaze rn (technically not gym)
 test: false
 egocentric: True
 camera_id: 1
+random_reset: False
 #experiment
 experiment: exp
 

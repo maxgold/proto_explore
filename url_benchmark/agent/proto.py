@@ -59,22 +59,7 @@ class ProtoAgent(DDPGAgent):
         self.update_gc = update_gc
         self.num_iterations = num_iterations
         self.pred_dim=pred_dim
-        self.proto_distr = torch.zeros((1000,self.num_protos), device=self.device).long()
-        self.proto_distr_max = torch.zeros((1000,self.num_protos), device=self.device)
-        self.proto_distr_med = torch.zeros((1000,self.num_protos), device=self.device)
-        self.proto_distr_min = torch.zeros((1000,self.num_protos), device=self.device)
         self.count=torch.as_tensor(0,device=self.device)
-        self.mov_avg_5 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_10 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_20 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_50 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_100 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_200 = torch.zeros((1000,), device=self.device)
-        self.mov_avg_500 = torch.zeros((1000,), device=self.device)
-        self.chg_queue = torch.zeros((1000,), device=self.device)
-        self.chg_queue_ptr = 0
-        self.prev_heatmap = np.zeros((10,10))
-        self.current_heatmap = np.zeros((10,10))
         self.q = torch.tensor([.01, .25, .5, .75, .99], device=self.device)
         self.update_proto_every = update_proto_every
         self.goal_queue = torch.zeros((10, 2), device=self.device)
@@ -92,10 +77,13 @@ class ProtoAgent(DDPGAgent):
         self.gc_inv = gc_inv
         self.gym = gym1
         print('obs type', self.obs_type)
+        if self.obs_type == 'pixels':
+            self.pixels=True
+        else:
+            self.pixels=False
 
-        # models
-        #if self.gc_only==False:
-        self.encoder_target = deepcopy(self.encoder)
+        if self.pixels:
+            self.encoder_target = deepcopy(self.encoder)
         if self.gym:
             self.state_encoder_target = deepcopy(self.state_encoder)
 
@@ -176,15 +164,20 @@ class ProtoAgent(DDPGAgent):
         with torch.no_grad():
             if eval==False:
                 if self.gym:
-                    z1 = self.encoder(obs)
-                    z2 = self.state_encoder(obs_state)
-                    z = torch.cat((z1,z2), dim=-1)
+                    if self.pixels:
+                        z1 = self.encoder(obs)
+                        z2 = self.state_encoder(obs_state)
+                        z = torch.cat((z1,z2), dim=-1)
+                    else:
+                        z = self.state_encoder(obs)
                 elif self.obs_type=='states' or self.sl is False:
                     z = self.encoder(obs)
                 else:
                     z, _ = self.encoder(obs)
             else:
                 z = obs
+            if torch.isnan(z[0]).any():
+                import IPython as ipy; ipy.embed(colors='neutral')
             z = self.predictor(z)
             if self.normalize:
                 z = F.normalize(z, dim=1, p=2)
@@ -192,8 +185,6 @@ class ProtoAgent(DDPGAgent):
             prob = F.softmax(scores, dim=1)
             candidates = pyd.Categorical(prob).sample()
 
-        #if step>300000:
-        #    import IPython as ipy; ipy.embed(colors='neutral')
         # enqueue candidates
         ptr = self.queue_ptr
         self.queue[ptr:ptr + self.num_protos] = z[candidates]
@@ -204,41 +195,18 @@ class ProtoAgent(DDPGAgent):
         all_dists, _ = torch.topk(z_to_q, self.topk, dim=1, largest=False)
         dist = all_dists[:, -1:]
         reward = dist
-
-        #if step==10000 or step%100000==0:
-        #    print('set to 0')
-        #    self.goal_queue = torch.zeros((10, 2), device=self.device)
-        #    self.goal_queue_dist = torch.zeros((10,), device=self.device)
-
-        #dist_arg = self.goal_queue_dist.argsort(axis=0)
-
-        #r, _ = torch.topk(reward,10,largest=True, dim=0)
-
-        #if eval==False:
-        #    for ix in range(10):
-        #        if r[ix] > self.goal_queue_dist[dist_arg[ix]]:
-        #            self.goal_queue_dist[dist_arg[ix]] = r[ix]
-        #            self.goal_queue[dist_arg[ix]] = obs_state[_[ix],:2]
- 
-        #saving dist to see distribution for intrinsic reward
-        #if step%1000 and step<300000:
-        #    import IPython as ipy; ipy.embed(colors='neutral')
-        #    dist_np = z_to_q
-        #    dist_df = pd.DataFrame(dist_np.cpu())
-        #    dist_df.to_csv(self.work_dir / 'dist_{}.csv'.format(step), index=False)  
         return reward
 
     def update_proto(self, obs, next_obs, step, obs_state=None, next_obs_state=None):
         metrics = dict()
-
-        # normalize prototypes
-        #self.normalize_protos()
-
         # online network
         if self.gym:
-            s1 = self.encoder(obs)
-            s2 = self.state_encoder(obs_state)
-            s = torch.cat((s1,s2), dim=1)
+            if self.pixels:
+                s1 = self.encoder(obs)
+                s2 = self.state_encoder(obs_state)
+                s = torch.cat((s1,s2), dim=1)
+            else:
+                s = self.state_encoder(obs)
         elif self.obs_type=='states' or self.sl is False:
             s = self.encoder(obs)
         else:
@@ -252,9 +220,12 @@ class ProtoAgent(DDPGAgent):
         # target network
         with torch.no_grad():
             if self.gym:
-                t1 = self.encoder_target(next_obs)
-                t2 = self.state_encoder_target(next_obs_state)
-                t = torch.cat((t1,t2), dim=1)
+                if self.pixels:
+                    t1 = self.encoder_target(next_obs)
+                    t2 = self.state_encoder_target(next_obs_state)
+                    t = torch.cat((t1,t2), dim=1)
+                else:
+                    t = self.state_encoder_target(next_obs)
             elif self.obs_type=='states' or self.sl is False:
                 t = self.encoder_target(next_obs)
             else:
@@ -275,40 +246,24 @@ class ProtoAgent(DDPGAgent):
 
         self.pred_opt.zero_grad(set_to_none=True)
         self.proj_opt.zero_grad(set_to_none=True)
-        self.encoder_opt.zero_grad(set_to_none=True)
+        if self.pixels:
+            self.encoder_opt.zero_grad(set_to_none=True)
 
         loss.backward()
-
+        # # if torch.isnan():
+        # #     import IPython as ipy; ipy.embed(colors='neutral')
+        # print('proto', self.protos.weight.grad.norm().item())
+        # print('pred', self.predictor.weight.grad.norm().item())
+        # print('proj', [x.weight.grad.norm() for x in self.projector.trunk.children() if type(x) is torch.nn.Linear])
+        # print('encoder', [x.weight.grad.norm() for x in self.encoder.convnet.children() if type(x) is torch.nn.Conv2d])
         self.pred_opt.step()
         self.proj_opt.step()
-        self.encoder_opt.step()
+        if self.pixels:
+            self.encoder_opt.step()
         if self.update_proto_opt and step % self.update_proto_every==0:
             self.proto_opt.step()
         return metrics
     
-    # def update_encoder_func(self, obs, obs_state, goal, goal_state, step):
-
-    #     metrics = dict()
-
-    #     if self.obs_type=='states' or self.sl is False:
-    #         obs = self.encoder(obs)
-    #         goal = self.encoder(goal)
-    #     else:
-    #         obs, _ = self.encoder(obs)
-    #         goal, _ = self.encoder(goal)
-
-    #     encoder_loss = F.mse_loss(obs, obs_state) + F.mse_loss(goal, goal_state)
-
-    #     if self.use_tb or self.use_wandb:
-
-    #         metrics['encoder_loss'] = encoder_loss.item()
-
-    #     self.encoder_opt.zero_grad(set_to_none=True)
-    #     encoder_loss.backward()
-    #     self.encoder_opt.step()
-        
-    #     return metrics 
-
 
     def update(self, replay_iter, step, actor1=False, test=False):
         metrics = dict()
@@ -318,50 +273,64 @@ class ProtoAgent(DDPGAgent):
 
         batch = next(replay_iter)
         if actor1 and step % self.update_gc==0:
-            if actor1 and self.gc_inv:
-                #same for antmaze & dmenvs
-                obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
-                    batch, self.device)
+            if self.pixels:
+                if actor1 and self.gc_inv:
+                    #same for antmaze & dmenvs
+                    obs, obs_state, action, extr_reward, discount, next_obs, next_obs_state, goal, goal_state = utils.to_torch(
+                        batch, self.device)
+                else:
+                    obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
+                batch, self.device)
             else:
-                obs, obs_state, action, extr_reward, discount, next_obs, goal, goal_state = utils.to_torch(
-            batch, self.device)
-            if self.obs_type=='states':
-                goal = goal.reshape(-1, 2).float()
+                obs, action, extr_reward, discount, next_obs, goal = utils.to_torch(
+                        batch, self.device)
+                
+                
             extr_reward=extr_reward.float()
             goal_state = goal_state.float()
             obs_state = obs_state.float()
 
         elif actor1==False:
-            if self.gym is False:
-                obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
-                    batch, self.device)
+            if self.pixels:
+                if self.gym is False:
+                    obs, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
+                        batch, self.device)
+                else:
+                    obs, obs_state, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
+                        batch, self.device)
             else:
-                obs, obs_state, action, reward, discount, next_obs, next_obs_state = utils.to_torch(
-                    batch, self.device)
+                obs, action, reward, discount, next_obs = utils.to_torch(
+                        batch, self.device)
         else:
             return metrics
 
         discount = discount.reshape(-1,1)
 
         # augment and encode
-        with torch.no_grad():
-            obs = self.aug(obs)
-            next_obs = self.aug(next_obs)
+        if self.pixels:
+            with torch.no_grad():
+                obs = self.aug(obs)
+                next_obs = self.aug(next_obs)
+        elif self.pixels is False and self.gym:
+            obs_state=None
+            next_obs_state=None
+            goal_state=None
            
         if actor1==False:
-
             if self.reward_free:
                 if self.gym is False:
                     metrics.update(self.update_proto(obs, next_obs, step))
                 else:
                     metrics.update(self.update_proto(obs, next_obs, step, obs_state=obs_state, next_obs_state=next_obs_state))
+                
                 with torch.no_grad():
                     intr_reward = self.compute_intr_reward(next_obs, next_obs_state, step)
 
                 if self.use_tb or self.use_wandb:
                     metrics['intr_reward'] = intr_reward.mean().item()
-                
+
                 reward = intr_reward
+
             else:
                 reward = reward
             
@@ -369,15 +338,21 @@ class ProtoAgent(DDPGAgent):
                 metrics['batch_reward'] = reward.mean().item()
 
             if self.gym:
-                obs = self.encoder(obs)
-                next_obs = self.encoder(next_obs)
-                obs_state = self.state_encoder(obs_state)
-                next_obs_state = self.state_encoder(next_obs_state)
-                obs = torch.cat((obs, obs_state), dim=-1)
-                next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+                if self.pixels:
+                    obs = self.encoder(obs)
+                    next_obs = self.encoder(next_obs)
+                    obs_state = self.state_encoder(obs_state)
+                    next_obs_state = self.state_encoder(next_obs_state)
+                    obs = torch.cat((obs, obs_state), dim=-1)
+                    next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+                else:
+                    obs = self.state_encoder(obs)
+                    next_obs = self.state_encoder(next_obs)
+
             elif self.obs_type=='states' or self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
+
             else:
                 obs,_ = self.encoder(obs)
                 next_obs, _ = self.encoder(next_obs)
@@ -395,13 +370,14 @@ class ProtoAgent(DDPGAgent):
             metrics.update(self.update_actor2(obs.detach(), step))
 
             # update critic target
-
             utils.soft_update_params(self.predictor, self.predictor_target,
                                  self.encoder_target_tau)
-            utils.soft_update_params(self.encoder, self.encoder_target,
-                                                    self.encoder_target_tau)
+            if self.pixels:
+                utils.soft_update_params(self.encoder, self.encoder_target,
+                                                        self.encoder_target_tau)
             utils.soft_update_params(self.critic2, self.critic2_target,
                                  self.critic2_target_tau)
+            
             if self.gym:
                 #TODO: maybe we need a different tau for state encoder?
                 utils.soft_update_params(self.state_encoder, self.state_encoder_target,
@@ -410,25 +386,31 @@ class ProtoAgent(DDPGAgent):
         elif actor1 and step % self.update_gc==0:
 
             reward = extr_reward
-
             if self.use_tb or self.use_wandb:
                 metrics['batch_reward'] = reward.mean().item()
 
             if self.gym:
-                obs = self.encoder(obs)
-                next_obs = self.encoder(next_obs)
-                goal = self.encoder(goal)
-                obs_state = self.state_encoder(obs_state)
-                next_obs_state = self.state_encoder(next_obs_state)
-                #dummy goal_state
-                goal_state = torch.ones_like(obs_state)
-                obs = torch.cat((obs, obs_state), dim=-1)
-                next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
-                goal = torch.cat((goal, goal_state), dim=-1)
+                if self.pixels:
+                    obs = self.encoder(obs)
+                    next_obs = self.encoder(next_obs)
+                    goal = self.encoder(goal)
+                    obs_state = self.state_encoder(obs_state)
+                    next_obs_state = self.state_encoder(next_obs_state)
+                    #dummy goal_state
+                    goal_state = torch.ones_like(obs_state)
+                    obs = torch.cat((obs, obs_state), dim=-1)
+                    next_obs = torch.cat((next_obs, next_obs_state), dim=-1)
+                    goal = torch.cat((goal, goal_state), dim=-1)
+                else:
+                    obs = self.state_encoder(obs)
+                    next_obs = self.state_encoder(next_obs)
+                    goal = self.state_encoder(goal)
+
             elif self.sl is False:
                 obs = self.encoder(obs)
                 next_obs = self.encoder(next_obs)
                 goal = self.encoder(goal)
+                
             else:
                 obs,_ = self.encoder(obs)
                 next_obs, _ = self.encoder(next_obs)

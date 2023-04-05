@@ -82,7 +82,7 @@ def my_reward(action, next_obs, goal, ant=False):
     return float(r * control_reward)
 
 class ReplayBufferStorage:
-    def __init__(self, data_specs, meta_specs, replay_dir, visitation_matrix_size=60, visitation_limit=.29, obs_spec_keys=None, act_spec_keys=None):
+    def __init__(self, data_specs, meta_specs, replay_dir, visitation_matrix_size=60, visitation_limit=.29, obs_spec_keys=None, act_spec_keys=None, pixels=True):
         self._data_specs = data_specs
         self._meta_specs = meta_specs
         self._replay_dir = replay_dir
@@ -104,6 +104,7 @@ class ReplayBufferStorage:
             self.obs_spec_keys = obs_spec_keys
         if act_spec_keys is not None:
             self.act_spec_keys = act_spec_keys
+        self.pixels = pixels
     def __len__(self):
         return self._num_transitions
 
@@ -167,8 +168,8 @@ class ReplayBufferStorage:
     def add_gym(self, obs, action, meta=None, last=False):
 
         for spec in self._data_specs:
-            if spec.name == 'image':
-                value = obs['image'].transpose(2,0,1)
+            if spec.name.startswith('image') and self.pixels:
+                value = obs[spec.name].transpose(2,0,1)
 
                 #saving stats for heatmap later 
                 tmp_state = obs['walker/world_zaxis']*100
@@ -335,8 +336,6 @@ class ReplayBufferStorage:
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
                 
         if pixels and asym==False and pmm:
-            
-            #goal = np.transpose(goal, (2,0,1))
             self._current_episode_goal['goal_state'].append(goal_state)
             idx_x = int(goal_state[0]*100)+self.visitation_limit
             idx_y = int(goal_state[1]*100)+self.visitation_limit
@@ -777,13 +776,14 @@ class ReplayBuffer(IterableDataset):
         next_state = []
         #if need to change obs_spec_keys that are used, then use original implemnetation 
         #from https://github.com/danijar/director/blob/a6a649efedc25a9d194155682bf39163fba4b5a2/embodied/agents/director/nets.py#L172
+        
+        #using two cameras right now
 
-        obs = episode['image'][idx - 1]
-        next_obs = episode['image'][idx + self._nstep - 1]
         for key in self._storage.obs_spec_keys:
-            if key == 'image':
-                obs = episode[key][idx - 1]
-                next_obs = episode[key][idx + self._nstep - 1]
+            if key.startswith('image'):
+                if int(key[-1])!=0:
+                    obs = episode[key][idx - 1]
+                    next_obs = episode[key][idx + self._nstep - 1]
             else:
                 state_ = episode[key][idx - 1]
                 next_state_ = episode[key][idx + self._nstep - 1]
@@ -804,8 +804,10 @@ class ReplayBuffer(IterableDataset):
             step_reward = episode["reward"][idx + i]
             reward += discount * step_reward
             discount *= self._discount * self._discount
-
-        return (obs, state, action, reward, discount, next_obs, next_state)
+        if self.pixels:
+            return (obs, state, action, reward, discount, next_obs, next_state)
+        else:
+            return (state, action, reward, discount, next_state)
 
         
     def _sample_inv(self):
@@ -873,9 +875,10 @@ class ReplayBuffer(IterableDataset):
         if (episode_len(episode) - self._nstep - offset + 1) <=0:
             offset = np.random.randint(episode_len(episode) - self._nstep +1)
         idx = np.random.randint(0, episode_len(episode) - self._nstep - offset + 1) + 1
-
+        idx_goal = idx + self._nstep + offset - 1
         state = []
         next_state = []
+        goal_state = []
 
         obs = episode['image'][idx - 1]
         next_obs = episode['image'][idx + self._nstep - 1]
@@ -888,16 +891,20 @@ class ReplayBuffer(IterableDataset):
                 next_state_ = episode[key][idx + self._nstep - 1]
                 state.append(state_)
                 next_state.append(next_state_)
+                if key.startswith('walker/world_z'):
+                    goal_state.append(episode[key][idx_goal])
+                else:
+                    goal_state.append(np.zeros(episode[key][idx_goal].shape))
 
         state = np.concatenate(state, axis=-1)
         next_state = np.concatenate(next_state, axis=-1)
+        goal_state = np.concatenate(goal_state, axis=-1)
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["reward"][idx])
         action = episode["action"][idx]
 
         idx_goal = idx + self._nstep + offset - 1
         goal = episode['image'][idx_goal]
-        goal_state = episode['walker/world_zaxis'][idx_goal]
 
         if (goal.shape[0]//3)!=self.tile:
             goal = np.tile(goal,(self.tile,1,1))
@@ -911,8 +918,10 @@ class ReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 discount *= self._discount * self._discount
 
-        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
-
+        if self.pixels:
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state, *meta)
+        else:
+            return (obs_state, action, reward, discount, next_obs_state, goal_state, *meta)
 
     def _append(self):
         #add all, goal or no goal trajectories, used for sampling goals
@@ -1228,7 +1237,10 @@ class OfflineReplayBuffer(IterableDataset):
                 reward += discount * step_reward
                 discount *= self._discount * self._discount
 
-        return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
+        if self.pixels:
+            return (obs, obs_state, action, reward, discount, next_obs, next_obs_state, goal, goal_state)
+        else:
+            return (obs_state, action, reward, discount, next_obs_state, goal_state)
 
 
     def _sample(self):

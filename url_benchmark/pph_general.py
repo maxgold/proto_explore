@@ -75,7 +75,10 @@ def make_agent(obs_type, obs_spec, action_spec, goal_shape, num_expl_steps, cfg,
     cfg.inv = inv
     cfg.use_actor_trunk = use_actor_trunk
     cfg.use_critic_trunk = use_critic_trunk
-    cfg.scale = scale
+
+    if scale == 'None':
+        cfg.scale = None
+        
     cfg.gym = gym
     cfg.state_shape = state_shape
     cfg.obs_spec_keys = obs_spec_keys
@@ -203,6 +206,7 @@ class Workspace:
         data_specs = []
         obs_spec_keys = []
         act_spec_keys = []
+        self.pixels = True if self.cfg.obs_type == 'pixel' else False
 
         if self.cfg.gym:
             #TODO: make this more general & work for all envs
@@ -210,10 +214,11 @@ class Workspace:
                 if k == 'walker/egocentric_camera' or k.startswith('is') or k.startswith('log'):
                     continue
                 else:
-                    if k == 'image':
-                        shape = tuple([self.train_env.obs_space[k].shape[2], self.train_env.obs_space[k].shape[0], self.train_env.obs_space[k].shape[1]])
-                        data_specs.append(specs.Array(shape, self.train_env.obs_space[k].dtype, k))
-                        obs_spec_keys.append(k)
+                    if k.startswith('image'):
+                        if self.pixels:
+                            shape = tuple([self.train_env.obs_space[k].shape[2], self.train_env.obs_space[k].shape[0], self.train_env.obs_space[k].shape[1]])
+                            data_specs.append(specs.Array(shape, self.train_env.obs_space[k].dtype, k))
+                            obs_spec_keys.append(k)
                     elif len(v.shape) != 1:
                         data_specs.append(specs.Array(self.train_env.obs_space[k].shape, self.train_env.obs_space[k].dtype, k))
                     else:
@@ -240,7 +245,11 @@ class Workspace:
             pixel_shape = (3 * self.cfg.frame_stack, 84, 84)
                     
         else:
-            obs = self.train_env.obs_space['image']
+            #we are using both cameras right now so egocentric is image4 and topdown is image0
+            # import IPython as ipy; ipy.embed(colors='neutral')
+            obs = self.train_env.obs_space['image4']
+            obs0 = self.train_env.obs_space['image0']
+
             action_spec = self.train_env.act_space['action']
             pixel_shape[0], pixel_shape[1], pixel_shape[2] = obs.shape[2], obs.shape[0], obs.shape[1]
             pixel_shape = tuple(pixel_shape)
@@ -361,16 +370,19 @@ class Workspace:
             self.visitation_limit = 1
 
         # create data storage
+
         self.replay_storage1 = ReplayBufferStorage(data_specs, meta_specs,
                                                    self.work_dir / 'buffer1', 
                                                    visitation_matrix_size=self.visitation_matrix_size, 
                                                    visitation_limit=self.visitation_limit,
-                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys)
+                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys,
+                                                   pixels=self.pixels)
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2', 
                                                    visitation_matrix_size=self.visitation_matrix_size, 
                                                    visitation_limit=self.visitation_limit,
-                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys)
+                                                   obs_spec_keys=obs_spec_keys, act_spec_keys=act_spec_keys,
+                                                   pixels=self.pixels)
 
         # create replay buffer
         self.combine_storage = False
@@ -668,11 +680,16 @@ class Workspace:
                             time_step = self.train_env.reset()
                         elif self.cfg.hack is True and self.cfg.gym is False:
                             time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
+                        
                         elif self.cfg.gym:
                             action = dict()
                             act = np.zeros(self.train_env.act_space['action'].shape, dtype=np.float32)
                             action['action'] = act
                             action['reset'] = True
+
+                            if self.cfg.random_reset:
+                                time_step['walker/world_zaxis'] = np.array([1., 0., 1.])
+                                
                             time_step = self.train_env.step(action)
                             action['reset'] = False
 

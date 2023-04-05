@@ -52,8 +52,13 @@ class DMC(Env):
 
   @property
   def obs_space(self):
+    #assuming we only have two cameras
+    camera_id = abs(self._camera)
+    img_name1 = 'image' + str(camera_id)
+    img_name2 = 'image0'
     spaces = {
-        'image': Space(np.uint8, self._size + (3,)),
+        img_name1: Space(np.uint8, self._size + (3,)),
+        img_name2: Space(np.uint8, self._size + (3,)),
         'reward': Space(np.float32),
         'is_first': Space(bool),
         'is_last': Space(bool),
@@ -100,17 +105,22 @@ class DMC(Env):
         k: v[None] if v.shape == () else v
         for k, v in dict(time_step.observation).items()
         if k not in self._ignored_keys}
+    camera_id = abs(self._camera)
     return dict(
         reward=reward,
         is_first=time_step.first(),
         is_last=time_step.last(),
         is_terminal=time_step.discount == 0,
-        image=self.render(),
+        image4=self.render(),
+        image0=self.render(camera_id=0),
         **obs,
     )
 
-  def render(self):
-    return self._env.physics.render(*self._size, camera_id=self._camera)
+  def render(self, camera_id=None):
+    if camera_id is None:
+      return self._env.physics.render(*self._size, camera_id=self._camera)
+    else:
+      return self._env.physics.render(*self._size, camera_id=camera_id)
 
 
 def patch_control_frequency(freq):

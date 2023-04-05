@@ -132,6 +132,12 @@ class DDPGAgent:
             self.encoder = nn.Identity()
             self.obs_dim = obs_shape[0] + meta_dim
             self.goal_dim = goal_shape[0]
+            if self.encoder1_ant:
+                self.state_encoder = Encoder_state(state_shape).to(device)
+
+            if self.gym:
+                self.obs_dim = self.state_encoder.repr_dim
+                self.goal_dim = self.state_encoder.repr_dim
         
         if self.inv:
             if self.init_from_ddpg:
@@ -330,12 +336,13 @@ class DDPGAgent:
         if self.sl:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
             h, _ = self.encoder(obs)
-        elif self.gym:
+        elif self.gym and self.obs_type=='pixels':
             #when obs is passed in it's time_step, aka dict
             state = []
             for key in obs.keys():
-                if key == 'image':
-                    pix = obs[key].transpose(2,0,1)[None,:]
+                if key.startswith('image') and pixels:
+                    if int(key[-1]) != 0:
+                        pix = obs[key].transpose(2,0,1)[None,:]
                 elif key in self.obs_spec_keys:
                     state_ = obs[key]
                     state.append(torch.as_tensor(state_, device=self.device))
@@ -343,7 +350,20 @@ class DDPGAgent:
             
             h1 = self.encoder(torch.as_tensor(pix.copy(), device=self.device))
             h2 = self.state_encoder(torch.as_tensor(state.unsqueeze(0), device=self.device).float())
-            h = torch.cat([h1, h2], dim=-1)      
+            h = torch.cat([h1, h2], dim=-1)
+            
+        elif self.gym and self.obs_type=='states':
+            #when obs is passed in it's time_step, aka dict
+            state = []
+            for key in obs.keys():
+                if key.startswith('image'):
+                    continue
+                elif key in self.obs_spec_keys:
+                    state_ = obs[key]
+                    state.append(torch.as_tensor(state_, device=self.device))
+            state = torch.cat(state, dim=-1)
+            h = self.state_encoder(torch.as_tensor(state.unsqueeze(0), device=self.device).float())
+
         elif self.obs_type=='states' or self.sl is False:
             obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
             h = self.encoder(obs)
@@ -386,17 +406,17 @@ class DDPGAgent:
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
              
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
-        if self.state_encoder_opt is not None:
-            self.state_encoder_opt.zero_grad(set_to_none=True)
+        # if self.encoder_opt is not None:
+        #     self.encoder_opt.zero_grad(set_to_none=True)
+        # if self.state_encoder_opt is not None:
+        #     self.state_encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
-        if self.state_encoder_opt is not None:
-            self.state_encoder_opt.step()
+        # if self.encoder_opt is not None:
+        #     self.encoder_opt.step()
+        # if self.state_encoder_opt is not None:
+        #     self.state_encoder_opt.step()
         return metrics
 
 
@@ -419,17 +439,17 @@ class DDPGAgent:
             metrics['critic2_q2'] = Q2.mean().item()
             metrics['critic2_loss'] = critic2_loss.item()
         # optimize critic
-        if self.encoder_opt is not None:
-            self.encoder_opt.zero_grad(set_to_none=True)
-        if self.state_encoder_opt is not None:
-            self.state_encoder_opt.zero_grad(set_to_none=True)
+        # if self.encoder_opt is not None:
+        #     self.encoder_opt.zero_grad(set_to_none=True)
+        # if self.state_encoder_opt is not None:
+        #     self.state_encoder_opt.zero_grad(set_to_none=True)
         self.critic2_opt.zero_grad(set_to_none=True)
         critic2_loss.backward()
         self.critic2_opt.step()
-        if self.encoder_opt is not None:
-            self.encoder_opt.step()
-        if self.state_encoder_opt is not None:
-            self.state_encoder_opt.step()
+        # if self.encoder_opt is not None:
+        #     self.encoder_opt.step()
+        # if self.state_encoder_opt is not None:
+        #     self.state_encoder_opt.step()
         return metrics
 
     def update_actor(self, obs, goal, action, step):
