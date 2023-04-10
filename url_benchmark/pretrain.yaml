@@ -6,7 +6,7 @@ defaults:
 reward_free: true
 # task settings
 domain: walker # primal task will be infered in runtime
-task: loconav_ant_maze_m
+task: loconav_ant_maze_s
 task_no_goal: point_mass_maze_reach_no_goal
 obs_type: pixels # [states, pixels]
 frame_stack: 3 # only works if obs_type=pixels
@@ -133,7 +133,7 @@ replay_dir2: false
 
 hydra:
   run:
-    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
+    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}_${num_protos}protos_${pred_dim}pred_${seed}seed
   sweep:
     dir: ./exp_sweep/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
     subdir: ${hydra.job.num}
