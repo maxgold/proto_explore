@@ -141,7 +141,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
     else:
 
-        if global_step % 1000== 0 and global_step!=0 and pmm:
+        if global_step!=0 and pmm:
             heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=True)
 
         replay_buffer = make_replay_offline(
@@ -390,11 +390,11 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         # if cfg.debug:
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
         print('goal states', proto_goals_state)
-        if global_step!=0 or cfg.debug:
+        if global_step!=0 or cfg.debug is False:
             current_init = np.empty((0,4))
             current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
             assert type(current_init) is not tuple
-        if pmm:
+        if pmm and cfg.debug is False:
             assert len(current_init.shape) == 2
         assert type(current_init) is not tuple
         return current_init, proto_goals_state
@@ -435,17 +435,19 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         # i = i + vertex_count
         # reached.add_vertex(i)
         init = init[:2]
-        goal_array = ndim_grid(2, 10)
-        goal_array = np.concatenate((goal_array, np.zeros((goal_array.shape[0],2))), axis=-1)
+        # goal_array = ndim_grid(2, 10)
+        # goal_array = np.concatenate((goal_array, np.zeros((goal_array.shape[0],2))), axis=-1)
 
         if goal_states is not None:
             index = np.where((goal_states == 0.).all(axis=1))[0]
-            goal_states = np.delete(goal_states, index, axis=0)
-            assert len(goal_array.shape) == len(goal_states.shape)
-            goal_array = np.append(goal_array, goal_states, axis=0)
+            goal_array = np.delete(goal_states, index, axis=0)
+
+            # assert len(goal_array.shape) == len(goal_states.shape)
+            # goal_array = np.append(goal_array, goal_states, axis=0)
 
         dist= torch.norm(torch.tensor([[init[0], init[1], 0, 0]]) - torch.tensor(goal_array), dim=-1, p=2)
-        goal_dist, _ = torch.topk(dist, 20, dim=-1, largest=False)
+        num = goal_array.shape[0]
+        goal_dist, _ = torch.topk(dist, num, dim=-1, largest=False)
         goal_array = goal_array[_]
         print('final goal array', goal_array)
 
@@ -542,7 +544,8 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     step += 1
                 episode += 1
 
-                if ix % 10 == 0:
+                if i == 0:
+                    #only save the random upper left starting point episodes
                     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
             df.loc[ix, 'x'] = x[0].round(2)
@@ -558,17 +561,17 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
         plt.imsave(f"reached_goals_{global_step}.png", time_step_multigoal)
         wandb.save(f"reached_goals_{global_step}.png")
 
-        result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
-        result.fillna(0, inplace=True)
-        print('result', result)
-        plt.clf()
-        fig, ax = plt.subplots()
-        plt.title(str(init))
-        sns.heatmap(result, cmap="Blues_r").invert_yaxis()
-        ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
-        ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
-        plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
-        wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
+        # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
+        # result.fillna(0, inplace=True)
+        # print('result', result)
+        # plt.clf()
+        # fig, ax = plt.subplots()
+        # plt.title(str(init))
+        # sns.heatmap(result, cmap="Blues_r").invert_yaxis()
+        # ax.set_xticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_xticklabels()])
+        # ax.set_yticklabels(['{:.2f}'.format(float(t.get_text())) for t in ax.get_yticklabels()])
+        # plt.savefig(f"./{global_step}_{i}_heatmap_goal.png")
+        # wandb.save(f"./{global_step}_{i}_heatmap_goal.png")
 
     #uncomment when we need to save the graph
     # distance, path = reached.floydwarshall()
