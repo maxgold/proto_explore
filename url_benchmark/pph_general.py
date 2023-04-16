@@ -259,6 +259,8 @@ class Workspace:
                                                    self.work_dir / 'buffer1')
         self.replay_storage = ReplayBufferStorage(data_specs, meta_specs,
                                                   self.work_dir / 'buffer2')
+        self.replay_storage_eval = ReplayBufferStorage(data_specs, meta_specs,
+                                                  self.work_dir / 'buffer_eval')
 
         # create replay buffer
         self.combine_storage = False
@@ -444,25 +446,7 @@ class Workspace:
         self.proto_explore_count = 0
         self.previous_matrix = None
         self.current_matrix = None
-        self.v_queue_ptr = 0
-        self.v_queue = np.zeros((2000,))
-        self.r_queue_ptr = 0
-        self.r_queue = np.zeros((2000,))
         self.count = 0
-        self.mov_avg_5 = np.zeros((2000,))
-        self.mov_avg_10 = np.zeros((2000,))
-        self.mov_avg_20 = np.zeros((2000,))
-        self.mov_avg_50 = np.zeros((2000,))
-        self.mov_avg_100 = np.zeros((2000,))
-        self.mov_avg_200 = np.zeros((2000,))
-        self.mov_avg_500 = np.zeros((2000,))
-        self.r_mov_avg_5 = np.zeros((2000,))
-        self.r_mov_avg_10 = np.zeros((2000,))
-        self.r_mov_avg_20 = np.zeros((2000,))
-        self.r_mov_avg_50 = np.zeros((2000,))
-        self.r_mov_avg_100 = np.zeros((2000,))
-        self.r_mov_avg_200 = np.zeros((2000,))
-        self.r_mov_avg_500 = np.zeros((2000,))
         self.unreached_goals = np.empty((0, self.train_env.physics.get_state().shape[0]))
         self.proto_last_explore = 0
         self.current_init = np.empty((0, self.train_env.physics.get_state().shape[0]))
@@ -472,6 +456,8 @@ class Workspace:
         self.gc_init = False
         self.gc_step = 0 
         self.proto_step = 0
+        self.proto_uniformness = np.empty((0,1))
+        self.num_reached = np.empty((0,1))
 
         self.switch_gc = self.cfg.switch_gc
 
@@ -515,7 +501,7 @@ class Workspace:
                         self.global_frame)
         if self.cfg.gc_only and self.cfg.offline_gc is False:
             self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto_gc_only(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval)
-            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
+            eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir, self.replay_storage_eval)
 
         elif self.cfg.gc_only and self.cfg.offline_gc:
             #xy = np.array([.25, .25, .1, .1])
@@ -528,34 +514,34 @@ class Workspace:
              #           self.eval_reached[i*4+j,2]=0
              #           self.eval_reached[i*4+j,3]=0
               #  
-              #  print(self.eval_reached)
-              #  # import IPython as ipy; ipy.embed(colors='neutral')      
+              #  print(self.eval_reached)     
               #  eval_pmm(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
             if self.goal_loaded is False and self.cfg.eval_proto_goals:
                 #calls eval_pmm from eval_proto
                 model_step = int(re.findall('\d+', self.cfg.model_path)[-1])
                 print('model_step', model_step) 
-                self.current_init, self.proto_goals_state = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=True, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step)
+                self.current_init, self.proto_goals_state, self.proto_uniformness, self.num_reached = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=True, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
                 assert type(self.current_init) is not tuple
                 print('eval. current init', self.current_init)
                 print('proto goals state', self.proto_goals_state)
                 self.goal_loaded = True
 
             elif self.goal_loaded is True and self.cfg.eval_proto_goals:
-                self.current_init, reached = eval_pmm(self.cfg, self.agent, self.current_init, self.video_recorder, self.global_step, self.global_frame, self.work_dir, goal_states=self.proto_goals_state)
+                self.current_init, reached = eval_pmm(self.cfg, self.agent, self.current_init, self.video_recorder, self.global_step, self.global_frame, self.work_dir, goal_states=self.proto_goals_state, replay_storage_eval=self.replay_storage_eval)
                 assert type(self.current_init) is not tuple
             else:
                 self.eval_reached = None
                 eval_pmm_stitch(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
 
         elif self.cfg.gc_only is False and self.cfg.offline_gc:
-            self.current_init, self.proto_goals_state = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder)
+            self.current_init, self.proto_goals_state, self.proto_uniformness, self.num_reached = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
             assert type(self.current_init) is not tuple
         else:
             #TODO: get rid of moving avg 
-            self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, self.mov_avg_5, self.mov_avg_10, self.mov_avg_20, self.mov_avg_50, self.r_mov_avg_5, self.r_mov_avg_10, self.r_mov_avg_20, self.r_mov_avg_50, eval=eval, video_recorder=self.video_recorder)
+            self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
             assert type(self.current_init) is not tuple
+
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
@@ -611,10 +597,10 @@ class Workspace:
                                 log('buffer_size', len(self.replay_storage))
                                 log('step', self.global_step)
 
-                        if self.cfg.hack is False:
-                            time_step = self.train_env.reset()
-                        else:
-                            time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
+                        # if self.cfg.hack is False:
+                        #     time_step = self.train_env.reset()
+                        # else:
+                        time_step, self.train_env, _, _, _, _, _, _, _ = get_time_step(self.cfg, self.proto_last_explore, self.cfg.gc_only, self.current_init, self.actor, self.actor1, self.pmm, train_env=self.train_env)
 
                         meta = self.agent.update_meta(meta, self._global_step, time_step)
 

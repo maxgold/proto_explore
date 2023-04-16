@@ -152,11 +152,12 @@ class ReplayBufferStorage:
             self._store_episode(episode, actor1=False)
             print('storing episode, no goal')
 
-    def add_goal(self, time_step, meta, goal, time_step_no_goal=False,goal_state=False,pixels=False, last=False, asym=False):
-        for key, value in meta.items():
-            self._current_episode_goal[key].append(value)
+    def add_goal(self, time_step, goal, time_step_no_goal=False,goal_state=False,pixels=False, last=False, asym=False, eval=False, action=None):
+
         for spec in self._data_specs:
+
             if spec.name == 'observation' and pixels:
+
                 value = time_step_no_goal[spec.name]
                 self._current_episode_goal['observation'].append(value['pixels'])
                 self._current_episode_goal['state'].append(value['observations'])
@@ -171,15 +172,27 @@ class ReplayBufferStorage:
                 idx_x = int(tmp_state[0])+9
                 idx_y = int(tmp_state[1])+9
                 self.state_visitation_gc_pct[idx_x,idx_y]+=1
-                
-            else:
-                value = time_step[spec.name]
+
+            elif spec.name == 'action' and action is not None:
+                value = action
                 if np.isscalar(value):
                     value = np.full(spec.shape, value, spec.dtype)
+                assert spec.shape == value.shape and spec.dtype == value.dtype
+                self._current_episode[spec.name].append(value)    
+                
+            else:
+
+                value = time_step[spec.name]
+
+                if np.isscalar(value):
+
+                    value = np.full(spec.shape, value, spec.dtype)
+
                 assert spec.shape == value.shape and spec.dtype == value.dtype
                 self._current_episode_goal[spec.name].append(value)
                 
                 if spec.name == 'reward' and pixels:
+
                     value = time_step['observation']
                     tmp_state = value['observations']*100
                     idx_x = int(tmp_state[0])+29
@@ -187,17 +200,22 @@ class ReplayBufferStorage:
                     self.reward_matrix[idx_x,idx_y]+=time_step['reward']
                 
         if pixels and asym==False:
-            goal = np.transpose(goal, (2,0,1))
+
+            if eval==False:
+                goal = np.transpose(goal, (2,0,1))
+
             self._current_episode_goal['goal_state'].append(goal_state)
             idx_x = int(goal_state[0]*100)+29
             idx_y = int(goal_state[1]*100)+29
             self.goal_state_matrix[idx_x,idx_y]+=1
             
         elif pixels and asym:
+
             self._current_episode_goal['goal_state'].append(goal_state)
             idx_x = int(goal_state[0]*100)+29
             idx_y = int(goal_state[1]*100)+29
             self.goal_state_matrix[idx_x,idx_y]+=1
+
         self._current_episode_goal['goal'].append(goal)
 
         if time_step.last() or last:
@@ -228,7 +246,9 @@ class ReplayBufferStorage:
                 episode['goal_state'] = np.array(value, np.float64)
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
-            # print('storing episode, w/ goal')
+
+            if eval:
+                print('storing eval episode')
             
     def add_goal_general(self, time_step, state, meta, goal, goal_state, time_step_no_goal, pixels=False, last=False, asym=False, expert=False):
         #assert goal.shape[0]==9 and goal.shape[1]==84 and goal.shape[2]==84
@@ -411,7 +431,7 @@ class ReplayBufferStorage:
             self._current_episode_goal = defaultdict(list)
             self._store_episode(episode, actor1=True)
             # print('storing episode, w/ goal, proto')
-         
+
 
     def add_q(self, time_step, meta, q, task):
         for key, value in meta.items():
@@ -921,7 +941,6 @@ class ReplayBuffer(IterableDataset):
                 #reward += discount * discount * step_reward
                 discount *= episode["discount"][idx+i] * self._discount
         elif key <= self.hybrid_pct and self.goal_proto:
-            #import IPython as ipy; ipy.embed(colors='neutral')
             idx = np.random.randint(episode_len(episode)-self._nstep)+1
             obs = episode["observation"][idx-1]
             obs_state = episode["state"][idx-1]
@@ -1007,7 +1026,6 @@ class ReplayBuffer(IterableDataset):
         episode_fns = self._episode_fns1 + self._episode_fns2
         for eps_fn in episode_fns:
             final.append(self._episodes[eps_fn]['observation'])
-        #import IPython as ipy; ipy.embed(colors='neutral')
         if len(final)>0:
             final = torch.cat(final)
             return final

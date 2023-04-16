@@ -22,8 +22,8 @@ def ndim_grid(ndims, space):
     return np.hstack((np.meshgrid(*L))).swapaxes(0,1).reshape(ndims,-1).T
 
 def eval_proto_gc_only(cfg, agent, device, pwd, global_step, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False, 
+replay_storage_eval=None):
     print('eval_proto_gc_only')
     if global_step % 1000 == 0 and global_step!=0 and pmm:
         heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, global_step, gc=True, proto=False)
@@ -81,8 +81,8 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
     return proto_goals, proto_goals_state, proto_goals_dist
 
 def eval_proto(cfg, agent, device, pwd, global_step, global_frame, pmm, train_env, proto_goals, proto_goals_state, proto_goals_dist, dim, work_dir, 
-current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, mov_avg_5, mov_avg_10, 
-mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, eval=False, video_recorder=None, model_step=None, pretrained_agent=None):
+current_init, state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, eval=False, video_recorder=None, 
+model_step=None, pretrained_agent=None, replay_storage_eval=None, proto_uniformness=None, num_reached=None):
     if eval:
         # used for continue training 
         # finds the current init from buffer loaded in (reached goals of previous training)
@@ -189,8 +189,7 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
 
         with torch.no_grad():
             obs = ep['observation'][idx_]
-            # import IPython as ipy; ipy.embed(colors='neutral')
-            ##################
+
             # why is there an extra dim here
             if obs.shape[0] != 1:
                 obs = torch.as_tensor(obs.copy(), device=device).unsqueeze(0)
@@ -271,6 +270,9 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             img = np.transpose(img, (2, 0, 1))
             img = np.tile(img, (cfg.frame_stack, 1, 1))
             proto_goals[ix] = img
+    else:
+        proto_goals = None
+        proto_goals_state = None
 
     if pmm:
         filenames = []
@@ -339,11 +341,6 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
             file1 = work_dir / f"10nn_actual_prototypes_{global_step}.png"
             plt.savefig(file1)
             wandb.save(f"10nn_actual_prototypes_{global_step}.png")
-
-    ########################################################################
-    # TODO: implement tsne for non-pmm prototype eval?
-
-    #for non-pmm envs we want to visualize the prototypes
     
     if global_step % 100000 == 0 and pmm == False:
         eval_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
@@ -390,17 +387,40 @@ mov_avg_20, mov_avg_50, r_mov_avg_5, r_mov_avg_10, r_mov_avg_20, r_mov_avg_50, e
         # if cfg.debug:
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
         print('goal states', proto_goals_state)
-        if global_step!=0 or cfg.debug is False:
+        if global_step!=0:
             current_init = np.empty((0,4))
-            current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals)
+            current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval)
             assert type(current_init) is not tuple
         if pmm and cfg.debug is False:
             assert len(current_init.shape) == 2
         assert type(current_init) is not tuple
-        return current_init, proto_goals_state
+
+        # measure of uniform spread of prototypes 
+        if proto_goals_state is not None:
+            bin_count = 6
+            heatmap, xedges, yedges = np.histogram2d(proto_goals_state[:,1], proto_goals_state[:,2], bins=bin_count)
+            spread = np.array([[np.count_nonzero(heatmap)]])
+            # import IPython as ipy; ipy.embed(colors='neutral')
+            proto_uniformness = np.append(proto_uniformness, spread, axis=0)
+
+            #adds the number of goals reached to the array
+            num_reached = np.append(num_reached, np.array([[current_init.shape[0]]]), axis=0)
+        
+        assert num_reached.shape[0] == proto_uniformness.shape[0]
+
+        #save stats
+        print('proto_uniformness', proto_uniformness.shape)
+        if proto_uniformness.shape[0] > 1:
+            path = os.path.join(work_dir, 'measures_{}.csv'.format(global_step))
+            df = pd.DataFrame()
+            df[['proto_goal_uniformness']] = proto_uniformness
+            df[['num_reached']] = num_reached
+            df.to_csv(path, index=False)
+
+        return current_init, proto_goals_state, proto_uniformness, num_reached
 
 
-def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None):
+def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, replay_storage_eval=None):
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
     if goal_states is not None:
@@ -495,9 +515,15 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     # else:
                     #     time_step_goal = goal_pixels[ix]
 
-                video_recorder.init(eval_env, enabled=(episode == 0))
+                # video_recorder.init(eval_env, enabled=(episode == 0))
                 
                 while step != cfg.episode_length:
+
+                    if step < cfg.episode_length - 1:
+                        last_step = False
+                    else:
+                        last_step = True
+
                     with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
                             action = agent.act(time_step_no_goal.observation['pixels'],
@@ -523,8 +549,18 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
                     if cfg.obs_type == 'pixels':
                         time_step_no_goal = eval_env_no_goal.step(action)
+                        
+                        if cfg.velocity_control:
+                            replay_storage_eval.add_goal(time_step, time_step_goal, time_step_no_goal, goal_state, pixels=True, action=vel, last=last_step, eval=True)
+                        else:
+                            replay_storage_eval.add_goal(time_step, time_step_goal, time_step_no_goal, goal_state, pixels=True, last=last_step)
 
-                    video_recorder.record(eval_env)
+                            
+                    else:
+                        print('not using video recorder & buffer not implemented for states yet')
+                        raise NotImplementedError
+
+                    # video_recorder.record(eval_env)
                     total_reward += time_step.reward
                     if time_step.reward > 1.9 or total_reward > 50 * cfg.num_eval_episodes:
                         print('reward', time_step.reward)
@@ -544,9 +580,9 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     step += 1
                 episode += 1
 
-                if i == 0:
-                    #only save the random upper left starting point episodes
-                    video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
+                # if i == 0:
+                #     #only save the random upper left starting point episodes
+                #     video_recorder.save(f'{global_frame}_{ix}_{i}.mp4')
 
             df.loc[ix, 'x'] = x[0].round(2)
             df.loc[ix, 'y'] = x[1].round(2)
@@ -582,9 +618,9 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     # print('distance', distance)
     # print('path', path)
 
-    if eval_reached.shape[0] > old_len:
+    if eval_reached.shape[0] > old_len and cfg.debug is False:
         print('calling another eval')
-        eval_reached, reached = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels)
+        eval_reached, reached = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels, replay_storage_eval=replay_storage_eval)
     
     if cfg.offline_gc:
         return eval_reached, reached
@@ -795,7 +831,6 @@ def eval_intrinsic(cfg, agent, encoded, states, global_step):
         reward = agent.compute_intr_reward(encoded, None, global_step, eval=True)
 
     if cfg.proto_goal_intr:
-        #import IPython as ipy; ipy.embed(colors='neutral') 
         r, _ = torch.topk(reward,5,largest=True, dim=0)
 
     df = pd.DataFrame()
@@ -803,7 +838,6 @@ def eval_intrinsic(cfg, agent, encoded, states, global_step):
     df['y'] = states[:,1].round(2)
     df['r'] = reward.detach().clone().cpu().numpy()
     result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r'].round(2)
-    #import IPython as ipy; ipy.embed(colors='neutral')
     result.fillna(0, inplace=True)
     plt.clf()
     fig, ax = plt.subplots(figsize=(10,6))
