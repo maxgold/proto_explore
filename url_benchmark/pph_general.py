@@ -523,13 +523,13 @@ class Workspace:
                 print('model_step', model_step) 
                 self.current_init, self.proto_goals_state, self.proto_uniformness, self.num_reached = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=True, video_recorder=self.video_recorder, pretrained_agent=self.pretrained_agent, model_step=model_step, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
                 assert type(self.current_init) is not tuple
-                print('eval. current init', self.current_init)
-                print('proto goals state', self.proto_goals_state)
                 self.goal_loaded = True
+                print('eval. current init', self.current_init)
 
             elif self.goal_loaded is True and self.cfg.eval_proto_goals:
                 self.current_init, reached = eval_pmm(self.cfg, self.agent, self.current_init, self.video_recorder, self.global_step, self.global_frame, self.work_dir, goal_states=self.proto_goals_state, replay_storage_eval=self.replay_storage_eval)
                 assert type(self.current_init) is not tuple
+                print('eval. current init', self.current_init)
             else:
                 self.eval_reached = None
                 eval_pmm_stitch(self.cfg, self.agent, self.eval_reached, self.video_recorder, self.global_step, self.global_frame, self.work_dir)
@@ -537,10 +537,12 @@ class Workspace:
         elif self.cfg.gc_only is False and self.cfg.offline_gc:
             self.current_init, self.proto_goals_state, self.proto_uniformness, self.num_reached = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self.proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
             assert type(self.current_init) is not tuple
+            print('eval. current init', self.current_init)
         else:
             #TODO: get rid of moving avg 
             self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
             assert type(self.current_init) is not tuple
+            print('eval. current init', self.current_init)
 
     def train(self):
         # predicates
