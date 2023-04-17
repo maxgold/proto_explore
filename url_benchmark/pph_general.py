@@ -665,7 +665,7 @@ class Workspace:
                     episode_step += 1
                     self._global_step += 1
                     self.proto_step += 1
-            
+                    
             self.proto_step = 0 # reset proto_step
             print('gc_step: ', self.gc_step)
             while gc_train_until_step(self.gc_step):
@@ -685,6 +685,7 @@ class Workspace:
 
                 self._global_step += 1
                 self.gc_step += 1
+            
 
             self.gc_step =0
 
