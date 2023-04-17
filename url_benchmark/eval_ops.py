@@ -379,7 +379,7 @@ model_step=None, pretrained_agent=None, replay_storage_eval=None, proto_uniformn
             current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval, png_index=0)
             assert type(current_init) is not tuple
 
-            if current_init.shape[0] != proto_goals_state.shape[0]:
+            if current_init.shape[0] < proto_goals_state.shape[0]//2:
                 # if less than half of instric goals are reached, then evaluate all prototypes 
                 current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_rand_state, goal_pixels=proto_goals_rand, replay_storage_eval=replay_storage_eval, png_index=1)
                 assert type(current_init) is not tuple
