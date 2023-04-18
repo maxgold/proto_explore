@@ -515,7 +515,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
 
                 # video_recorder.init(eval_env, enabled=(episode == 0))
                 
-                while step != cfg.episode_length:
+                while step != cfg.eval_episode_length:
 
                     if step < cfg.episode_length - 1:
                         last_step = False
@@ -714,7 +714,7 @@ def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, globa
 
                 video_recorder.init(eval_env, enabled=(episode == 0))
                 
-                while step != cfg.episode_length:
+                while step != cfg.eval_episode_length:
                     with torch.no_grad(), utils.eval_mode(agent):
                         if cfg.obs_type == 'pixels':
                             action = agent.act(time_step_no_goal.observation['pixels'],
@@ -845,8 +845,8 @@ def eval_intrinsic(cfg, agent, encoded, states, global_step):
     with torch.no_grad():
         reward = agent.compute_intr_reward(encoded, None, global_step, eval=True)
 
-    if cfg.proto_goal_intr:
-        r, _ = torch.topk(reward,5,largest=True, dim=0)
+    #if cfg.proto_goal_intr:
+    r, _ = torch.topk(reward,5,largest=True, dim=0)
 
     df = pd.DataFrame()
     df['x'] = states[:,0].round(2)
@@ -864,5 +864,5 @@ def eval_intrinsic(cfg, agent, encoded, states, global_step):
     plt.savefig(f"./{global_step}_intr_reward.png")
     wandb.save(f"./{global_step}_intr_reward.png")
 
-    if cfg.proto_goal_intr:
-        return r, _
+    #if cfg.proto_goal_intr:
+    return r, _

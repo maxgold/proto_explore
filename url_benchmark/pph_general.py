@@ -614,7 +614,7 @@ class Workspace:
                         # try to save snapshot
                         # TODO
                         # check or change this snapshot saving code
-                        if self.global_frame in self.cfg.snapshots:
+                        if self.global_frame in self.cfg.snapshots or self.cfg.debug:
                             self.save_snapshot()
 
                         episode_step = 0
@@ -696,6 +696,7 @@ class Workspace:
                 # think about what else we need to save
 
     def save_snapshot(self):
+        import IPython as ipy; ipy.embed(colors='neutral')
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
         snapshot_dir.mkdir(exist_ok=True, parents=True)
         snapshot = snapshot_dir / f'snapshot_{self.global_frame}.pt'
