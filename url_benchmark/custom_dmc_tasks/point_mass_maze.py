@@ -384,66 +384,6 @@ def reach_custom_goal(
 
 
 @SUITE.add("benchmarking")
-def reach_custom_goal_vertical(
-    time_limit=_DEFAULT_TIME_LIMIT,
-    random=None,
-    init_state=None,
-    environment_kwargs=None,
-    goal=(0.15, -0.15),
-):
-    """Returns the Run task."""
-    assert abs(goal[0]) <= 0.29
-    assert abs(goal[1]) <= 0.29
-    goal = environment_kwargs.pop("goal", (0.15, -0.15))
-    xml = get_model_and_assets("reach_vertical")
-    #xml = get_model_and_assets("reach_ud_hs")
-    xml_str, xml_dict = xml
-    xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
-    xml_str = xml_str.split("\n")
-    xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
-    xml_str2 = xml_str2.encode("utf-8")
-    xml2 = xml_str2, xml_dict
-    physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
-    task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
-
-@SUITE.add("benchmarking")
-def reach_custom_goal_horizontal(
-    time_limit=_DEFAULT_TIME_LIMIT,
-    random=None,
-    init_state=None,
-    environment_kwargs=None,
-    goal=(0.15, -0.15),
-):
-    """Returns the Run task."""
-    assert abs(goal[0]) <= 0.29
-    assert abs(goal[1]) <= 0.29
-    goal = environment_kwargs.pop("goal", (0.15, -0.15))
-    xml = get_model_and_assets("reach_horizontal")
-    #xml = get_model_and_assets("reach_ud_hs")
-    xml_str, xml_dict = xml
-    xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
-    xml_str = xml_str.split("\n")
-    xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
-    xml_str2 = xml_str2.encode("utf-8")
-    xml2 = xml_str2, xml_dict
-    physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
-    task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
-    environment_kwargs = environment_kwargs or {}
-    return control.Environment(
-        physics, task, time_limit=time_limit, **environment_kwargs
-    )
-
-@SUITE.add("benchmarking")
 def reach_custom_goal_room(
     time_limit=_DEFAULT_TIME_LIMIT,
     random=None,
@@ -454,19 +394,34 @@ def reach_custom_goal_room(
     """Returns the Run task."""
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
+    #goal can also be a list of goals
+
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
     xml = get_model_and_assets("reach_room_no_goal")
-    #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
+    if goal.shape!= (2,):
+        new_targ_str_final = ''
+
+        for ix in range(goal.shape[0]):
+            new_targ_str = make_target_str(goal[ix][:2], ix)
+            new_targ_str = re.sub("\t", "    ", new_targ_str)
+            new_targ_str = '\n' + new_targ_str
+            new_targ_str_final += new_targ_str 
+
+        new_targ_str = new_targ_str_final
+        goal_np = np.r_[np.array([2.,2.]), 0.01]
+    else:
+        new_targ_str = make_target_str(goal)
+        new_targ_str = re.sub("\t", "    ", new_targ_str)
+        goal_np = np.r_[goal, 0.01]
+
     xml_str = xml_str.split("\n")
     xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
     xml_str2 = xml_str2.encode("utf-8")
     xml2 = xml_str2, xml_dict
     physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
+
     task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(
@@ -484,19 +439,33 @@ def reach_custom_goal_hard(
     """Returns the Run task."""
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
+    #goal can also be a list of goals
+
     goal = environment_kwargs.pop("goal", (0.15, -0.15))
     xml = get_model_and_assets("reach_hard_no_goal")
-    #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
+    if goal.shape!= (2,):
+        new_targ_str_final = ''
+
+        for ix in range(goal.shape[0]):
+            new_targ_str = make_target_str(goal[ix][:2], ix)
+            new_targ_str = re.sub("\t", "    ", new_targ_str)
+            new_targ_str = '\n' + new_targ_str
+            new_targ_str_final += new_targ_str 
+
+        new_targ_str = new_targ_str_final
+        goal_np = np.r_[np.array([2.,2.]), 0.01]
+    else:
+        new_targ_str = make_target_str(goal)
+        new_targ_str = re.sub("\t", "    ", new_targ_str)
+        goal_np = np.r_[goal, 0.01]
+
     xml_str = xml_str.split("\n")
     xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
     xml_str2 = xml_str2.encode("utf-8")
     xml2 = xml_str2, xml_dict
     physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
     task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(
@@ -514,19 +483,33 @@ def reach_custom_goal_hard2(
     """Returns the Run task."""
     assert abs(goal[0]) <= 0.29
     assert abs(goal[1]) <= 0.29
-    goal = environment_kwargs.pop("goal", (0.1, -0.1))
+    #goal can also be a list of goals
+
+    goal = environment_kwargs.pop("goal", (0.15, -0.15))
     xml = get_model_and_assets("reach_hard2_no_goal")
-    #xml = get_model_and_assets("reach_ud_hs")
     xml_str, xml_dict = xml
     xml_str = xml_str.decode("utf-8")
-    new_targ_str = make_target_str(goal)
-    new_targ_str = re.sub("\t", "    ", new_targ_str)
+    if goal.shape!= (2,):
+        new_targ_str_final = ''
+
+        for ix in range(goal.shape[0]):
+            new_targ_str = make_target_str(goal[ix][:2], ix)
+            new_targ_str = re.sub("\t", "    ", new_targ_str)
+            new_targ_str = '\n' + new_targ_str
+            new_targ_str_final += new_targ_str 
+
+        new_targ_str = new_targ_str_final
+        goal_np = np.r_[np.array([2.,2.]), 0.01]
+    else:
+        new_targ_str = make_target_str(goal)
+        new_targ_str = re.sub("\t", "    ", new_targ_str)
+        goal_np = np.r_[goal, 0.01]
+
     xml_str = xml_str.split("\n")
     xml_str2 = "\n".join([x if "target" not in x else new_targ_str for x in xml_str])
     xml_str2 = xml_str2.encode("utf-8")
     xml2 = xml_str2, xml_dict
     physics = Physics.from_xml_string(*xml2)
-    goal_np = np.r_[np.array(goal), 0.01]
     task = MultiTaskPointMassMaze(target_loc=goal_np, random=random, init_state=init_state)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(

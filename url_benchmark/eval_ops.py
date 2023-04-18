@@ -418,7 +418,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
     if goal_states is not None:
-        multigoal_env = dmc.make('point_mass_maze_reach_custom_goal', cfg.obs_type, cfg.frame_stack,
+        multigoal_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
                                         cfg.action_repeat, seed=None, goal=goal_states, camera_id=cfg.camera_id)
         plt.clf()
         time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
