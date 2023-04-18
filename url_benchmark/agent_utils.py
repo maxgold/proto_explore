@@ -43,7 +43,6 @@ global_step, gc=False, proto=False):
         wandb.save(f"./{global_step}_goal_state_heatmap.png")
 
     if proto:
-
         heatmap = state_visitation_proto
 
         plt.clf()
@@ -58,6 +57,7 @@ global_step, gc=False, proto=False):
 
         plt.clf()
         fig, ax = plt.subplots(figsize=(10, 6))
+
         sns.heatmap(np.log(1 + heatmap.T), cmap="Blues_r", cbar=False, ax=ax).invert_yaxis()
         ax.set_title(global_step)
 
