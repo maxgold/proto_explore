@@ -375,18 +375,22 @@ model_step=None, pretrained_agent=None, replay_storage_eval=None, proto_uniformn
         #     current_init = np.array([[-.25,.25,0.,0.], [-.1,.25,0.,0.], [-.1,.1,0.,0.], [-.25,.1,0.,0.]])
         print('goal states', proto_goals_state)
         if global_step!=0:
-            current_init = np.empty((0,4))
-            current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval, png_index=0)
-            assert type(current_init) is not tuple
-
-            if current_init.shape[0] < proto_goals_state.shape[0]//2:
-                # if less than half of instric goals are reached, then evaluate all prototypes 
+            if cfg.proto_goal_random:
                 current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_rand_state, goal_pixels=proto_goals_rand, replay_storage_eval=replay_storage_eval, png_index=1)
                 assert type(current_init) is not tuple
-
-                # now rerun the intrinsic goals that weren't reached
-                current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval, png_index=2)
+            else:
+                current_init = np.empty((0,4))
+                current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval, png_index=0)
                 assert type(current_init) is not tuple
+
+                if current_init.shape[0] < proto_goals_state.shape[0]//2:
+                    # if less than half of instric goals are reached, then evaluate all prototypes 
+                    current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_rand_state, goal_pixels=proto_goals_rand, replay_storage_eval=replay_storage_eval, png_index=1)
+                    assert type(current_init) is not tuple
+
+                    # now rerun the intrinsic goals that weren't reached
+                    current_init, reached = eval_pmm(cfg, agent, current_init, video_recorder, global_step, global_frame, work_dir, goal_states=proto_goals_state, goal_pixels=proto_goals, replay_storage_eval=replay_storage_eval, png_index=2)
+                    assert type(current_init) is not tuple
 
         if pmm and cfg.debug is False:
             assert len(current_init.shape) == 2
@@ -601,7 +605,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             df.loc[ix, 'y'] = x[1].round(2)
             df.loc[ix, 'r'] = total_reward
 
-        multigoal_env = dmc.make('point_mass_maze_reach_custom_goal', cfg.obs_type, cfg.frame_stack,
+        multigoal_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
                                         cfg.action_repeat, seed=None, goal=eval_reached, camera_id=cfg.camera_id)
         
         plt.clf()
