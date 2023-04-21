@@ -197,7 +197,6 @@ class ActionDTypeWrapper(dm_env.Environment):
                                                'action')
 
     def step(self, action):
-        #import IPython as ipy; ipy.embed(colors='neutral')
         action = action.astype(self._env.action_spec().dtype)
         return self._env.step(action)
 
@@ -258,7 +257,6 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 
     def step(self, action):
         time_step = self._env.step(action)
-        #import IPython as ipy; ipy.embed(colors='neutral')
         return self._augment_time_step(time_step, action)
 
     def _augment_time_step(self, time_step, action=None):

@@ -421,6 +421,9 @@ model_step=None, pretrained_agent=None, replay_storage_eval=None, proto_uniformn
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, replay_storage_eval=None, png_index=None):
     #every time we evaluate, we will start from upper left corner and from all the current inits
     #current init will be reset to reachable goals after this function 
+
+    #eval_reached: used as initial point for evaluation and also used to delete redundant goals in goal_states
+
     if goal_states is not None:
         multigoal_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
                                         cfg.action_repeat, seed=None, goal=goal_states, camera_id=cfg.camera_id)
@@ -436,6 +439,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     df = pd.DataFrame(columns=['x', 'y', 'r'], dtype=np.float64)
     print('eval reached', eval_reached)
     old_len = eval_reached.shape[0]
+    old_reached = eval_reached
     #making this into a recursive function
 
     rand_init = np.random.uniform(.25, .29, (1, 4))
@@ -443,15 +447,16 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     
     if eval_reached.shape[0] > 0:
         rand_init = np.append(rand_init, eval_reached, axis=0)
-    print('rand init', rand_init)
+    print('inits', rand_init)
     vertex_count = 0 
 
     if png_index == 2:
         #indicating this is the final evaluation of the intrinsic goals
-        current_init = np.empty((0,4))
+        init_final = np.empty((0,4))
 
     if cfg.debug:
         rand_init = rand_init[:2]
+    
     for i, init in enumerate(rand_init):
         #uncomment when we need to save the graph
         # i = i + vertex_count
@@ -566,6 +571,7 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                     total_reward += time_step.reward
                     if time_step.reward > 1.9 or total_reward > 50 * cfg.num_eval_episodes:
                         print('reward', time_step.reward)
+
                         #uncomment when we need to save the graph
                         # goal_idx = np.where((rand_init == x).all(axis=1))[0]
                         # if len(goal_idx) > 0:
@@ -575,18 +581,10 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
                         #     vertex_count += 1
                         #     reached.add_vertex(i+1)
                         #     reached.add_edge(i, i+1, step)
-                        if png_index != 2:
-                            #if this is not the final eval 
-                            eval_reached = np.append(eval_reached, x[None,:], axis=0)
-                            eval_reached = np.unique(eval_reached, axis=0)
-                        else:
-                            #otherwise, we only will pass back the reached goals for this final eval of intrinsic goals as current_init
-                            #keeing the eval reached here just for the multigoal png below 
-                            eval_reached = np.append(eval_reached, x[None,:], axis=0)
-                            eval_reached = np.unique(eval_reached, axis=0)
-                            
-                            current_init = np.append(current_init, x[None,:], axis=0)
-                            current_init = np.unique(current_init, axis=0)
+
+
+                        eval_reached = np.append(eval_reached, x[None,:], axis=0)
+                        eval_reached = np.unique(eval_reached, axis=0)
 
                         if last_step is False:
                             if cfg.velocity_control:
@@ -605,14 +603,6 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
             df.loc[ix, 'y'] = x[1].round(2)
             df.loc[ix, 'r'] = total_reward
 
-        multigoal_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
-                                        cfg.action_repeat, seed=None, goal=eval_reached, camera_id=cfg.camera_id)
-        
-        plt.clf()
-        time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
-                                                                camera_id=cfg.camera_id)
-        plt.imsave(f"reached_goals_{global_step}_{png_index}.png", time_step_multigoal)
-        wandb.save(f"reached_goals_{global_step}_{png_index}.png")
 
         # result = df.groupby(['x', 'y'], as_index=True).max().unstack('x')['r']/2
         # result.fillna(0, inplace=True)
@@ -635,14 +625,31 @@ def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame
     # print('distance', distance)
     # print('path', path)
 
-    if eval_reached.shape[0] > old_len and cfg.debug is False:
-        print('calling another eval')
-        eval_reached, reached = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels, replay_storage_eval=replay_storage_eval)
+    if eval_reached.shape[0] > old_len:
+        print('calling another eval, png_index=None so only saves newly reached goal as eval_reached')
+        new_reached, _ = eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=goal_states, goal_pixels=goal_pixels, replay_storage_eval=replay_storage_eval)
     
-    if cfg.offline_gc and png_index != 2:
-        return eval_reached, reached
-    else:
-        return current_init, reached
+        eval_reached = np.append(eval_reached, new_reached, axis=0)
+
+        index = np.where(((np.linalg.norm(eval_reached[:, None, :] - old_reached[None, :, :], axis=-1, ord=2)) < .005))
+        index = np.unique(index[0])
+        eval_reached = np.delete(eval_reached, index, axis=0)
+        
+        eval_reached = np.unique(eval_reached, axis=0)
+
+    if png_index is not None:
+        multigoal_env = dmc.make(cfg.task, cfg.obs_type, cfg.frame_stack,
+                                            cfg.action_repeat, seed=None, goal=eval_reached, camera_id=cfg.camera_id)
+            
+        plt.clf()
+        time_step_multigoal = multigoal_env._env.physics.render(height=84, width=84,
+                                                                camera_id=cfg.camera_id)
+        plt.imsave(f"reached_goals_{global_step}_{png_index}.png", time_step_multigoal)
+        wandb.save(f"reached_goals_{global_step}_{png_index}.png")
+        
+    print('inits', rand_init)
+    print('reached', eval_reached)
+    return eval_reached, reached
 
 def eval_pmm_stitch(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, offline_gc=False):
     #every time we evaluate, we will start from upper left corner and from all the current inits
