@@ -79,6 +79,8 @@ class DDPGAgent:
         self.init_from_ddpg = init_from_ddpg
         self.pretrained_feature_dim = pretrained_feature_dim
         self.scale = scale
+        self.reached_goals = None
+        self.reached_goals_graph = None
         if self.init_from_ddpg or self.init_from_proto:
             self.feature_dim = self.pretrained_feature_dim
         if self.inv:

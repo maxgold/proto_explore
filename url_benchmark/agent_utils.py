@@ -10,7 +10,7 @@ import wandb
 
 
 def heatmaps(state_visitation_gc, reward_matrix_gc, goal_state_matrix, state_visitation_proto, proto_goals_matrix, 
-global_step, gc=False, proto=False):
+global_step, gc=False, proto=False, v_queue_ptr=None, v_queue=None):
     # this only works for 2D mazesf
 
     if gc:
@@ -99,6 +99,25 @@ global_step, gc=False, proto=False):
 
         #     plt.savefig(f"gc_reward_moving_avg_{global_step}.png")
         #     wandb.save(f"gc_reward_moving_avg_{global_step}.png")
+
+def save_stats_visitation(cfg, work_dir, global_step, state_visitation_proto, v_queue_ptr, v_queue):
+    
+    total_v = np.count_nonzero(state_visitation_proto)
+    v_ptr = v_queue_ptr
+    v_queue[v_ptr] = total_v
+    v_queue_ptr = (v_ptr+1) % v_queue.shape[0]
+    if cfg.debug:
+        every = 1000
+    else:
+        every = 100000
+
+    if global_step%every==0:
+        df = pd.DataFrame()
+        # import IPython as ipy; ipy.embed(colors='neutral')
+        df[['visitation']] = v_queue
+        path = os.path.join(work_dir, 'exploration_{}_{}.csv'.format(str(cfg.agent.name),global_step))
+        df.to_csv(path, index=False)
+    return v_queue_ptr, v_queue
 
             
 def save_stats(cfg, work_dir, global_step, state_visitation_proto, reward_matrix_gc, pmm, v_queue_ptr, v_queue, r_queue_ptr, r_queue, count, 

@@ -458,6 +458,9 @@ class Workspace:
         self.proto_step = 0
         self.proto_uniformness = np.empty((0,1))
         self.num_reached = np.empty((0,1))
+        self.v_queue_ptr = 0
+        self.v_queue = np.empty((int(self.cfg.num_train_frames/1000),1))
+        self.v_ptr = 0
 
         self.switch_gc = self.cfg.switch_gc
 
@@ -543,6 +546,7 @@ class Workspace:
             self.current_init, self.proto_goals, self.proto_goals_state, self.proto_goals_dist = eval_proto(self.cfg, self.agent, self.device, self.pwd, self.global_step, self.global_frame, self.pmm, self.train_env, self.proto_goals, self. proto_goals_state, self.proto_goals_dist, self.dim, self.work_dir, self.current_init, self.replay_storage1.state_visitation_gc, self.replay_storage1.reward_matrix, self.replay_storage1.goal_state_matrix, self.replay_storage.state_visitation_proto, self.proto_goals_matrix, eval=eval, video_recorder=self.video_recorder, replay_storage_eval=self.replay_storage_eval, proto_uniformness=self.proto_uniformness, num_reached=self.num_reached)
             assert type(self.current_init) is not tuple
             print('eval. current init', self.current_init)
+        
 
     def train(self):
         # predicates
@@ -612,14 +616,14 @@ class Workspace:
                             self.replay_storage.add(time_step, self.train_env.physics.get_state(), meta, True, last=True, pmm=self.pmm)
 
                         # try to save snapshot
-                        # TODO
-                        # check or change this snapshot saving code
-                        if self.global_frame in self.cfg.snapshots or self.cfg.debug:
-                            self.save_snapshot()
+                        # if self.global_frame in self.cfg.snapshots or self.cfg.debug:
+                        #     self.save_snapshot()
 
                         episode_step = 0
                         episode_reward = 0
 
+                    if self.global_step % 1000 == 0:
+                        self.v_queue_ptr, self.v_queue = save_stats_visitation(self.cfg, self.work_dir, self.global_step, self.replay_storage.state_visitation_proto, self.v_queue_ptr, self.v_queue)
 
                     meta = self.agent.update_meta(meta, self.global_step, time_step)
                     # sample action
@@ -660,6 +664,7 @@ class Workspace:
                 if self.gc_step == (self.cfg.num_gc_train_frames//self.cfg.action_repeat)-1:
                     # try to evaluate
                     self.evaluate()
+                    self.save_snapshot()
 
                 metrics = self.agent.update(self.replay_iter1, self.global_step, actor1=True)
                 self.logger.log_metrics(metrics, self.global_step, ty="train")
@@ -674,26 +679,23 @@ class Workspace:
                 self._global_step += 1
                 self.gc_step += 1
             
-
             self.gc_step =0
 
+            # if self._global_step % 200000 == 0 and self._global_step != 0:
+            #     print('saving agent')
+            #     path = os.path.join(self.work_dir,
+            #                         'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name), self._global_step))
+            #     torch.save(self.agent, path)
 
-            if self._global_step % 200000 == 0 and self._global_step != 0:
-                print('saving agent')
-                path = os.path.join(self.work_dir,
-                                    'optimizer_{}_{}.pth'.format(str(self.cfg.agent.name), self._global_step))
-                torch.save(self.agent, path)
+            #     path_goal1 = os.path.join(self.work_dir,
+            #                               'goal_graphx_{}_{}.csv'.format(str(self.cfg.agent.name), self._global_step))
+            #     df1 = pd.DataFrame(self.reached_goals[0])
+            #     df1.to_csv(path_goal1, index=False)
+            #     path_goal2 = os.path.join(self.work_dir,
+            #                               'goal_graphy_{}_{}.csv'.format(str(self.cfg.agent.name), self._global_step))
+            #     df2 = pd.DataFrame(self.reached_goals[1])
+            #     df2.to_csv(path_goal2, index=False)
 
-                path_goal1 = os.path.join(self.work_dir,
-                                          'goal_graphx_{}_{}.csv'.format(str(self.cfg.agent.name), self._global_step))
-                df1 = pd.DataFrame(self.reached_goals[0])
-                df1.to_csv(path_goal1, index=False)
-                path_goal2 = os.path.join(self.work_dir,
-                                          'goal_graphy_{}_{}.csv'.format(str(self.cfg.agent.name), self._global_step))
-                df2 = pd.DataFrame(self.reached_goals[1])
-                df2.to_csv(path_goal2, index=False)
-                # TODO
-                # think about what else we need to save
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / Path(self.cfg.snapshot_dir)
