@@ -417,8 +417,6 @@ model_step=None, pretrained_agent=None, replay_storage_eval=None, proto_uniformn
             df[['num_reached']] = num_reached
             df.to_csv(path, index=False)
         
-        self.agent.reached_goals = current_init
-        self.agent.reached_goals_graph = reached
         return current_init, proto_goals_state, proto_uniformness, num_reached
 
 def eval_pmm(cfg, agent, eval_reached, video_recorder, global_step, global_frame, work_dir, goal_states=None, goal_pixels=None, replay_storage_eval=None, png_index=None):
