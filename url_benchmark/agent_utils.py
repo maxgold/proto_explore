@@ -117,6 +117,15 @@ def save_stats_visitation(cfg, work_dir, global_step, state_visitation_proto, v_
         df[['visitation']] = v_queue
         path = os.path.join(work_dir, 'exploration_{}_{}.csv'.format(str(cfg.agent.name),global_step))
         df.to_csv(path, index=False)
+    
+    #plots 
+    plt.clf()
+    fig, ax = plt.subplots(figsize=(15, 5))
+    ax.plot(np.arange(0, v_queue.shape[0]), v_queue)
+    file1 = work_dir / f"exploration_{global_step}.png"
+    plt.savefig(file1)
+    wandb.save(f"exploration_{global_step}.png")
+    print('explorationnnnnnnnnnnnnnnnnnnnn v_queue', v_queue[v_queue_ptr-1])
     return v_queue_ptr, v_queue
 
             
