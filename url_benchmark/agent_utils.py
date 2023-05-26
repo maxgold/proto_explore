@@ -103,9 +103,12 @@ global_step, gc=False, proto=False, v_queue_ptr=None, v_queue=None):
 def save_stats_visitation(cfg, work_dir, global_step, state_visitation_proto, v_queue_ptr, v_queue):
     
     total_v = np.count_nonzero(state_visitation_proto)
+    print('total_v', total_v)
+    print('state visitation proto', state_visitation_proto)
     v_ptr = v_queue_ptr
     v_queue[v_ptr] = total_v
     v_queue_ptr = (v_ptr+1) % v_queue.shape[0]
+
     if cfg.debug:
         every = 1000
     else:
@@ -115,16 +118,16 @@ def save_stats_visitation(cfg, work_dir, global_step, state_visitation_proto, v_
         df = pd.DataFrame()
         # import IPython as ipy; ipy.embed(colors='neutral')
         df[['visitation']] = v_queue
-        path = os.path.join(work_dir, 'exploration_{}_{}.csv'.format(str(cfg.agent.name),global_step))
+        path = os.path.join(work_dir, 'exploration_{}.csv'.format(str(cfg.agent.name)))
         df.to_csv(path, index=False)
     
     #plots 
     plt.clf()
     fig, ax = plt.subplots(figsize=(15, 5))
     ax.plot(np.arange(0, v_queue.shape[0]), v_queue)
-    file1 = work_dir / f"exploration_{global_step}.png"
+    file1 = work_dir / f"exploration.png"
     plt.savefig(file1)
-    wandb.save(f"exploration_{global_step}.png")
+    wandb.save(f"exploration.png")
     print('explorationnnnnnnnnnnnnnnnnnnnn v_queue', v_queue[v_queue_ptr-1])
     return v_queue_ptr, v_queue
 
